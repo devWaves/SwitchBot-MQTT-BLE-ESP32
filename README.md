@@ -5,7 +5,7 @@ https://github.com/devWaves/SwitchBot-MQTT-BLE-ESP32
 Code can be installed using Arduino IDE for ESP32
 Allows for 2 switchbots buttons to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
 
-v0.1
+v0.2
 
 Created: on March 1 2021
 Author: devWaves
