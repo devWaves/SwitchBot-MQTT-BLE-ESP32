@@ -1,29 +1,30 @@
-
 /** SwitchBot-MQTT-BLE-ESP32:
 
-	https://github.com/devWaves/SwitchBot-MQTT-BLE-ESP32
-	
-    Code can be installed using Arduino IDE for ESP32
-	Allows for 2 switchbots buttons to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
-	
-	v0.1
+  https://github.com/devWaves/SwitchBot-MQTT-BLE-ESP32
 
-    Created: on March 1 2021
+    Code can be installed using Arduino IDE for ESP32
+  Allows for 2 switchbots buttons to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
+
+  v0.2
+
+    Created: on March 3 2021
         Author: devWaves
 
-	based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
-	
-	Notes: 
-		- Good for placing one ESP32 in a zone with 1 or 2 devices that has a bad bluetooth signal from your smart hub. MQTT will use Wifi to "boost" the bluetooth signal
-	
-		- This is currently only setup for button PUSH. Code can easily be adapted for on/off. You can use the switchbot app to configure your switchbots, the code can be setup for this but is not currently 
-	
-		- ESP32 bluetooth is pretty strong and one ESP32 can work for entire house. The code will try around 60 times to connect/push button. It should not need this many but it depends on ESP32 bluetooth signal to switchbots. If one alone doesn't work, get another esp32 and place it in the problem area
-		
+  based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
+
+  Notes:
+    - Good for placing one ESP32 in a zone with 1 or 2 devices that has a bad bluetooth signal from your smart hub. MQTT will use Wifi to "boost" the bluetooth signal
+
+    - This is currently only setup for button PUSH. Code can easily be adapted for on/off. You can use the switchbot app to configure your switchbots, the code can be setup for this but is not currently
+
+    - ESP32 bluetooth is pretty strong and one ESP32 can work for entire house. The code will try around 60 times to connect/push button. It should not need this many but it depends on ESP32 bluetooth signal to switchbots. If one alone doesn't work, get another esp32 and place it in the problem area
+
 */
 
 #include <NimBLEDevice.h>
 #include "EspMQTTClient.h"
+
+/****************** CONFIGURATIONS TO CHANGE *******************/
 
 EspMQTTClient client(
   "SSID",
@@ -33,18 +34,19 @@ EspMQTTClient client(
   "MQTTPassword",   // Can be omitted if not needed
   "ESPMQTT"      // Client name that uniquely identify your device
 );
+static NimBLEAddress switchBotOneAddress = NimBLEAddress ("XX:XX:XX:XX:XX:XX");
+static NimBLEAddress switchBotTwoAddress = NimBLEAddress ("YY:YY:YY:YY:YY:YY");
+static String switbotOneTopic = "switchbotone";
+static String switbotTwoTopic = "switchbottwo";
+
+/*************************************************************/
 
 void scanEndedCB(NimBLEScanResults results);
 static NimBLEAdvertisedDevice* advDeviceSwitchBotOne;
 static NimBLEAdvertisedDevice* advDeviceSwitchBotTwo;
 static NimBLEScan* pScan;
-
 static bool isScanning;
 static uint32_t scanTime = 10; /** 0 = scan forever */
-static NimBLEAddress switchBotOneAddress = NimBLEAddress ("XX:XX:XX:XX:XX:XX");
-static String switbotOneTopic = "switchbotone";
-static NimBLEAddress switchBotTwoAddress = NimBLEAddress ("YY:YY:YY:YY:YY:YY");
-static String switbotTwoTopic = "switchbottwo";
 
 /**  None of these are required as they will be handled by the library with defaults. **
  **                       Remove as you see fit for your needs                        */
@@ -180,82 +182,133 @@ void setup () {
   pScan->start(20, scanEndedCB);
 }
 
-
 void loop () {
   /** Loop here until we find a device we want to connect to */
   client.loop();
 }
 
-
-void pushButton(NimBLEAdvertisedDevice* advDeviceToUse, String deviceTopic) {
-  if (advDeviceToUse == NULL) {
-    isScanning = true;
-    pScan->start(10, scanEndedCB);
-  }
-  bool isConnected = false;
-  int count = 0;
-  bool shouldContinue = true;
+void pushButtonOne() {
+  int count = 1;
+  bool shouldContinue = (advDeviceSwitchBotOne == NULL);
   while (shouldContinue) {
-    if (count > 1) {
-      delay(100);
-    }
-    isConnected = connectToServer(advDeviceToUse);
-    count++;
-    if (isConnected) {
+    if (count > 3) {
       shouldContinue = false;
-      client.publish("switchbotMQTT/" + deviceTopic + "/status", "connected");
     }
     else {
-      if (count > 60) {
-        shouldContinue = false;
-        client.publish("switchbotMQTT/" + deviceTopic + "/status", "errorConnect");
+      count++;
+      isScanning = true;
+      pScan->start(5 * count, scanEndedCB);
+      while (isScanning) {
+        Serial.println("Scanning#" + count);
+        delay(1000);
       }
+      shouldContinue = (advDeviceSwitchBotOne == NULL);
     }
   }
-  
-  count = 0;
-  if (isConnected) {
-    shouldContinue = true;
-    bool isPushed;
+  if (advDeviceSwitchBotOne == NULL)
+  {
+    client.publish("switchbotMQTT/" + switbotOneTopic + "/status", "errorLocatingDevice");
+    delay(500);
+    client.publish("switchbotMQTT/" + switbotOneTopic + "/status", "idle");
+  }
+  else {
+    pushButton(advDeviceSwitchBotOne, switbotOneTopic);
+  }
+}
+
+void pushButtonTwo() {
+  int count = 1;
+  bool shouldContinue = (advDeviceSwitchBotTwo == NULL);
+  while (shouldContinue) {
+    if (count > 3) {
+      shouldContinue = false;
+    }
+    else {
+      count++;
+      isScanning = true;
+      pScan->start(5 * count, scanEndedCB);
+      while (isScanning) {
+        Serial.println("Scanning#" + count);
+        delay(1000);
+      }
+      shouldContinue = (advDeviceSwitchBotTwo == NULL);
+    }
+  }
+  if (advDeviceSwitchBotTwo == NULL)
+  {
+    client.publish("switchbotMQTT/" + switbotTwoTopic + "/status", "errorLocatingDevice");
+    delay(500);
+    client.publish("switchbotMQTT/" + switbotTwoTopic + "/status", "idle");
+  }
+  else {
+    pushButton(advDeviceSwitchBotTwo, switbotTwoTopic);
+  }
+}
+
+void pushButton(NimBLEAdvertisedDevice* advDeviceToUse, String deviceTopic) {
+  if (advDeviceToUse != NULL)
+  {
+    bool isConnected = false;
+    int count = 0;
+    bool shouldContinue = true;
     while (shouldContinue) {
       if (count > 1) {
         delay(100);
       }
-      isPushed = sendButtonPush(advDeviceToUse);
+      isConnected = connectToServer(advDeviceToUse);
       count++;
-      if (isPushed) {
+      if (isConnected) {
         shouldContinue = false;
-        client.publish("switchbotMQTT/" + deviceTopic + "/status", "pushed");
+        client.publish("switchbotMQTT/" + deviceTopic + "/status", "connected");
       }
       else {
-        connectToServer(advDeviceToUse);
         if (count > 60) {
           shouldContinue = false;
-          client.publish("switchbotMQTT/" + deviceTopic + "/status", "errorPush");
+          client.publish("switchbotMQTT/" + deviceTopic + "/status", "errorConnect");
         }
       }
     }
+    count = 0;
+    if (isConnected) {
+      shouldContinue = true;
+      bool isPushed;
+      while (shouldContinue) {
+        if (count > 1) {
+          delay(100);
+        }
+        isPushed = sendButtonPush(advDeviceToUse);
+        count++;
+        if (isPushed) {
+          shouldContinue = false;
+          client.publish("switchbotMQTT/" + deviceTopic + "/status", "pushed");
+        }
+        else {
+          if (count > 60) {
+            shouldContinue = false;
+            client.publish("switchbotMQTT/" + deviceTopic + "/status", "errorPush");
+          }
+        }
+      }
+    }
+    delay(500);
+    client.publish("switchbotMQTT/" + deviceTopic + "/status", "idle");
   }
-
-  delay(500);
-  client.publish("switchbotMQTT/" + deviceTopic + "/status", "idle");
-
 }
 
 void onConnectionEstablished() {
   client.subscribe("switchbotMQTT/" + switbotOneTopic + "/push", [] (const String & payload)  {
     while (isScanning) {
-      delay(100);
+      delay(1000);
     }
     Serial.println("Got " + switbotOneTopic + " MQTT push");
-    pushButton(advDeviceSwitchBotOne, switbotOneTopic );
+    pushButtonOne();
   });
   client.subscribe("switchbotMQTT/" + switbotTwoTopic + "/push", [] (const String & payload)  {
     while (isScanning) {
-      delay(100);
+      delay(1000);
     }
     Serial.println("Got " + switbotTwoTopic + " MQTT push");
-    pushButton(advDeviceSwitchBotTwo, switbotTwoTopic );
+    pushButtonTwo();
   });
 }
 
@@ -304,7 +357,7 @@ bool connectToServer(NimBLEAdvertisedDevice* advDeviceToUse) {
     */
     pClient->setConnectionParams(12, 12, 0, 51);
     /** Set how long we are willing to wait for the connection to complete (seconds), default is 30. */
-    pClient->setConnectTimeout(5);
+    pClient->setConnectTimeout(10);
 
   }
 
@@ -324,30 +377,13 @@ bool connectToServer(NimBLEAdvertisedDevice* advDeviceToUse) {
   return true;
 }
 
-bool sendButtonPush(NimBLEAdvertisedDevice* advDeviceToUse) {
+//Currently not used
+bool registerNotify(NimBLEAdvertisedDevice* advDeviceToUse) {
   /** Assumes device is already connected*/
   NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
   /** Now we can read/write/subscribe the charateristics of the services we are interested in */
   NimBLERemoteService* pSvc = nullptr;
   NimBLERemoteCharacteristic* pChr = nullptr;
-  NimBLERemoteDescriptor* pDsc = nullptr;
-
-  pSvc = pClient->getService((uint16_t) 0x1800); // GENERIC ACCESS service
-  if (pSvc) {    /** make sure it's not null */
-    pChr = pSvc->getCharacteristic((uint16_t) 0x2a00); // DEVICE NAME characteristic
-  }
-
-  if (pChr) {    /** make sure it's not null */
-    if (pChr->canRead()) {
-      Serial.print(pChr->getUUID().toString().c_str());
-      Serial.print(" Value: ");
-      Serial.println(pChr->readValue().c_str()); // should return WoHand
-    }
-  }
-
-  else {
-    Serial.println("GENERIC ACCESS service not found.");
-  }
 
   pSvc = pClient->getService("cba20d00-224d-11e6-9fb8-0002a5d5c51b"); // custom device service
 
@@ -368,11 +404,20 @@ bool sendButtonPush(NimBLEAdvertisedDevice* advDeviceToUse) {
   else {
     Serial.println("CUSTOM notify service not found.");
   }
+}
 
+//Currently not used
+bool getSettings(NimBLEAdvertisedDevice* advDeviceToUse) {
+  /** Assumes device is already connected*/
+  NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
+  /** Now we can read/write/subscribe the charateristics of the services we are interested in */
+  NimBLERemoteService* pSvc = nullptr;
+  NimBLERemoteCharacteristic* pChr = nullptr;
+
+  pSvc = pClient->getService("cba20d00-224d-11e6-9fb8-0002a5d5c51b"); // custom device service
   if (pSvc) {    /** make sure it's not null */
     pChr = pSvc->getCharacteristic("cba20002-224d-11e6-9fb8-0002a5d5c51b"); // custom characteristic to write
   }
-
   if (pChr) {    /** make sure it's not null */
     if (pChr->canWrite()) {
       byte bArray[] = {0x57, 0x02}; // write to get settings of device
@@ -387,10 +432,53 @@ bool sendButtonPush(NimBLEAdvertisedDevice* advDeviceToUse) {
       }
     }
   }
-
   else {
     Serial.println("CUSTOM write service not found.");
+    pClient->disconnect();
+    return false;
   }
+}
+
+//Currently not used
+bool getDeviceInfo(NimBLEAdvertisedDevice* advDeviceToUse) {
+  /** Assumes device is already connected*/
+  if (advDeviceToUse == NULL) {
+    return false;
+  }
+  NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
+  /** Now we can read/write/subscribe the charateristics of the services we are interested in */
+  NimBLERemoteService* pSvc = nullptr;
+  NimBLERemoteCharacteristic* pChr = nullptr;
+
+  pSvc = pClient->getService((uint16_t) 0x1800); // GENERIC ACCESS service
+  if (pSvc) {    /** make sure it's not null */
+    pChr = pSvc->getCharacteristic((uint16_t) 0x2a00); // DEVICE NAME characteristic
+  }
+  if (pChr) {    /** make sure it's not null */
+    if (pChr->canRead()) {
+      Serial.print(pChr->getUUID().toString().c_str());
+      Serial.print(" Value: ");
+      Serial.println(pChr->readValue().c_str()); // should return WoHand
+    }
+  }
+  else {
+    Serial.println("GENERIC ACCESS service not found.");
+    pClient->disconnect();
+    return false;
+  }
+}
+
+bool sendButtonPush(NimBLEAdvertisedDevice* advDeviceToUse) {
+  /** Assumes device is already connected*/
+  if (advDeviceToUse == NULL) {
+    return false;
+  }
+  NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
+  /** Now we can read/write/subscribe the charateristics of the services we are interested in */
+  NimBLERemoteService* pSvc = nullptr;
+  NimBLERemoteCharacteristic* pChr = nullptr;
+
+  pSvc = pClient->getService("cba20d00-224d-11e6-9fb8-0002a5d5c51b"); // custom device service
 
   if (pSvc) {    /** make sure it's not null */
     pChr = pSvc->getCharacteristic("cba20002-224d-11e6-9fb8-0002a5d5c51b"); // custom characteristic to write
@@ -414,6 +502,8 @@ bool sendButtonPush(NimBLEAdvertisedDevice* advDeviceToUse) {
   }
   else {
     Serial.println("CUSTOM write service not found.");
+    pClient->disconnect();
+    return false;
   }
   Serial.println("Done with this device!");
   return true;
