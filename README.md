@@ -25,8 +25,10 @@ Steps
 
 1. Install Arduino IDE
 2. Setup IDE for proper ESP32 type
-3. Modify code for your Wifi and MQTT configurations and SwitchBot MAC address
-4. Compile and upload to ESP32 (I am using Wemos D1 Mini ESP32)
-5. Reboot ESP32
-6. To push the button, send any MQTT message payload switchbotMQTT/switchbotone/push    or  switchbotMQTT/switchbottwo/push
-7. Watch for MQTT traffic on switchbotMQTT/#
+	- Install NimBLEDevice library
+	- Install EspMQTTClient library
+4. Modify code for your Wifi and MQTT configurations and SwitchBot MAC address
+5. Compile and upload to ESP32 (I am using Wemos D1 Mini ESP32)
+6. Reboot ESP32
+7. To push the button, send any MQTT message payload switchbotMQTT/switchbotone/push    or  switchbotMQTT/switchbottwo/push
+8. Watch for MQTT traffic on switchbotMQTT/#
