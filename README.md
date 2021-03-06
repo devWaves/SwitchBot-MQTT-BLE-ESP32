@@ -33,5 +33,5 @@ Notes:
     ESP32 will respond with MQTT on
       -switchbotMQTT/#
 
-      Examples:
-      -switchbotMQTT/switchbotone/status/
+    Examples:
+     -switchbotMQTT/switchbotone/status/
