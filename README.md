@@ -1,4 +1,4 @@
-SwitchBot-MQTT-BLE-ESP32:
+**SwitchBot-MQTT-BLE-ESP32**
 
 Switchbot local control using ESP32. no switchbot hub used/required. works with any smarthub that supports MQTT
 
@@ -21,8 +21,8 @@ Notes:
  - Good for placing one ESP32 in a zone with 1 or 2 devices that has a bad bluetooth signal from your smart hub. MQTT will use Wifi to "boost" the bluetooth signal
  - ESP32 bluetooth is pretty strong and one ESP32 can work for entire house. The code will try around 60 times to connect/push button. It should not need this many but it depends on ESP32 bluetooth signal to switchbots. If one alone doesn't work, get another esp32 and place it in the problem area
 
-**ESP32 will Suscribe to MQTT topics**
- -switchbotMQTT/control
+**ESP32 will Suscribe to MQTT topics...**
+- switchbotMQTT/control
 
 send a JSON payload of the device you want to control (device = device to control) (value = string value)
 Value can equal...
@@ -39,8 +39,8 @@ example payloads
 - {"device":"switchbotone","value":"open"}
 - {"device":"switchbotone","value":"50"}
   
-**ESP32 will respond with MQTT on**
--switchbotMQTT/#
+**ESP32 will respond with MQTT on...**
+- switchbotMQTT/#
 
 Example reponses:
 switchbotMQTT/switchbotone/status
