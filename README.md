@@ -56,6 +56,7 @@ Steps
      https://randomnerdtutorials.com/installing-the-esp32-board-in-arduino-ide-windows-instructions/
 3. Install NimBLEDevice library
 4. Install EspMQTTClient library
-5. Modify code for your Wifi and MQTT configurations and SwitchBot MAC address
-6. Compile and upload to ESP32 (I am using Wemos D1 Mini ESP32)
-7. Reboot ESP32 plug it in with 5v usb (no data needed)
+5. Install ArduinoJson library
+6. Modify code for your Wifi and MQTT configurations and SwitchBot MAC address
+7. Compile and upload to ESP32 (I am using Wemos D1 Mini ESP32)
+8. Reboot ESP32 plug it in with 5v usb (no data needed)
