@@ -36,12 +36,11 @@ Notes:
     Examples:
      -switchbotMQTT/switchbotone/status/
      
-
 Steps
-1.Install Arduino IDE
-2.Setup IDE for proper ESP32 type
-    Install NimBLEDevice library
-    Install EspMQTTClient library
-3.Modify code for your Wifi and MQTT configurations and SwitchBot MAC address
-4.Compile and upload to ESP32 (I am using Wemos D1 Mini ESP32)
-5.Reboot ESP32 plug it in with 5v usb (no data needed)
+1. Install Arduino IDE
+2. Setup IDE for proper ESP32 type
+     - Install NimBLEDevice library
+     - Install EspMQTTClient library
+3. Modify code for your Wifi and MQTT configurations and SwitchBot MAC address
+4. Compile and upload to ESP32 (I am using Wemos D1 Mini ESP32)
+5. Reboot ESP32 plug it in with 5v usb (no data needed)
