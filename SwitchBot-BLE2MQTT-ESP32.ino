@@ -2,45 +2,64 @@
 
   https://github.com/devWaves/SwitchBot-MQTT-BLE-ESP32
 
+  does not use/require switchbot hub
+
   Code can be installed using Arduino IDE for ESP32
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.3
+  v0.4
 
-    Created: on March 6 2021
+    Created: on March 7 2021
         Author: devWaves
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
   Notes:
-    - It works for button press/on/off and should also work for curtain open/close/pause  ( I do not have curtains, so I can't test)
+    - It works for button press/on/off
+
+    - It works for curtain open/close/pause/position(%)
 
     - Good for placing one ESP32 in a zone with 1 or 2 devices that has a bad bluetooth signal from your smart hub. MQTT will use Wifi to "boost" the bluetooth signal
 
     - ESP32 bluetooth is pretty strong and one ESP32 can work for entire house. The code will try around 60 times to connect/push button. It should not need this many but it depends on ESP32 bluetooth signal to switchbots. If one alone doesn't work, get another esp32 and place it in the problem area
 
     ESP32 will Suscribe to MQTT topics
-      -switchbotMQTT/press
-      -switchbotMQTT/on
-      -switchbotMQTT/off
-      -switchbotMQTT/open
-      -switchbotMQTT/close
-      -switchbotMQTT/pause
+      -switchbotMQTT/control
 
-    send a payload of the device you want to control
-      example payload = switchbotone
+    send a JSON payload of the device you want to control
+      device = device to control
+      value = string value
+         "press"
+         "on"
+         "off"
+         "open"
+         "close"
+         "pause"
+         any number 0-100 (for curtain position) Example: "50"
+
+      example payloads =
+        {"device":"switchbotone","value":"press"}
+        {"device":"switchbotone","value":"open"}
+        {"device":"switchbotone","value":"50"}
 
     ESP32 will respond with MQTT on
       -switchbotMQTT/#
 
-      Examples:
-      -switchbotMQTT/switchbotone/status/
+     Example reponses:
+       -switchbotMQTT/switchbotone/status
+          {"device":"switchbotone","type":"status","description":"connected"}"
+          {"device":"switchbotone","type":"status","description":"press"}
+          {"device":"switchbotone","type":"status","description":"idle"}"
+
+          {"device":"switchbotone","type":"error","description":"errorConnect"}"
+          {"device":"switchbotone","type":"error","description":"errorCommand"}"
 
 */
 
 #include <NimBLEDevice.h>
 #include "EspMQTTClient.h"
+#include "ArduinoJson.h"
 
 /****************** CONFIGURATIONS TO CHANGE *******************/
 
@@ -53,7 +72,7 @@ EspMQTTClient client(
   "MQTTUsername",   // Can be omitted if not needed
   "MQTTPassword",   // Can be omitted if not needed
   "ESPMQTT",      // Client name that uniquely identify your device
-  1883
+  1883            // MQTT Port
 );
 
 static std::map<std::string, std::string> allSwitchbots = {
@@ -68,7 +87,6 @@ static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsDev = {};
 static std::map<std::string, std::string> allSwitchbotsOpp;
 static NimBLEScan* pScan;
 static bool isScanning;
-static uint32_t scanTime = 10; /** 0 = scan forever */
 
 byte bArrayPress[] = {0x57, 0x01};
 byte bArrayOn[] = {0x57, 0x01, 0x01};
@@ -179,7 +197,7 @@ void loop () {
   client.loop();
 }
 
-void processRequest(std::string macAdd, std::string topic, String type) {
+void processRequest(std::string macAdd, std::string topic, const char * type) {
   int count = 1;
   std::map<std::string, NimBLEAdvertisedDevice*>::iterator itS = allSwitchbotsDev.find(macAdd);
   NimBLEAdvertisedDevice* advDevice =  itS->second;
@@ -203,24 +221,37 @@ void processRequest(std::string macAdd, std::string topic, String type) {
   }
   if (advDevice == NULL)
   {
-    String publishStr = ESPMQTTTopic + "/" + topic.c_str() + "/status";
-    Serial.println(publishStr.c_str());
-    client.publish(publishStr.c_str(), "errorLocatingDevice");
+    StaticJsonDocument<200> doc;
+    char aBuffer[256];
+    doc["device"] = topic.c_str();
+    doc["type"] = "error";
+    doc["description"] = "errorLocatingDevice";
+    serializeJson(doc, aBuffer);
+    String publishStr = ESPMQTTTopic + "/status";
+    client.publish(publishStr.c_str(), aBuffer);
+    Serial.println();
     delay(500);
-    client.publish(publishStr.c_str(), "idle");
+    doc["type"] = "status";
+    doc["description"] = "idle";
+    serializeJson(doc, aBuffer);
+    client.publish(publishStr.c_str(),  aBuffer);
+    Serial.println();
   }
   else {
     sendToDevice(advDevice, topic, type);
   }
 }
 
-void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string deviceTopic, String type) {
-  String publishStr = ESPMQTTTopic + "/" + deviceTopic.c_str() + "/status";
+void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string deviceTopic, const char * type) {
+  String publishStr = ESPMQTTTopic + "/status";
   if (advDeviceToUse != NULL)
   {
     bool isConnected = false;
     int count = 0;
     bool shouldContinue = true;
+    char aBuffer[256];
+    StaticJsonDocument<500> doc;
+    doc["device"] = deviceTopic.c_str();
     while (shouldContinue) {
       if (count > 1) {
         delay(100);
@@ -229,12 +260,18 @@ void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string deviceTopi
       count++;
       if (isConnected) {
         shouldContinue = false;
-        client.publish(publishStr.c_str(), "connected");
+        doc["type"] = "status";
+        doc["description"] = "connected";
+        serializeJson(doc, aBuffer);
+        client.publish(publishStr.c_str(),  aBuffer);
       }
       else {
         if (count > 60) {
           shouldContinue = false;
-          client.publish(publishStr.c_str(), "errorConnect");
+          doc["type"] = "error";
+          doc["description"] = "errorConnect";
+          serializeJson(doc, aBuffer);
+          client.publish(publishStr.c_str(),  aBuffer);
         }
       }
     }
@@ -250,89 +287,90 @@ void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string deviceTopi
         count++;
         if (isSuccess) {
           shouldContinue = false;
-          client.publish(publishStr.c_str(), type);
+          doc["type"] = "status";
+          doc["description"] = type;
+          serializeJson(doc, aBuffer);
+          client.publish(publishStr.c_str(),  aBuffer);
         }
         else {
           if (count > 60) {
             shouldContinue = false;
-            client.publish(publishStr.c_str(), "errorPush");
+            doc["type"] = "error";
+            doc["description"] = "errorCommand";
+            serializeJson(doc, aBuffer);
+            client.publish(publishStr.c_str(),  aBuffer);
           }
         }
       }
     }
     delay(500);
-    client.publish(publishStr.c_str(), "idle");
+    doc["type"] = "status";
+    doc["description"] = "idle";
+    serializeJson(doc, aBuffer);
+    client.publish(publishStr.c_str(),  aBuffer);
   }
 }
 
-void onConnectionEstablished() {
-  client.subscribe(ESPMQTTTopic + "/press", [] (const String & payload)  {
-    while (isScanning) {
-      delay(1000);
-    }
-    std::string device = payload.c_str();
-    std::map<std::string, std::string>::iterator itS = allSwitchbots.find(device);
-    if (itS != allSwitchbots.end())
-    {
-      processRequest(itS->second, device, "press");
-    }
-  });
-  client.subscribe(ESPMQTTTopic + "/on", [] (const String & payload)  {
-    while (isScanning) {
-      delay(1000);
-    }
-    std::string device = payload.c_str();
-    std::map<std::string, std::string>::iterator itS = allSwitchbots.find(device);
-    if (itS != allSwitchbots.end())
-    {
-      processRequest(itS->second, device, "on");
-    }
-  });
-  client.subscribe(ESPMQTTTopic + "/off", [] (const String & payload)  {
-    while (isScanning) {
-      delay(1000);
-    }
-    std::string device = payload.c_str();
-    std::map<std::string, std::string>::iterator itS = allSwitchbots.find(device);
-    if (itS != allSwitchbots.end())
-    {
-      processRequest(itS->second, device, "off");
-    }
-  });
-  client.subscribe(ESPMQTTTopic + "/open", [] (const String & payload)  {
-    while (isScanning) {
-      delay(1000);
-    }
-    std::string device = payload.c_str();
-    std::map<std::string, std::string>::iterator itS = allSwitchbots.find(device);
-    if (itS != allSwitchbots.end())
-    {
-      processRequest(itS->second, device, "open");
-    }
-  });
-  client.subscribe(ESPMQTTTopic + "/close", [] (const String & payload)  {
-    while (isScanning) {
-      delay(1000);
-    }
-    std::string device = payload.c_str();
-    std::map<std::string, std::string>::iterator itS = allSwitchbots.find(device);
-    if (itS != allSwitchbots.end())
-    {
-      processRequest(itS->second, device, "close");
-    }
-  });
-  client.subscribe(ESPMQTTTopic + "/pause", [] (const String & payload)  {
-    while (isScanning) {
-      delay(1000);
-    }
-    std::string device = payload.c_str();
-    std::map<std::string, std::string>::iterator itS = allSwitchbots.find(device);
-    if (itS != allSwitchbots.end())
-    {
-      processRequest(itS->second, device, "pause");
-    }
-  });
+bool is_number(const std::string& s)
+{
+  std::string::const_iterator it = s.begin();
+  while (it != s.end() && std::isdigit(*it)) ++it;
+  return !s.empty() && it == s.end();
+}
 
+void onConnectionEstablished() {
+  client.subscribe(ESPMQTTTopic + "/control", [] (const String & payload)  {
+    while (isScanning) {
+      delay(1000);
+    }
+    String publishStr = ESPMQTTTopic + "/error";
+    StaticJsonDocument<200> doc;
+    deserializeJson(doc, payload);
+
+    if (doc == NULL) { //Check for errors in parsing
+      Serial.println("Parsing failed");
+      client.publish(publishStr.c_str(), "errorParsingJSON");
+      return;
+    }
+    const char * deviceTopic = doc["device"]; //Get sensor type value
+    const char * value = doc["value"];        //Get value of sensor measurement
+
+    Serial.print("Device: ");
+    Serial.println(deviceTopic);
+    Serial.print("Device value: ");
+    Serial.println(value);
+
+    std::map<std::string, std::string>::iterator itS = allSwitchbots.find(deviceTopic);
+    if (itS != allSwitchbots.end())
+    {
+      bool isNum = is_number(value);
+
+      if (isNum) {
+        int aVal;
+        sscanf(value, "%d", &aVal);
+        if (aVal < 0) {
+          value = "0";
+        }
+        else if (aVal > 100) {
+          value = "100";
+        }
+        processRequest(itS->second, deviceTopic, value);
+      }
+      else {
+        if ((strcmp(value, "press") == 0) || (strcmp(value, "on") == 0) || (strcmp(value, "off") == 0) || (strcmp(value, "open") == 0) || (strcmp(value, "close") == 0) || (strcmp(value, "pause") == 0)) {
+          processRequest(itS->second, deviceTopic, value);
+        }
+        else {
+          Serial.println("Parsing failed = value too low/high");
+          client.publish(publishStr.c_str(), "errorJSONValue");
+        }
+      }
+    }
+    else {
+      Serial.println("Parsing failed = device not from list");
+      client.publish(publishStr.c_str(), "errorJSONDevice");
+    }
+  });
 }
 
 bool connectToServer(NimBLEAdvertisedDevice* advDeviceToUse) {
@@ -348,12 +386,10 @@ bool connectToServer(NimBLEAdvertisedDevice* advDeviceToUse) {
         Serial.println("Reconnected client");
       }
     }
-
     else {
       pClient = NimBLEDevice::getDisconnectedClient();
     }
   }
-
   if (!pClient) {
     if (NimBLEDevice::getClientListSize() >= NIMBLE_MAX_CONNECTIONS) {
       Serial.println("Max clients reached - no more connections available");
@@ -366,7 +402,6 @@ bool connectToServer(NimBLEAdvertisedDevice* advDeviceToUse) {
     pClient->setConnectTimeout(10);
 
   }
-
   if (!pClient->isConnected()) {
     if (!pClient->connect(advDeviceToUse)) {
       NimBLEDevice::deleteClient(pClient);
@@ -374,7 +409,6 @@ bool connectToServer(NimBLEAdvertisedDevice* advDeviceToUse) {
       return false;
     }
   }
-
   Serial.print("Connected to: ");
   Serial.println(pClient->getPeerAddress().toString().c_str());
   Serial.print("RSSI: ");
@@ -389,7 +423,7 @@ bool sendCommandBytes(NimBLERemoteCharacteristic* pChr, byte* bArray, int aSize 
   return pChr->writeValue(bArray, aSize, false);
 }
 
-bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, String type) {
+bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type) {
   if (advDeviceToUse == NULL) {
     return false;
   }
@@ -406,32 +440,41 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, String type) {
   if (pChr) {
     if (pChr->canWrite()) {
       bool wasSuccess = false;
-      if (type == "press") {
-        wasSuccess = sendCommandBytes(pChr, bArrayPress, 2);
-      }
-      else if (type == "on") {
-        wasSuccess = sendCommandBytes(pChr, bArrayOn, 3);
-      }
-      else if (type == "off") {
-        wasSuccess = sendCommandBytes(pChr, bArrayOff, 3);
-      }
-      else if (type == "open") {
-        wasSuccess = sendCommandBytes(pChr, bArrayOpen, 7);
-      }
-      else if (type == "close") {
-        wasSuccess = sendCommandBytes(pChr, bArrayClose, 7);
-      }
-      else if (type == "pause") {
-        wasSuccess = sendCommandBytes(pChr, bArrayPause, 6);
-      }
-      if (wasSuccess) {
-        Serial.print("Wrote new value to: ");
-        Serial.println(pChr->getUUID().toString().c_str());
+      bool isNum = is_number(type);
+      if (isNum) {
+        int aVal;
+        sscanf(type, "%d", &aVal);
+        byte bArrayPos[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, aVal};
+        wasSuccess = sendCommandBytes(pChr, bArrayPos, 7);
       }
       else {
-        /** Disconnect if write failed */
-        pClient->disconnect();
-        return false;
+        if (strcmp(type, "press") == 0) {
+          wasSuccess = sendCommandBytes(pChr, bArrayPress, 2);
+        }
+        else if (strcmp(type, "on") == 0) {
+          wasSuccess = sendCommandBytes(pChr, bArrayOn, 3);
+        }
+        else if (strcmp(type, "off") == 0) {
+          wasSuccess = sendCommandBytes(pChr, bArrayOff, 3);
+        }
+        else if (strcmp(type, "open") == 0) {
+          wasSuccess = sendCommandBytes(pChr, bArrayOpen, 7);
+        }
+        else if (strcmp(type, "close") == 0) {
+          wasSuccess = sendCommandBytes(pChr, bArrayClose, 7);
+        }
+        else if (strcmp(type, "pause") == 0) {
+          wasSuccess = sendCommandBytes(pChr, bArrayPause, 6);
+        }
+        if (wasSuccess) {
+          Serial.print("Wrote new value to: ");
+          Serial.println(pChr->getUUID().toString().c_str());
+        }
+        else {
+          /** Disconnect if write failed */
+          pClient->disconnect();
+          return false;
+        }
       }
     }
     else {
