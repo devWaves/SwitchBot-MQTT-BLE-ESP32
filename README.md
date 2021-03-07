@@ -44,11 +44,11 @@ example payloads
 
 Example reponses:
 switchbotMQTT/switchbotone/status
-- {"device":"switchbotone","type":"status","description":"connected"}"
+- {"device":"switchbotone","type":"status","description":"connected"}
 - {"device":"switchbotone","type":"status","description":"press"}
-- {"device":"switchbotone","type":"status","description":"idle"}"
-- {"device":"switchbotone","type":"error","description":"errorConnect"}"
-- {"device":"switchbotone","type":"error","description":"errorCommand"}"
+- {"device":"switchbotone","type":"status","description":"idle"}
+- {"device":"switchbotone","type":"error","description":"errorConnect"}
+- {"device":"switchbotone","type":"error","description":"errorCommand"}
           
 Steps
 1. Install Arduino IDE
