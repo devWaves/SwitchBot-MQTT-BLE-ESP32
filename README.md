@@ -21,38 +21,35 @@ Notes:
  - Good for placing one ESP32 in a zone with 1 or 2 devices that has a bad bluetooth signal from your smart hub. MQTT will use Wifi to "boost" the bluetooth signal
  - ESP32 bluetooth is pretty strong and one ESP32 can work for entire house. The code will try around 60 times to connect/push button. It should not need this many but it depends on ESP32 bluetooth signal to switchbots. If one alone doesn't work, get another esp32 and place it in the problem area
 
-
-ESP32 will Suscribe to MQTT topics
+**ESP32 will Suscribe to MQTT topics**
  -switchbotMQTT/control
 
-send a JSON payload of the device you want to control
- device = device to control
- value = string value
-  "press"
-  "on"
-  "off"
-  "open"
-  "close"
-  "pause"
-  any number 0-100 (for curtain position) Example: "50"
+send a JSON payload of the device you want to control (device = device to control) (value = string value)
+Value can equal...
+- "press"
+- "on"
+- "off"
+- "open"
+- "close"
+- "pause"
+- any number 0-100 (for curtain position) Example: "50"
 
-  example payloads =
-   {"device":"switchbotone","value":"press"}
-   {"device":"switchbotone","value":"open"}
-   {"device":"switchbotone","value":"50"}
+example payloads
+- {"device":"switchbotone","value":"press"}
+- {"device":"switchbotone","value":"open"}
+- {"device":"switchbotone","value":"50"}
+  
+**ESP32 will respond with MQTT on**
+-switchbotMQTT/#
 
-ESP32 will respond with MQTT on
- -switchbotMQTT/#
-
-  Example reponses:
-   -switchbotMQTT/switchbotone/status
-    {"device":"switchbotone","type":"status","description":"connected"}"
-    {"device":"switchbotone","type":"status","description":"press"}
-    {"device":"switchbotone","type":"status","description":"idle"}"
-    {"device":"switchbotone","type":"error","description":"errorConnect"}"
-    {"device":"switchbotone","type":"error","description":"errorCommand"}"
+Example reponses:
+switchbotMQTT/switchbotone/status
+- {"device":"switchbotone","type":"status","description":"connected"}"
+- {"device":"switchbotone","type":"status","description":"press"}
+- {"device":"switchbotone","type":"status","description":"idle"}"
+- {"device":"switchbotone","type":"error","description":"errorConnect"}"
+- {"device":"switchbotone","type":"error","description":"errorCommand"}"
           
-     
 Steps
 1. Install Arduino IDE
 2. Setup IDE for proper ESP32 type
