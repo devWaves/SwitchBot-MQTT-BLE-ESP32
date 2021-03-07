@@ -320,9 +320,11 @@ bool is_number(const std::string& s)
 
 void onConnectionEstablished() {
   client.subscribe(ESPMQTTTopic + "/control", [] (const String & payload)  {
-    while (isScanning) {
+    Serial.println("MQTT Received...");
+	while (isScanning) {
       delay(1000);
     }
+	Serial.println("Processing MQTT...");
     String publishStr = ESPMQTTTopic + "/error";
     StaticJsonDocument<200> doc;
     deserializeJson(doc, payload);
@@ -374,6 +376,7 @@ void onConnectionEstablished() {
 }
 
 bool connectToServer(NimBLEAdvertisedDevice* advDeviceToUse) {
+  Serial.println("Try to connect. Try a reconnect first...");
   NimBLEClient* pClient = nullptr;
   if (NimBLEDevice::getClientListSize()) {
 
@@ -488,6 +491,6 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type) {
     pClient->disconnect();
     return false;
   }
-  Serial.println("Done with this device!");
+  Serial.println("Success! Command sent/received to/from SwitchBot");
   return true;
 }
