@@ -8,7 +8,7 @@
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.4
+  v0.5
 
     Created: on March 7 2021
         Author: devWaves
@@ -20,40 +20,60 @@
 
     - It works for curtain open/close/pause/position(%)
 
+	- It can request setting values (battery, mode, firmware version, Number of timers, Press mode, inverted (yes/no), Hold seconds)
+
     - Good for placing one ESP32 in a zone with 1 or 2 devices that has a bad bluetooth signal from your smart hub. MQTT will use Wifi to "boost" the bluetooth signal
 
     - ESP32 bluetooth is pretty strong and one ESP32 can work for entire house. The code will try around 60 times to connect/push button. It should not need this many but it depends on ESP32 bluetooth signal to switchbots. If one alone doesn't work, get another esp32 and place it in the problem area
 
-    ESP32 will Suscribe to MQTT topics
+    ESP32 will Suscribe to MQTT topic for control
       -switchbotMQTT/control
 
-    send a JSON payload of the device you want to control
-      device = device to control
-      value = string value
-         "press"
-         "on"
-         "off"
-         "open"
-         "close"
-         "pause"
-         any number 0-100 (for curtain position) Example: "50"
+		send a JSON payload of the device you want to control
+			device = device to control
+				value = string value
+					"press"
+					"on"
+					"off"
+					"open"
+					"close"
+					"pause"
+					any number 0-100 (for curtain position) Example: "50"
 
-      example payloads =
-        {"device":"switchbotone","value":"press"}
-        {"device":"switchbotone","value":"open"}
-        {"device":"switchbotone","value":"50"}
+					example payloads =
+						{"device":"switchbotone","value":"press"}
+						"device":"switchbotone","value":"open"}
+						{"device":"switchbotone","value":"50"}
 
-    ESP32 will respond with MQTT on
+	ESP32 will respond with MQTT on
       -switchbotMQTT/#
 
-     Example reponses:
-       -switchbotMQTT/switchbotone/status
-          {"device":"switchbotone","type":"status","description":"connected"}"
-          {"device":"switchbotone","type":"status","description":"press"}
-          {"device":"switchbotone","type":"status","description":"idle"}"
+		Example reponses:
+			-switchbotMQTT/switchbotone/status
+				
+					example payloads =
+						{"device":"switchbotone","type":"status","description":"connected"}"
+						{"device":"switchbotone","type":"status","description":"press"}
+						{"device":"switchbotone","type":"status","description":"idle"}"
 
-          {"device":"switchbotone","type":"error","description":"errorConnect"}"
-          {"device":"switchbotone","type":"error","description":"errorCommand"}"
+						{"device":"switchbotone","type":"error","description":"errorConnect"}"
+						{"device":"switchbotone","type":"error","description":"errorCommand"}"
+
+
+	ESP32 will Suscribe to MQTT topic for device information
+      -switchbotMQTT/requestInfo
+
+		send a JSON payload of the device you want to control
+					example payloads =
+						{"device":"switchbotone"}
+
+    ESP32 will respond with MQTT on
+		-switchbotMQTT/#
+
+		Example reponses:
+			-switchbotMQTT/switchbotone/status
+					example payloads =
+						{"device":"switchbotone","battLevel":95,"fwVersion":4.9,"numTimers":0,"mode":"Not inverted","inverted":"Not inverted","holdSecs":0}"
 
 */
 
@@ -80,7 +100,11 @@ static std::map<std::string, std::string> allSwitchbots = {
   { "switchbottwo", "yy:yy:yy:yy:yy:yy" }
 };
 
+
 /*************************************************************/
+
+static int tryConnecting = 60;
+static int trySending = 60;
 
 void scanEndedCB(NimBLEScanResults results);
 static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsDev = {};
@@ -283,22 +307,40 @@ void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string deviceTopi
         if (count > 1) {
           delay(100);
         }
-        isSuccess = sendCommand(advDeviceToUse, type);
-        count++;
-        if (isSuccess) {
-          shouldContinue = false;
-          doc["type"] = "status";
-          doc["description"] = type;
-          serializeJson(doc, aBuffer);
-          client.publish(publishStr.c_str(),  aBuffer);
+        if (strcmp(type, "requestStatus") == 0) {
+          isSuccess = getInfo(advDeviceToUse, type, count);
+          count++;
+          if (isSuccess) {
+            shouldContinue = false;
+          }
+          else {
+            if (count > tryConnecting) {
+              shouldContinue = false;
+              doc["type"] = "error";
+              doc["description"] = "errorRequestStatus";
+              serializeJson(doc, aBuffer);
+              client.publish(publishStr.c_str(),  aBuffer);
+            }
+          }
         }
         else {
-          if (count > 60) {
+          isSuccess = sendCommand(advDeviceToUse, type, count);
+          count++;
+          if (isSuccess) {
             shouldContinue = false;
-            doc["type"] = "error";
-            doc["description"] = "errorCommand";
+            doc["type"] = "status";
+            doc["description"] = type;
             serializeJson(doc, aBuffer);
             client.publish(publishStr.c_str(),  aBuffer);
+          }
+          else {
+            if (count > trySending) {
+              shouldContinue = false;
+              doc["type"] = "error";
+              doc["description"] = "errorCommand";
+              serializeJson(doc, aBuffer);
+              client.publish(publishStr.c_str(),  aBuffer);
+            }
           }
         }
       }
@@ -320,11 +362,11 @@ bool is_number(const std::string& s)
 
 void onConnectionEstablished() {
   client.subscribe(ESPMQTTTopic + "/control", [] (const String & payload)  {
-    Serial.println("MQTT Received...");
-	while (isScanning) {
+    Serial.println("Control MQTT Received...");
+    while (isScanning) {
       delay(1000);
     }
-	Serial.println("Processing MQTT...");
+    Serial.println("Processing Control MQTT...");
     String publishStr = ESPMQTTTopic + "/error";
     StaticJsonDocument<200> doc;
     deserializeJson(doc, payload);
@@ -373,6 +415,37 @@ void onConnectionEstablished() {
       client.publish(publishStr.c_str(), "errorJSONDevice");
     }
   });
+
+  client.subscribe(ESPMQTTTopic + "/requestInfo", [] (const String & payload)  {
+    Serial.println("Request Info MQTT Received...");
+    while (isScanning) {
+      delay(1000);
+    }
+    Serial.println("Processing Request Info MQTT...");
+    String publishStr = ESPMQTTTopic + "/errorRequestStatus";
+    StaticJsonDocument<200> doc;
+    deserializeJson(doc, payload);
+
+    if (doc == NULL) { //Check for errors in parsing
+      Serial.println("Parsing failed");
+      client.publish(publishStr.c_str(), "errorParsingJSON");
+      return;
+    }
+    const char * deviceTopic = doc["device"]; //Get sensor type value
+    Serial.print("Device: ");
+    Serial.println(deviceTopic);
+
+    std::map<std::string, std::string>::iterator itS = allSwitchbots.find(deviceTopic);
+    if (itS != allSwitchbots.end())
+    {
+      processRequest(itS->second, deviceTopic, "requestStatus");
+    }
+    else {
+      Serial.println("Parsing failed = device not from list");
+      client.publish(publishStr.c_str(), "errorJSONDevice");
+    }
+  });
+
 }
 
 bool connectToServer(NimBLEAdvertisedDevice* advDeviceToUse) {
@@ -426,20 +499,30 @@ bool sendCommandBytes(NimBLERemoteCharacteristic* pChr, byte* bArray, int aSize 
   return pChr->writeValue(bArray, aSize, false);
 }
 
-bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type) {
+bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int attempts) {
   if (advDeviceToUse == NULL) {
     return false;
   }
+  Serial.println("Sending command...");
+  bool returnValue = true;
   NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
   NimBLERemoteService* pSvc = nullptr;
   NimBLERemoteCharacteristic* pChr = nullptr;
-
+  bool tryConnect = !(pClient->isConnected());
+  int count = 1;
+  if (tryConnect) {
+    if (count > 20) {
+      Serial.println("Failed to connect for sending command");
+      return false;
+    }
+    count++;
+    Serial.println("Attempt to send command. Not connecting. Try connecting...");
+    tryConnect = !(connectToServer(advDeviceToUse));
+  }
   pSvc = pClient->getService("cba20d00-224d-11e6-9fb8-0002a5d5c51b");
-
   if (pSvc) {
     pChr = pSvc->getCharacteristic("cba20002-224d-11e6-9fb8-0002a5d5c51b");
   }
-
   if (pChr) {
     if (pChr->canWrite()) {
       bool wasSuccess = false;
@@ -474,23 +557,160 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type) {
           Serial.println(pChr->getUUID().toString().c_str());
         }
         else {
-          /** Disconnect if write failed */
-          pClient->disconnect();
-          return false;
+          returnValue = false;
         }
       }
     }
     else {
-      /** Disconnect if write failed */
-      pClient->disconnect();
-      return false;
+      returnValue = false;
     }
   }
   else {
     Serial.println("CUSTOM write service not found.");
-    pClient->disconnect();
-    return false;
+    returnValue = false;
+  }
+
+  if (!returnValue) {
+    if (attempts >= 10) {
+      Serial.println("Sending failed. Disconnecting client");
+      pClient->disconnect();
+    } return false;
   }
   Serial.println("Success! Command sent/received to/from SwitchBot");
   return true;
+}
+
+bool getInfo(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int attempts) {
+  if (advDeviceToUse == NULL) {
+    return false;
+  }
+  Serial.println("Requesting info...");
+  bool returnValue = true;
+  NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
+  NimBLERemoteService* pSvc = nullptr;
+  NimBLERemoteCharacteristic* pChr = nullptr;
+
+  bool tryConnect = !(pClient->isConnected());
+  int count = 1;
+  if (tryConnect) {
+    if (count > 20) {
+      Serial.println("Failed to connect for sending requestinfo");
+      return false;
+    }
+    count++;
+    Serial.println("Attempt to request info. Not connecting. Try connecting...");
+    tryConnect = !(connectToServer(advDeviceToUse));
+  }
+
+  pSvc = pClient->getService("cba20d00-224d-11e6-9fb8-0002a5d5c51b"); // custom device service
+  if (pSvc) {    /** make sure it's not null */
+    pChr = pSvc->getCharacteristic("cba20003-224d-11e6-9fb8-0002a5d5c51b"); // custom characteristic to notify
+  }
+  if (pChr) {    /** make sure it's not null */
+    if (pChr->canNotify()) {
+      if (!pChr->subscribe(true, notifyCB)) {
+        /** Disconnect if subscribe failed */
+        pClient->disconnect();
+        return false;
+      }
+    } else if (pChr->canIndicate()) {
+      if (!pChr->subscribe(true, notifyCB)) {
+        /** Disconnect if subscribe failed */
+        pClient->disconnect();
+        return false;
+      }
+    }
+  }
+  else {
+    Serial.println("CUSTOM notify service not found.");
+    returnValue = false;
+  }
+  if (pSvc) {    /** make sure it's not null */
+    pChr = pSvc->getCharacteristic("cba20002-224d-11e6-9fb8-0002a5d5c51b"); // custom characteristic to write
+  }
+  if (pChr) {    /** make sure it's not null */
+    if (pChr->canWrite()) {
+      byte bArray[] = {0x57, 0x02}; // write to get settings of device
+      if (pChr->writeValue(bArray, 2)) {
+        Serial.print("Wrote new value to: ");
+        Serial.println(pChr->getUUID().toString().c_str());
+      }
+      else {
+        returnValue = false;
+      }
+    }
+  }
+  else {
+    Serial.println("CUSTOM write service not found.");
+    returnValue = false;
+  }
+  if (!returnValue) {
+    if (attempts >= 10) {
+      Serial.println("Request failed. Disconnecting client. Attempt# : " + attempts);
+      pClient->disconnect();
+    }
+    else {
+      Serial.println("Request failed.Attempt# : " + attempts);
+    }
+    return false;
+  }
+  Serial.println("Success! Request info sent/received to/from SwitchBot");
+  return true;
+}
+
+/** Notification / Indication receiving handler callback */
+void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
+  std::string str = (isNotify == true) ? "Notification" : "Indication";
+  str += " from ";
+  /** NimBLEAddress and NimBLEUUID have std::string operators */
+  str += std::string(pRemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress());
+  str += ": Service = " + std::string(pRemoteCharacteristic->getRemoteService()->getUUID());
+  str += ", Characteristic = " + std::string(pRemoteCharacteristic->getUUID());
+
+  str += ", Value = ";
+  char hexFormatted[length * 2] = "";
+  for (int i = 0; i < length; i++) {
+    sprintf( hexFormatted, "%s%02X", hexFormatted, pData[i]);
+  }
+  str += hexFormatted;
+
+  char aBuffer[256];
+  StaticJsonDocument<500> doc;
+  std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(pRemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress());
+  if (itS != allSwitchbotsOpp.end())
+  {
+    doc["device"] = itS->second.c_str();
+  }
+  else {
+    doc["device"] = "unknown";
+  }
+  if (pData[0] == 1) {
+    int battLevel = pData[1];
+    Serial.print("Battery level: ");
+    Serial.println(battLevel);
+    doc["battLevel"] = battLevel;
+    float fwVersion = pData[2] / 10.0;
+    Serial.print("Fw version: ");
+    Serial.println(fwVersion);
+    doc["fwVersion"] = fwVersion;
+    int timersNumber = pData[8];
+    Serial.print("Number of timers: ");
+    Serial.println(timersNumber);
+    doc["numTimers"] = timersNumber;
+    bool dualStateMode = bitRead(pData[9], 4) ;
+    str = (dualStateMode == true) ? "Switch mode" : "Press mode";
+    Serial.println(str.c_str());
+    doc["mode"] = str.c_str();
+    bool inverted = bitRead(pData[9], 0) ;
+    str = (inverted == true) ? "Inverted" : "Not inverted";
+    Serial.println(str.c_str());
+    doc["inverted"] = str.c_str();
+    int holdSecs = pData[10];
+    Serial.print("Hold seconds: ");
+    Serial.println(holdSecs);
+    doc["holdSecs"] = holdSecs;
+  }
+  serializeJson(doc, aBuffer);
+  String publishStr = ESPMQTTTopic + "/status";
+  client.publish(publishStr.c_str(), aBuffer);
 }
