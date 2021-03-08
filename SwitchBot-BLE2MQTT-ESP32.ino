@@ -405,7 +405,7 @@ void onConnectionEstablished() {
           processRequest(itS->second, deviceTopic, value);
         }
         else {
-          Serial.println("Parsing failed = value too low/high");
+          Serial.println("Parsing failed = command value not recognized");
           client.publish(publishStr.c_str(), "errorJSONValue");
         }
       }
