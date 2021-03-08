@@ -20,7 +20,7 @@
 
     - It works for curtain open/close/pause/position(%)
 
-	- It can request setting values (battery, mode, firmware version, Number of timers, Press mode, inverted (yes/no), Hold seconds)
+    - It can request setting values (battery, mode, firmware version, Number of timers, Press mode, inverted (yes/no), Hold seconds)
 
     - Good for placing one ESP32 in a zone with 1 or 2 devices that has a bad bluetooth signal from your smart hub. MQTT will use Wifi to "boost" the bluetooth signal
 
@@ -42,7 +42,7 @@
 
 					example payloads =
 						{"device":"switchbotone","value":"press"}
-						"device":"switchbotone","value":"open"}
+						{"device":"switchbotone","value":"open"}
 						{"device":"switchbotone","value":"50"}
 
 	ESP32 will respond with MQTT on
