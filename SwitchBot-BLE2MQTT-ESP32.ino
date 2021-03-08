@@ -49,7 +49,7 @@
       -switchbotMQTT/#
 
 		Example reponses:
-			-switchbotMQTT/switchbotone/status
+			-switchbotMQTT/status
 				
 					example payloads =
 						{"device":"switchbotone","type":"status","description":"connected"}"
@@ -71,7 +71,7 @@
 		-switchbotMQTT/#
 
 		Example reponses:
-			-switchbotMQTT/switchbotone/status
+			-switchbotMQTT/status
 					example payloads =
 						{"device":"switchbotone","battLevel":95,"fwVersion":4.9,"numTimers":0,"mode":"Not inverted","inverted":"Not inverted","holdSecs":0}"
 
