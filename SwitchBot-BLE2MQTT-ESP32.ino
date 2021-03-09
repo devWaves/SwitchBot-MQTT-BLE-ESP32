@@ -80,6 +80,7 @@
 #include <NimBLEDevice.h>
 #include "EspMQTTClient.h"
 #include "ArduinoJson.h"
+#include <math.h>
 
 /****************** CONFIGURATIONS TO CHANGE *******************/
 
@@ -104,11 +105,12 @@ static std::map<std::string, std::string> allSwitchbots = {
 /*************************************************************/
 
 static int tryConnecting = 60;
-static int trySending = 60;
+static int trySending = 30;
 
 void scanEndedCB(NimBLEScanResults results);
 static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsDev = {};
 static std::map<std::string, std::string> allSwitchbotsOpp;
+static std::map<std::string, std::string> deviceTypes;
 static NimBLEScan* pScan;
 static bool isScanning;
 
@@ -197,6 +199,8 @@ static ClientCallbacks clientCB;
 
 void setup () {
   client.setMqttReconnectionAttemptDelay(100);
+  client.enableMQTTPersistence();
+  client.enableLastWillMessage("switchbotMQTT/lastwill", "Offline");
   std::map<std::string, std::string>::iterator it = allSwitchbots.begin();
   while (it != allSwitchbots.end())
   {
@@ -236,7 +240,7 @@ void processRequest(std::string macAdd, std::string topic, const char * type) {
       pScan->start(5 * count, scanEndedCB);
       while (isScanning) {
         Serial.println("Scanning#" + count);
-        delay(1000);
+        delay(500);
       }
       itS = allSwitchbotsDev.find(macAdd);
       advDevice =  itS->second;
@@ -290,7 +294,7 @@ void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string deviceTopi
         client.publish(publishStr.c_str(),  aBuffer);
       }
       else {
-        if (count > 60) {
+        if (count > tryConnecting) {
           shouldContinue = false;
           doc["type"] = "error";
           doc["description"] = "errorConnect";
@@ -314,7 +318,7 @@ void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string deviceTopi
             shouldContinue = false;
           }
           else {
-            if (count > tryConnecting) {
+            if (count > trySending) {
               shouldContinue = false;
               doc["type"] = "error";
               doc["description"] = "errorRequestStatus";
@@ -364,7 +368,7 @@ void onConnectionEstablished() {
   client.subscribe(ESPMQTTTopic + "/control", [] (const String & payload)  {
     Serial.println("Control MQTT Received...");
     while (isScanning) {
-      delay(1000);
+      delay(500);
     }
     Serial.println("Processing Control MQTT...");
     String publishStr = ESPMQTTTopic + "/error";
@@ -405,7 +409,7 @@ void onConnectionEstablished() {
           processRequest(itS->second, deviceTopic, value);
         }
         else {
-          Serial.println("Parsing failed = command value not recognized");
+          Serial.println("Parsing failed = value too low/high");
           client.publish(publishStr.c_str(), "errorJSONValue");
         }
       }
@@ -419,7 +423,7 @@ void onConnectionEstablished() {
   client.subscribe(ESPMQTTTopic + "/requestInfo", [] (const String & payload)  {
     Serial.println("Request Info MQTT Received...");
     while (isScanning) {
-      delay(1000);
+      delay(500);
     }
     Serial.println("Processing Request Info MQTT...");
     String publishStr = ESPMQTTTopic + "/errorRequestStatus";
@@ -445,7 +449,6 @@ void onConnectionEstablished() {
       client.publish(publishStr.c_str(), "errorJSONDevice");
     }
   });
-
 }
 
 bool connectToServer(NimBLEAdvertisedDevice* advDeviceToUse) {
@@ -519,6 +522,9 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
     Serial.println("Attempt to send command. Not connecting. Try connecting...");
     tryConnect = !(connectToServer(advDeviceToUse));
   }
+
+  getGeneric(advDeviceToUse);
+
   pSvc = pClient->getService("cba20d00-224d-11e6-9fb8-0002a5d5c51b");
   if (pSvc) {
     pChr = pSvc->getCharacteristic("cba20002-224d-11e6-9fb8-0002a5d5c51b");
@@ -580,6 +586,29 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
   return true;
 }
 
+bool getGeneric(NimBLEAdvertisedDevice* advDeviceToUse) {
+
+  NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
+  NimBLERemoteService* pSvc = nullptr;
+  NimBLERemoteCharacteristic* pChr = nullptr;;
+
+  pSvc = pClient->getService((uint16_t) 0x1800); // GENERIC ACCESS service
+  if (pSvc) {    /** make sure it's not null */
+    pChr = pSvc->getCharacteristic((uint16_t) 0x2a00); // DEVICE NAME characteristic
+  }
+
+  if (pChr) {    /** make sure it's not null */
+    if (pChr->canRead()) {
+      Serial.print(pChr->getUUID().toString().c_str());
+      Serial.print(" Value: ");
+      Serial.println(pChr->readValue().c_str()); // should return WoHand
+      deviceTypes.insert ( std::pair<std::string, std::string>(advDeviceToUse->getAddress().toString().c_str(), pChr->readValue().c_str()) );
+      return true;
+    }
+  }
+  return false;
+}
+
 bool getInfo(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int attempts) {
   if (advDeviceToUse == NULL) {
     return false;
@@ -602,6 +631,19 @@ bool getInfo(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int atte
     tryConnect = !(connectToServer(advDeviceToUse));
   }
 
+  getGeneric(advDeviceToUse);
+
+  std::string deviceName = "";
+  std::map<std::string, std::string>::iterator itS = deviceTypes.find(advDeviceToUse->getAddress().toString());
+  if (itS != deviceTypes.end())
+  {
+    deviceName = itS->second.c_str();
+  }
+
+  if (deviceName == "") {
+    return false;
+  }
+
   pSvc = pClient->getService("cba20d00-224d-11e6-9fb8-0002a5d5c51b"); // custom device service
   if (pSvc) {    /** make sure it's not null */
     pChr = pSvc->getCharacteristic("cba20003-224d-11e6-9fb8-0002a5d5c51b"); // custom characteristic to notify
@@ -609,15 +651,11 @@ bool getInfo(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int atte
   if (pChr) {    /** make sure it's not null */
     if (pChr->canNotify()) {
       if (!pChr->subscribe(true, notifyCB)) {
-        /** Disconnect if subscribe failed */
-        pClient->disconnect();
-        return false;
+        returnValue = false;
       }
     } else if (pChr->canIndicate()) {
       if (!pChr->subscribe(true, notifyCB)) {
-        /** Disconnect if subscribe failed */
-        pClient->disconnect();
-        return false;
+        returnValue = false;
       }
     }
   }
@@ -684,8 +722,34 @@ void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData,
   else {
     doc["device"] = "unknown";
   }
-  if (pData[0] == 1) {
-    int battLevel = pData[1];
+
+  std::string deviceName;
+  itS = deviceTypes.find(pRemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress());
+  if (itS != deviceTypes.end())
+  {
+    deviceName = itS->second.c_str();
+  }
+  Serial.print("DeviceName:");
+  Serial.println(deviceName.c_str());
+
+  std::string buttonName = "WoHand";
+  std::string tempName = "WoSensorTH";
+  std::string curtainName = "WoCurtain";
+
+  if (deviceName == buttonName) {
+
+    uint8_t byte1 = pData[0];
+    uint8_t byte2 = pData[1];
+
+    bool mode = (byte1 & 0b10000000) ;
+    String str1 = (mode == true) ? "true" : "false";
+    Serial.println(str1);
+    doc["mode"] = str1;
+    bool state = (byte1 & 0b01000000) ;
+    String str2 = (state == true) ? "ON" : "OFF";
+    Serial.println(str2);
+    doc["state"] = str2;
+    int battLevel = byte2 & 0b01111111;
     Serial.print("Battery level: ");
     Serial.println(battLevel);
     doc["battLevel"] = battLevel;
@@ -698,19 +762,77 @@ void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData,
     Serial.println(timersNumber);
     doc["numTimers"] = timersNumber;
     bool dualStateMode = bitRead(pData[9], 4) ;
-    str = (dualStateMode == true) ? "Switch mode" : "Press mode";
-    Serial.println(str.c_str());
-    doc["mode"] = str.c_str();
+    String str3 = (dualStateMode == true) ? "Switch mode" : "Press mode";
+    Serial.println(str3);
+    doc["dualStateMode"] = str3;
     bool inverted = bitRead(pData[9], 0) ;
-    str = (inverted == true) ? "Inverted" : "Not inverted";
-    Serial.println(str.c_str());
-    doc["inverted"] = str.c_str();
+    String str4 = (inverted == true) ? "Inverted" : "Not inverted";
+    Serial.println(str4);
+    doc["inverted"] = str4;
     int holdSecs = pData[10];
     Serial.print("Hold seconds: ");
     Serial.println(holdSecs);
     doc["holdSecs"] = holdSecs;
   }
+  else if (deviceName == tempName) {
+
+    uint8_t byte2 = pData[1];
+    uint8_t byte3 = pData[2];
+    uint8_t byte4 = pData[3];
+    uint8_t byte5 = pData[4];
+
+    int tempSign = (byte4 & 0b10000000) ? 1 : -1;
+    float tempC = tempSign * ((byte4 & 0b01111111) + (byte3 / 10));
+    float tempF = (tempC * 9 / 5) + 32;
+    tempF = round(tempF * 10) / 10;
+    bool tempScale = (byte5 & 0b10000000) ;
+    String str1 = (tempScale == true) ? "fahrenheit" : "celcius";
+    Serial.println(str1);
+    doc["tempScale"] = str1;
+    int battLevel = (byte2 & 0b01111111);
+    Serial.print("Battery level: ");
+    Serial.println(battLevel);
+    doc["battLevel"] = battLevel;
+    Serial.print("tempC: ");
+    Serial.println(tempC);
+    doc["tempC"] = tempC;
+    Serial.print("tempF: ");
+    Serial.println(tempF);
+    doc["tempF"] = tempF;
+    Serial.print("tempSign: ");
+    Serial.println(tempSign);
+    doc["tempSign"] = tempSign;
+    int humidity = byte5 & 0b01111111;
+    Serial.print("humidity: ");
+    Serial.println(humidity);
+    doc["humidity"] = humidity;
+  }
+  else if (deviceName == curtainName) {
+
+    uint8_t byte1 = pData[0];
+    uint8_t byte2 = pData[1];
+    uint8_t byte3 = pData[2];
+    uint8_t byte4 = pData[3];
+
+    bool calibrated = byte1 & 0b01000000;;
+    int battLevel = byte2 & 0b01111111;
+    int currentPosition = byte3 & 0b01111111;
+    int lightLevel = (byte4 >> 4) & 0b00001111;
+    String str1 = (calibrated == true) ? "Calibrated" : "Not Calibrated";
+    Serial.println(str1);
+    Serial.print("Battery level: ");
+    Serial.println(battLevel);
+    doc["battLevel"] = battLevel;
+    Serial.print("CurrentPosition: ");
+    Serial.println(battLevel);
+    doc["currentPosition"] = currentPosition;
+    Serial.print("Light level:");
+    Serial.println(lightLevel);
+    doc["lightLevel"] = lightLevel;
+  }
+  Serial.println("serializing");
   serializeJson(doc, aBuffer);
   String publishStr = ESPMQTTTopic + "/status";
   client.publish(publishStr.c_str(), aBuffer);
+  Serial.println("published");
 }
