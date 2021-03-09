@@ -80,7 +80,6 @@
 #include <NimBLEDevice.h>
 #include "EspMQTTClient.h"
 #include "ArduinoJson.h"
-#include <math.h>
 
 /****************** CONFIGURATIONS TO CHANGE *******************/
 
