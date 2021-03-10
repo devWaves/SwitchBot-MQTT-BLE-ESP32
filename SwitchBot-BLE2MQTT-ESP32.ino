@@ -8,9 +8,9 @@
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.6
+  v0.7
 
-    Created: on March 8 2021
+    Created: on March 10 2021
         Author: devWaves
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
@@ -29,51 +29,56 @@
     ESP32 will Suscribe to MQTT topic for control
       -switchbotMQTT/control
 
-		send a JSON payload of the device you want to control
-			device = device to control
-				value = string value
-					"press"
-					"on"
-					"off"
-					"open"
-					"close"
-					"pause"
-					any number 0-100 (for curtain position) Example: "50"
+    send a JSON payload of the device you want to control
+      device = device to control
+        value = string value
+          "press"
+          "on"
+          "off"
+          "open"
+          "close"
+          "pause"
+          any number 0-100 (for curtain position) Example: "50"
 
-					example payloads =
-						{"device":"switchbotone","value":"press"}
-						{"device":"switchbotone","value":"open"}
-						{"device":"switchbotone","value":"50"}
+          example payloads =
+            {"device":"switchbotone","value":"press"}
+            {"device":"switchbotone","value":"open"}
+            {"device":"switchbotone","value":"50"}
 
-	ESP32 will respond with MQTT on
+  ESP32 will respond with MQTT on
       -switchbotMQTT/#
 
-		Example reponses:
-			-switchbotMQTT/status
-				
-					example payloads =
-						{"device":"switchbotone","type":"status","description":"connected"}"
-						{"device":"switchbotone","type":"status","description":"press"}
-						{"device":"switchbotone","type":"status","description":"idle"}"
+    Example reponses:
+      -switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switchbotMQTT/meter/meterone
 
-						{"device":"switchbotone","type":"error","description":"errorConnect"}"
-						{"device":"switchbotone","type":"error","description":"errorCommand"}"
+          example payloads =
+            {"device":"switchbotone","status":"connected"}"
+            {"device":"switchbotone","status":"press"}
+            {"device":"switchbotone","status":"idle"}"
+
+            {"device":"switchbotone","status":"errorConnect"}"
+            {"device":"switchbotone","status":"errorCommand"}"
 
 
-	ESP32 will Suscribe to MQTT topic for device information
+  ESP32 will Suscribe to MQTT topic for device information
       -switchbotMQTT/requestInfo
 
-		send a JSON payload of the device you want to control
-					example payloads =
-						{"device":"switchbotone"}
+    send a JSON payload of the device you want to control
+          example payloads =
+            {"device":"switchbotone"}
 
     ESP32 will respond with MQTT on
-		-switchbotMQTT/#
+    -switchbotMQTT/#
 
-		Example reponses:
-			-switchbotMQTT/status
-					example payloads =
-						{"device":"switchbotone","battLevel":95,"fwVersion":4.9,"numTimers":0,"mode":"Not inverted","inverted":"Not inverted","holdSecs":0}"
+    Example reponses:
+      -switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switchbotMQTT/meter/meterone
+          example payloads =
+            {"device":"switchbotone","battLevel":95,"fwVersion":4.9,"numTimers":0,"mode":"Not inverted","inverted":"Not inverted","holdSecs":0}"
+
+
+		
+	Errors that cannot be linked to a specific device will be published to
+      -switchbotMQTT/ESP32
 
 */
 
@@ -95,11 +100,20 @@ EspMQTTClient client(
   1883            // MQTT Port
 );
 
-static std::map<std::string, std::string> allSwitchbots = {
+static std::map<std::string, std::string> allBots = {
   { "switchbotone", "xx:xx:xx:xx:xx:xx" },
   { "switchbottwo", "yy:yy:yy:yy:yy:yy" }
 };
 
+static std::map<std::string, std::string> allMeters = {
+  /*{ "meterone", "xx:xx:xx:xx:xx:xx" },
+	{ "metertwo", "yy:yy:yy:yy:yy:yy" }*/
+};
+
+static std::map<std::string, std::string> allCurtains = {
+  /*{ "curtainone", "xx:xx:xx:xx:xx:xx" },
+	{ "curtaintwo", "yy:yy:yy:yy:yy:yy" }*/
+};
 
 /*************************************************************/
 
@@ -112,6 +126,11 @@ static std::map<std::string, std::string> allSwitchbotsOpp;
 static std::map<std::string, std::string> deviceTypes;
 static NimBLEScan* pScan;
 static bool isScanning;
+String esp32Str = ESPMQTTTopic + "/ESP32";
+
+String buttonStr = ESPMQTTTopic + "/bot/";
+String curtainStr = ESPMQTTTopic + "/curtain/";
+String tempStr = ESPMQTTTopic + "/meter/";
 
 byte bArrayPress[] = {0x57, 0x01};
 byte bArrayOn[] = {0x57, 0x01, 0x01};
@@ -182,7 +201,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           Serial.println("Assigned advDevService");
         }
       }
-      if (allSwitchbotsDev.size() == allSwitchbots.size()) {
+      if (allSwitchbotsDev.size() == allBots.size() + allCurtains.size() + allMeters.size()) {
         Serial.println("Stopping Scan found devices ... ");
         NimBLEDevice::getScan()->stop();
       }
@@ -200,12 +219,28 @@ void setup () {
   client.setMqttReconnectionAttemptDelay(100);
   client.enableMQTTPersistence();
   client.enableLastWillMessage("switchbotMQTT/lastwill", "Offline");
-  std::map<std::string, std::string>::iterator it = allSwitchbots.begin();
-  while (it != allSwitchbots.end())
+  client.enableDebuggingMessages(true);
+  std::map<std::string, std::string>::iterator it = allBots.begin();
+  while (it != allBots.end())
   {
     allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(it->second, it->first) );
     it++;
   }
+
+  it = allCurtains.begin();
+  while (it != allCurtains.end())
+  {
+    allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(it->second, it->first) );
+    it++;
+  }
+
+  it = allMeters.begin();
+  while (it != allMeters.end())
+  {
+    allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(it->second, it->first) );
+    it++;
+  }
+
   Serial.begin(115200);
   Serial.println("Starting NimBLE Client");
   NimBLEDevice::init("");
@@ -224,7 +259,7 @@ void loop () {
   client.loop();
 }
 
-void processRequest(std::string macAdd, std::string topic, const char * type) {
+void processRequest(std::string macAdd, std::string aName, const char * command, String deviceTopic) {
   int count = 1;
   std::map<std::string, NimBLEAdvertisedDevice*>::iterator itS = allSwitchbotsDev.find(macAdd);
   NimBLEAdvertisedDevice* advDevice =  itS->second;
@@ -238,8 +273,8 @@ void processRequest(std::string macAdd, std::string topic, const char * type) {
       isScanning = true;
       pScan->start(5 * count, scanEndedCB);
       while (isScanning) {
-        Serial.println("Scanning#" + count);
-        delay(500);
+        //Serial.println("Scanning#" + count);
+        //delay(500);
       }
       itS = allSwitchbotsDev.find(macAdd);
       advDevice =  itS->second;
@@ -250,27 +285,17 @@ void processRequest(std::string macAdd, std::string topic, const char * type) {
   {
     StaticJsonDocument<200> doc;
     char aBuffer[256];
-    doc["device"] = topic.c_str();
-    doc["type"] = "error";
-    doc["description"] = "errorLocatingDevice";
+    doc["device"] = aName.c_str();
+    doc["status"] = "errorLocatingDevice";
     serializeJson(doc, aBuffer);
-    String publishStr = ESPMQTTTopic + "/status";
-    client.publish(publishStr.c_str(), aBuffer);
-    Serial.println();
-    delay(500);
-    doc["type"] = "status";
-    doc["description"] = "idle";
-    serializeJson(doc, aBuffer);
-    client.publish(publishStr.c_str(),  aBuffer);
-    Serial.println();
+    client.publish(deviceTopic.c_str(), aBuffer);
   }
   else {
-    sendToDevice(advDevice, topic, type);
+    sendToDevice(advDevice, aName, command, deviceTopic);
   }
 }
 
-void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string deviceTopic, const char * type) {
-  String publishStr = ESPMQTTTopic + "/status";
+void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string aName, const char * command, String deviceTopic) {
   if (advDeviceToUse != NULL)
   {
     bool isConnected = false;
@@ -278,27 +303,25 @@ void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string deviceTopi
     bool shouldContinue = true;
     char aBuffer[256];
     StaticJsonDocument<500> doc;
-    doc["device"] = deviceTopic.c_str();
+    doc["device"] = aName.c_str();
     while (shouldContinue) {
-      if (count > 1) {
-        delay(100);
-      }
+      // if (count > 1) {
+      //  delay(100);
+      //}
       isConnected = connectToServer(advDeviceToUse);
       count++;
       if (isConnected) {
         shouldContinue = false;
-        doc["type"] = "status";
-        doc["description"] = "connected";
+        doc["status"] = "connected";
         serializeJson(doc, aBuffer);
-        client.publish(publishStr.c_str(),  aBuffer);
+        client.publish(deviceTopic.c_str(),  aBuffer);
       }
       else {
         if (count > tryConnecting) {
           shouldContinue = false;
-          doc["type"] = "error";
-          doc["description"] = "errorConnect";
+          doc["status"] = "errorConnect";
           serializeJson(doc, aBuffer);
-          client.publish(publishStr.c_str(),  aBuffer);
+          client.publish(deviceTopic.c_str(),  aBuffer);
         }
       }
     }
@@ -307,11 +330,11 @@ void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string deviceTopi
       shouldContinue = true;
       bool isSuccess;
       while (shouldContinue) {
-        if (count > 1) {
-          delay(100);
-        }
-        if (strcmp(type, "requestStatus") == 0) {
-          isSuccess = getInfo(advDeviceToUse, type, count);
+        //if (count > 1) {
+        //  delay(100);
+        //}
+        if (strcmp(command, "requestInfo") == 0) {
+          isSuccess = getInfo(advDeviceToUse, command, count);
           count++;
           if (isSuccess) {
             shouldContinue = false;
@@ -319,40 +342,32 @@ void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string deviceTopi
           else {
             if (count > trySending) {
               shouldContinue = false;
-              doc["type"] = "error";
-              doc["description"] = "errorRequestStatus";
+              doc["status"] = "errorRequestInfo";
               serializeJson(doc, aBuffer);
-              client.publish(publishStr.c_str(),  aBuffer);
+              client.publish(deviceTopic.c_str(),  aBuffer);
             }
           }
         }
         else {
-          isSuccess = sendCommand(advDeviceToUse, type, count);
+          isSuccess = sendCommand(advDeviceToUse, command, count);
           count++;
           if (isSuccess) {
             shouldContinue = false;
-            doc["type"] = "status";
-            doc["description"] = type;
+            doc["status"] = command;
             serializeJson(doc, aBuffer);
-            client.publish(publishStr.c_str(),  aBuffer);
+            client.publish(deviceTopic.c_str(),  aBuffer);
           }
           else {
             if (count > trySending) {
               shouldContinue = false;
-              doc["type"] = "error";
-              doc["description"] = "errorCommand";
+              doc["status"] = "errorCommand";
               serializeJson(doc, aBuffer);
-              client.publish(publishStr.c_str(),  aBuffer);
+              client.publish(deviceTopic.c_str(),  aBuffer);
             }
           }
         }
       }
     }
-    delay(500);
-    doc["type"] = "status";
-    doc["description"] = "idle";
-    serializeJson(doc, aBuffer);
-    client.publish(publishStr.c_str(),  aBuffer);
   }
 }
 
@@ -367,86 +382,152 @@ void onConnectionEstablished() {
   client.subscribe(ESPMQTTTopic + "/control", [] (const String & payload)  {
     Serial.println("Control MQTT Received...");
     while (isScanning) {
-      delay(500);
+      //delay(500);
     }
     Serial.println("Processing Control MQTT...");
-    String publishStr = ESPMQTTTopic + "/error";
-    StaticJsonDocument<200> doc;
-    deserializeJson(doc, payload);
+    StaticJsonDocument<200> docIn;
+    deserializeJson(docIn, payload);
 
-    if (doc == NULL) { //Check for errors in parsing
+
+    char aBuffer[256];
+    StaticJsonDocument<500> docOut;
+
+    if (docIn == NULL) { //Check for errors in parsing
       Serial.println("Parsing failed");
-      client.publish(publishStr.c_str(), "errorParsingJSON");
-      return;
-    }
-    const char * deviceTopic = doc["device"]; //Get sensor type value
-    const char * value = doc["value"];        //Get value of sensor measurement
-
-    Serial.print("Device: ");
-    Serial.println(deviceTopic);
-    Serial.print("Device value: ");
-    Serial.println(value);
-
-    std::map<std::string, std::string>::iterator itS = allSwitchbots.find(deviceTopic);
-    if (itS != allSwitchbots.end())
-    {
-      bool isNum = is_number(value);
-
-      if (isNum) {
-        int aVal;
-        sscanf(value, "%d", &aVal);
-        if (aVal < 0) {
-          value = "0";
-        }
-        else if (aVal > 100) {
-          value = "100";
-        }
-        processRequest(itS->second, deviceTopic, value);
-      }
-      else {
-        if ((strcmp(value, "press") == 0) || (strcmp(value, "on") == 0) || (strcmp(value, "off") == 0) || (strcmp(value, "open") == 0) || (strcmp(value, "close") == 0) || (strcmp(value, "pause") == 0)) {
-          processRequest(itS->second, deviceTopic, value);
-        }
-        else {
-          Serial.println("Parsing failed = value too low/high");
-          client.publish(publishStr.c_str(), "errorJSONValue");
-        }
-      }
+      docOut["status"] = "errorParsingJSON";
+      serializeJson(docOut, aBuffer);
+      client.publish(esp32Str.c_str(), aBuffer);
     }
     else {
-      Serial.println("Parsing failed = device not from list");
-      client.publish(publishStr.c_str(), "errorJSONDevice");
+      const char * aName = docIn["device"]; //Get sensor type value
+      const char * value = docIn["value"];        //Get value of sensor measurement
+
+      Serial.print("Device: ");
+      Serial.println(aName);
+      Serial.print("Device value: ");
+      Serial.println(value);
+
+      std::string deviceAddr = "";
+      String deviceTopic;
+      std::map<std::string, std::string>::iterator itS = allBots.find(aName);
+      if (itS != allBots.end())
+      {
+        deviceAddr = itS->second;
+        deviceTopic = buttonStr;
+      }
+      itS = allCurtains.find(aName);
+      if (itS != allCurtains.end())
+      {
+        deviceAddr = itS->second;
+        deviceTopic = curtainStr;
+      }
+      itS = allMeters.find(aName);
+      if (itS != allMeters.end())
+      {
+        deviceAddr = itS->second;
+        deviceTopic = tempStr;
+      }
+
+      if (deviceAddr != "") {
+        bool isNum = is_number(value);
+        deviceTopic = deviceTopic + aName;
+        if (isNum) {
+          int aVal;
+          sscanf(value, "%d", &aVal);
+          if (aVal < 0) {
+            value = "0";
+          }
+          else if (aVal > 100) {
+            value = "100";
+          }
+          processRequest(deviceAddr, aName, value, deviceTopic);
+        }
+        else {
+          if ((strcmp(value, "press") == 0) || (strcmp(value, "on") == 0) || (strcmp(value, "off") == 0) || (strcmp(value, "open") == 0) || (strcmp(value, "close") == 0) || (strcmp(value, "pause") == 0)) {
+            processRequest(deviceAddr, aName, value, deviceTopic);
+          }
+          else {
+            docOut["status"] = "errorJSONValue";
+            serializeJson(docOut, aBuffer);
+            Serial.println("Parsing failed = value not a valid command");
+            client.publish(esp32Str.c_str(), aBuffer);
+          }
+        }
+      }
+      else {
+        docOut["status"] = "errorJSONDevice";
+        serializeJson(docOut, aBuffer);
+        Serial.println("Parsing failed = device not from list");
+        client.publish(esp32Str.c_str(), aBuffer);
+      }
     }
+	
+    client.executeDelayed(1000, []() {
+      client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
+    });
+
   });
 
   client.subscribe(ESPMQTTTopic + "/requestInfo", [] (const String & payload)  {
     Serial.println("Request Info MQTT Received...");
     while (isScanning) {
-      delay(500);
+      // delay(500);
     }
     Serial.println("Processing Request Info MQTT...");
-    String publishStr = ESPMQTTTopic + "/errorRequestStatus";
-    StaticJsonDocument<200> doc;
-    deserializeJson(doc, payload);
+    StaticJsonDocument<200> docIn;
+    deserializeJson(docIn, payload);
 
-    if (doc == NULL) { //Check for errors in parsing
+    char aBuffer[256];
+    StaticJsonDocument<500> docOut;
+
+    if (docIn == NULL) { //Check for errors in parsing
       Serial.println("Parsing failed");
-      client.publish(publishStr.c_str(), "errorParsingJSON");
-      return;
-    }
-    const char * deviceTopic = doc["device"]; //Get sensor type value
-    Serial.print("Device: ");
-    Serial.println(deviceTopic);
-
-    std::map<std::string, std::string>::iterator itS = allSwitchbots.find(deviceTopic);
-    if (itS != allSwitchbots.end())
-    {
-      processRequest(itS->second, deviceTopic, "requestStatus");
+      docOut["status"] = "errorParsingJSON";
+      serializeJson(docOut, aBuffer);
+      client.publish(esp32Str.c_str(), aBuffer);
     }
     else {
-      Serial.println("Parsing failed = device not from list");
-      client.publish(publishStr.c_str(), "errorJSONDevice");
+      const char * aName = docIn["device"]; //Get sensor type value
+      Serial.print("Device: ");
+      Serial.println(aName);
+
+      std::string deviceAddr = "";
+      String deviceTopic;
+      std::map<std::string, std::string>::iterator itS = allBots.find(aName);
+      if (itS != allBots.end())
+      {
+        deviceAddr = itS->second;
+        deviceTopic = buttonStr;
+      }
+      itS = allCurtains.find(aName);
+      if (itS != allCurtains.end())
+      {
+        deviceAddr = itS->second;
+        deviceTopic = curtainStr;
+      }
+      itS = allMeters.find(aName);
+      if (itS != allMeters.end())
+      {
+        deviceAddr = itS->second;
+        deviceTopic = tempStr;
+      }
+
+      if (deviceAddr != "") {
+        deviceTopic = deviceTopic + aName;
+        processRequest(deviceAddr, aName, "requestInfo", deviceTopic);
+      }
+      else {
+        docOut["status"] = "errorJSONDevice";
+        serializeJson(docOut, aBuffer);
+        Serial.println("Parsing failed = device not from list");
+        client.publish(esp32Str.c_str(), aBuffer);
+      }
     }
+
+    client.executeDelayed(1000, []() {
+      client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
+    });
+
   });
 }
 
@@ -711,15 +792,19 @@ void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData,
   }
   str += hexFormatted;
 
+  String aDevice ;
+  String deviceStr ;
+
   char aBuffer[256];
   StaticJsonDocument<500> doc;
   std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(pRemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress());
   if (itS != allSwitchbotsOpp.end())
   {
     doc["device"] = itS->second.c_str();
+    aDevice = itS->second.c_str();
   }
   else {
-    doc["device"] = "unknown";
+    return;
   }
 
   std::string deviceName;
@@ -736,10 +821,9 @@ void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData,
   std::string curtainName = "WoCurtain";
 
   if (deviceName == buttonName) {
-
+    deviceStr = buttonStr + aDevice;
     uint8_t byte1 = pData[0];
     uint8_t byte2 = pData[1];
-
     bool mode = (byte1 & 0b10000000) ;
     String str1 = (mode == true) ? "true" : "false";
     Serial.println(str1);
@@ -775,6 +859,7 @@ void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData,
   }
   else if (deviceName == tempName) {
 
+    deviceStr = tempStr + aDevice;
     uint8_t byte2 = pData[1];
     uint8_t byte3 = pData[2];
     uint8_t byte4 = pData[3];
@@ -807,7 +892,7 @@ void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData,
     doc["humidity"] = humidity;
   }
   else if (deviceName == curtainName) {
-
+    deviceStr = curtainStr + aDevice;
     uint8_t byte1 = pData[0];
     uint8_t byte2 = pData[1];
     uint8_t byte3 = pData[2];
@@ -831,7 +916,6 @@ void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData,
   }
   Serial.println("serializing");
   serializeJson(doc, aBuffer);
-  String publishStr = ESPMQTTTopic + "/status";
-  client.publish(publishStr.c_str(), aBuffer);
+  client.publish(deviceStr.c_str(), aBuffer);
   Serial.println("published");
 }
