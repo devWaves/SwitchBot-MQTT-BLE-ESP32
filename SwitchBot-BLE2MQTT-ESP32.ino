@@ -219,7 +219,6 @@ void setup () {
   client.setMqttReconnectionAttemptDelay(100);
   client.enableMQTTPersistence();
   client.enableLastWillMessage("switchbotMQTT/lastwill", "Offline");
-  client.enableDebuggingMessages(true);
   std::map<std::string, std::string>::iterator it = allBots.begin();
   while (it != allBots.end())
   {
@@ -273,8 +272,8 @@ void processRequest(std::string macAdd, std::string aName, const char * command,
       isScanning = true;
       pScan->start(5 * count, scanEndedCB);
       while (isScanning) {
-        //Serial.println("Scanning#" + count);
-        //delay(500);
+        Serial.println("Scanning#" + count);
+        delay(500);
       }
       itS = allSwitchbotsDev.find(macAdd);
       advDevice =  itS->second;
@@ -305,9 +304,9 @@ void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string aName, con
     StaticJsonDocument<500> doc;
     doc["device"] = aName.c_str();
     while (shouldContinue) {
-      // if (count > 1) {
-      //  delay(100);
-      //}
+      if (count > 1) {
+      delay(100);
+      }
       isConnected = connectToServer(advDeviceToUse);
       count++;
       if (isConnected) {
@@ -330,9 +329,9 @@ void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string aName, con
       shouldContinue = true;
       bool isSuccess;
       while (shouldContinue) {
-        //if (count > 1) {
-        //  delay(100);
-        //}
+        if (count > 1) {
+          delay(100);
+        }
         if (strcmp(command, "requestInfo") == 0) {
           isSuccess = getInfo(advDeviceToUse, command, count);
           count++;
@@ -382,7 +381,7 @@ void onConnectionEstablished() {
   client.subscribe(ESPMQTTTopic + "/control", [] (const String & payload)  {
     Serial.println("Control MQTT Received...");
     while (isScanning) {
-      //delay(500);
+      delay(500);
     }
     Serial.println("Processing Control MQTT...");
     StaticJsonDocument<200> docIn;
@@ -461,7 +460,7 @@ void onConnectionEstablished() {
         client.publish(esp32Str.c_str(), aBuffer);
       }
     }
-	
+  
     client.executeDelayed(1000, []() {
       client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
     });
@@ -471,7 +470,7 @@ void onConnectionEstablished() {
   client.subscribe(ESPMQTTTopic + "/requestInfo", [] (const String & payload)  {
     Serial.println("Request Info MQTT Received...");
     while (isScanning) {
-      // delay(500);
+      delay(500);
     }
     Serial.println("Processing Request Info MQTT...");
     StaticJsonDocument<200> docIn;
