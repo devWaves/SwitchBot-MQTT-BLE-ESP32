@@ -8,9 +8,9 @@
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.7
+  v0.8
 
-    Created: on March 10 2021
+    Created: on March 11 2021
         Author: devWaves
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
