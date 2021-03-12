@@ -8,7 +8,7 @@
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.8
+  v0.9
 
     Created: on March 11 2021
         Author: devWaves
@@ -381,8 +381,10 @@ bool is_number(const std::string& s)
 void onConnectionEstablished() {
   client.subscribe(ESPMQTTTopic + "/control", [] (const String & payload)  {
     Serial.println("Control MQTT Received...");
-    while (isScanning || processing) {
+    int count = 0;
+    while ((isScanning || processing) && (count < 60) ) {
       delay(1000);
+      count++;
     }
     processing = true;
     Serial.println("Processing Control MQTT...");
@@ -470,8 +472,10 @@ void onConnectionEstablished() {
 
   client.subscribe(ESPMQTTTopic + "/requestInfo", [] (const String & payload)  {
     Serial.println("Request Info MQTT Received...");
-    while (isScanning || processing) {
+    int count = 0;
+    while ((isScanning || processing) && (count < 60) ) {
       delay(1000);
+      count++;
     }
 
     Serial.println("Processing Request Info MQTT...");
