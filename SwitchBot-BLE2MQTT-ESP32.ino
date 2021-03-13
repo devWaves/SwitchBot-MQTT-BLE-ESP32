@@ -8,9 +8,9 @@
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.9
+  v0.10
 
-    Created: on March 11 2021
+    Created: on March 13 2021
         Author: devWaves
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
@@ -41,9 +41,9 @@
           any number 0-100 (for curtain position) Example: "50"
 
           example payloads =
-            {"device":"switchbotone","value":"press"}
-            {"device":"switchbotone","value":"open"}
-            {"device":"switchbotone","value":"50"}
+            {"id":"switchbotone","value":"press"}
+            {"id":"switchbotone","value":"open"}
+            {"id":"switchbotone","value":"50"}
 
   ESP32 will respond with MQTT on
       -switchbotMQTT/#
@@ -52,12 +52,12 @@
       -switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switchbotMQTT/meter/meterone
 
           example payloads =
-            {"device":"switchbotone","status":"connected"}"
-            {"device":"switchbotone","status":"press"}
-            {"device":"switchbotone","status":"idle"}"
+            {"id":"switchbotone","status":"connected"}"
+            {"id":"switchbotone","status":"press"}
+            {"id":"switchbotone","status":"idle"}"
 
-            {"device":"switchbotone","status":"errorConnect"}"
-            {"device":"switchbotone","status":"errorCommand"}"
+            {"id":"switchbotone","status":"errorConnect"}"
+            {"id":"switchbotone","status":"errorCommand"}"
 
 
   ESP32 will Suscribe to MQTT topic for device information
@@ -65,7 +65,7 @@
 
     send a JSON payload of the device you want to control
           example payloads =
-            {"device":"switchbotone"}
+            {"id":"switchbotone"}
 
     ESP32 will respond with MQTT on
     -switchbotMQTT/#
@@ -73,10 +73,9 @@
     Example reponses:
       -switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switchbotMQTT/meter/meterone
           example payloads =
-            {"device":"switchbotone","battLevel":95,"fwVersion":4.9,"numTimers":0,"mode":"Not inverted","inverted":"Not inverted","holdSecs":0}"
+            {"id":"switchbottwo","status":"info","rssi":-78,"mode":"Press","state":"OFF","batt":94,"numT":0,"inv":false,"hold":0}
 
 
-		
 	Errors that cannot be linked to a specific device will be published to
       -switchbotMQTT/ESP32
 
@@ -219,6 +218,7 @@ static ClientCallbacks clientCB;
 void setup () {
   client.setMqttReconnectionAttemptDelay(100);
   client.enableLastWillMessage("switchbotMQTT/lastwill", "Offline");
+  client.setKeepAlive(60);
   std::map<std::string, std::string>::iterator it = allBots.begin();
   while (it != allBots.end())
   {
@@ -283,9 +283,9 @@ void processRequest(std::string macAdd, std::string aName, const char * command,
   }
   if (advDevice == NULL)
   {
-    StaticJsonDocument<200> doc;
-    char aBuffer[256];
-    doc["device"] = aName.c_str();
+    StaticJsonDocument<100> doc;
+    char aBuffer[100];
+    doc["id"] = aName.c_str();
     doc["status"] = "errorLocatingDevice";
     serializeJson(doc, aBuffer);
     client.publish(deviceTopic.c_str(), aBuffer);
@@ -301,9 +301,9 @@ void sendToDevice(NimBLEAdvertisedDevice* advDeviceToUse, std::string aName, con
     bool isConnected = false;
     int count = 0;
     bool shouldContinue = true;
-    char aBuffer[256];
-    StaticJsonDocument<500> doc;
-    doc["device"] = aName.c_str();
+    char aBuffer[100];
+    StaticJsonDocument<100> doc;
+    doc["id"] = aName.c_str();
     while (shouldContinue) {
       if (count > 1) {
         delay(100);
@@ -388,30 +388,28 @@ void onConnectionEstablished() {
     }
     processing = true;
     Serial.println("Processing Control MQTT...");
-    StaticJsonDocument<200> docIn;
+    StaticJsonDocument<100> docIn;
     deserializeJson(docIn, payload);
 
-
-    char aBuffer[256];
-    StaticJsonDocument<500> docOut;
-
     if (docIn == NULL) { //Check for errors in parsing
+      char aBuffer[100];
+      StaticJsonDocument<100> docOut;
       Serial.println("Parsing failed");
       docOut["status"] = "errorParsingJSON";
       serializeJson(docOut, aBuffer);
       client.publish(esp32Str.c_str(), aBuffer);
     }
     else {
-      const char * aName = docIn["device"]; //Get sensor type value
+      const char * aName = docIn["id"]; //Get sensor type value
       const char * value = docIn["value"];        //Get value of sensor measurement
-
+      std::string deviceAddr = "";
+      String deviceTopic;
+      if(aName != NULL && value != NULL){
       Serial.print("Device: ");
       Serial.println(aName);
       Serial.print("Device value: ");
       Serial.println(value);
 
-      std::string deviceAddr = "";
-      String deviceTopic;
       std::map<std::string, std::string>::iterator itS = allBots.find(aName);
       if (itS != allBots.end())
       {
@@ -430,7 +428,7 @@ void onConnectionEstablished() {
         deviceAddr = itS->second;
         deviceTopic = tempStr;
       }
-
+      }
       if (deviceAddr != "") {
         bool isNum = is_number(value);
         deviceTopic = deviceTopic + aName;
@@ -450,6 +448,8 @@ void onConnectionEstablished() {
             processRequest(deviceAddr, aName, value, deviceTopic);
           }
           else {
+            char aBuffer[100];
+            StaticJsonDocument<100> docOut;
             docOut["status"] = "errorJSONValue";
             serializeJson(docOut, aBuffer);
             Serial.println("Parsing failed = value not a valid command");
@@ -458,6 +458,8 @@ void onConnectionEstablished() {
         }
       }
       else {
+        char aBuffer[100];
+        StaticJsonDocument<100> docOut;
         docOut["status"] = "errorJSONDevice";
         serializeJson(docOut, aBuffer);
         Serial.println("Parsing failed = device not from list");
@@ -479,25 +481,26 @@ void onConnectionEstablished() {
     }
 
     Serial.println("Processing Request Info MQTT...");
-    StaticJsonDocument<200> docIn;
+    StaticJsonDocument<100> docIn;
     deserializeJson(docIn, payload);
-
-    char aBuffer[256];
-    StaticJsonDocument<500> docOut;
 
     if (docIn == NULL) { //Check for errors in parsing
       Serial.println("Parsing failed");
+      char aBuffer[100];
+      StaticJsonDocument<100> docOut;
       docOut["status"] = "errorParsingJSON";
       serializeJson(docOut, aBuffer);
       client.publish(esp32Str.c_str(), aBuffer);
     }
     else {
-      const char * aName = docIn["device"]; //Get sensor type value
+      const char * aName = docIn["id"]; //Get sensor type value
       Serial.print("Device: ");
       Serial.println(aName);
 
       std::string deviceAddr = "";
       String deviceTopic;
+     
+      if(aName != NULL){
       std::map<std::string, std::string>::iterator itS = allBots.find(aName);
       if (itS != allBots.end())
       {
@@ -516,13 +519,15 @@ void onConnectionEstablished() {
         deviceAddr = itS->second;
         deviceTopic = tempStr;
       }
-
+      }
       if (deviceAddr != "") {
         deviceTopic = deviceTopic + aName;
         processRequest(deviceAddr, aName, "requestInfo", deviceTopic);
       }
       else {
-        docOut["status"] = "errorJSONDevice";
+        char aBuffer[100];
+        StaticJsonDocument<100> docOut;
+        docOut["status"] = "errorJSONId";
         serializeJson(docOut, aBuffer);
         Serial.println("Parsing failed = device not from list");
         client.publish(esp32Str.c_str(), aBuffer);
@@ -782,30 +787,17 @@ bool getInfo(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int atte
 
 /** Notification / Indication receiving handler callback */
 void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-  std::string str = (isNotify == true) ? "Notification" : "Indication";
-  str += " from ";
-  /** NimBLEAddress and NimBLEUUID have std::string operators */
-  str += std::string(pRemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress());
-  str += ": Service = " + std::string(pRemoteCharacteristic->getRemoteService()->getUUID());
-  str += ", Characteristic = " + std::string(pRemoteCharacteristic->getUUID());
-
-  str += ", Value = ";
-  char hexFormatted[length * 2] = "";
-  for (int i = 0; i < length; i++) {
-    sprintf( hexFormatted, "%s%02X", hexFormatted, pData[i]);
-  }
-  str += hexFormatted;
-
+  Serial.println("notifyCB");
   String aDevice ;
   String deviceStr ;
 
-  char aBuffer[256];
-  StaticJsonDocument<500> doc;
+  StaticJsonDocument<200> doc;
+  char aBuffer[200];
   std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(pRemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress());
   if (itS != allSwitchbotsOpp.end())
   {
-    doc["device"] = itS->second.c_str();
     aDevice = itS->second.c_str();
+    doc["id"] = aDevice;
   }
   else {
     return;
@@ -817,49 +809,32 @@ void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData,
   {
     deviceName = itS->second.c_str();
   }
-  Serial.print("DeviceName:");
-  Serial.println(deviceName.c_str());
 
   std::string buttonName = "WoHand";
   std::string tempName = "WoSensorTH";
   std::string curtainName = "WoCurtain";
 
+  doc["status"] = "info";
+  doc["rssi"] = pRemoteCharacteristic->getRemoteService()->getClient()->getRssi();
   if (deviceName == buttonName) {
     deviceStr = buttonStr + aDevice;
     uint8_t byte1 = pData[0];
     uint8_t byte2 = pData[1];
-    bool mode = (byte1 & 0b10000000) ;
-    String str1 = (mode == true) ? "true" : "false";
-    Serial.println(str1);
+
+    bool mode = bitRead(pData[9], 4) ;
+    String str1 = (mode == true) ? "Switch" : "Press";
     doc["mode"] = str1;
     bool state = (byte1 & 0b01000000) ;
-    String str2 = (state == true) ? "ON" : "OFF";
-    Serial.println(str2);
+    String str2 = (mode == true) ? "ON" : "OFF";
     doc["state"] = str2;
     int battLevel = byte2 & 0b01111111;
-    Serial.print("Battery level: ");
-    Serial.println(battLevel);
-    doc["battLevel"] = battLevel;
-    float fwVersion = pData[2] / 10.0;
-    Serial.print("Fw version: ");
-    Serial.println(fwVersion);
-    doc["fwVersion"] = fwVersion;
+    doc["batt"] = battLevel;
     int timersNumber = pData[8];
-    Serial.print("Number of timers: ");
-    Serial.println(timersNumber);
-    doc["numTimers"] = timersNumber;
-    bool dualStateMode = bitRead(pData[9], 4) ;
-    String str3 = (dualStateMode == true) ? "Switch mode" : "Press mode";
-    Serial.println(str3);
-    doc["dualStateMode"] = str3;
+    doc["numT"] = timersNumber;
     bool inverted = bitRead(pData[9], 0) ;
-    String str4 = (inverted == true) ? "Inverted" : "Not inverted";
-    Serial.println(str4);
-    doc["inverted"] = str4;
+    doc["inv"] = inverted;
     int holdSecs = pData[10];
-    Serial.print("Hold seconds: ");
-    Serial.println(holdSecs);
-    doc["holdSecs"] = holdSecs;
+    doc["hold"] = holdSecs;
   }
   else if (deviceName == tempName) {
 
@@ -874,26 +849,15 @@ void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData,
     float tempF = (tempC * 9 / 5) + 32;
     tempF = round(tempF * 10) / 10;
     bool tempScale = (byte5 & 0b10000000) ;
-    String str1 = (tempScale == true) ? "fahrenheit" : "celcius";
-    Serial.println(str1);
-    doc["tempScale"] = str1;
+    String str1 = (tempScale == true) ? "f" : "c";
+    doc["scale"] = str1;
     int battLevel = (byte2 & 0b01111111);
-    Serial.print("Battery level: ");
-    Serial.println(battLevel);
-    doc["battLevel"] = battLevel;
-    Serial.print("tempC: ");
-    Serial.println(tempC);
-    doc["tempC"] = tempC;
-    Serial.print("tempF: ");
-    Serial.println(tempF);
-    doc["tempF"] = tempF;
-    Serial.print("tempSign: ");
-    Serial.println(tempSign);
-    doc["tempSign"] = tempSign;
+    doc["batt"] = battLevel;
+    doc["C"] = tempC;
+    doc["F"] = tempF;
     int humidity = byte5 & 0b01111111;
-    Serial.print("humidity: ");
-    Serial.println(humidity);
-    doc["humidity"] = humidity;
+    doc["hum"] = humidity;
+
   }
   else if (deviceName == curtainName) {
     deviceStr = curtainStr + aDevice;
@@ -906,17 +870,11 @@ void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData,
     int battLevel = byte2 & 0b01111111;
     int currentPosition = byte3 & 0b01111111;
     int lightLevel = (byte4 >> 4) & 0b00001111;
-    String str1 = (calibrated == true) ? "Calibrated" : "Not Calibrated";
-    Serial.println(str1);
-    Serial.print("Battery level: ");
-    Serial.println(battLevel);
-    doc["battLevel"] = battLevel;
-    Serial.print("CurrentPosition: ");
-    Serial.println(battLevel);
-    doc["currentPosition"] = currentPosition;
-    Serial.print("Light level:");
-    Serial.println(lightLevel);
-    doc["lightLevel"] = lightLevel;
+    doc["calib"] = calibrated;
+    doc["batt"] = battLevel;
+    doc["pos"] = currentPosition;
+    doc["light"] = lightLevel;
+
   }
   Serial.println("serializing");
   serializeJson(doc, aBuffer);
