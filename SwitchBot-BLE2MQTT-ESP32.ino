@@ -251,7 +251,7 @@ void setup () {
   pScan->setWindow(15);
   pScan->setActiveScan(true);
   isScanning = true;
-  pScan->start(20, scanEndedCB);
+  pScan->start(30, scanEndedCB);
 }
 
 void loop () {
@@ -788,6 +788,7 @@ bool getInfo(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int atte
 /** Notification / Indication receiving handler callback */
 void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
   Serial.println("notifyCB");
+  if(length<4){return;}
   String aDevice ;
   String deviceStr ;
 
