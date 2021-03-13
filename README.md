@@ -8,9 +8,9 @@ Code can be installed using Arduino IDE for ESP32
 Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
   *** I do not know where performance will be affected by number of devices
 
-v0.9
+v0.10
 
-Created: on March 12 2021
+Created: on March 13 2021
   Author: devWaves
 
 based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
@@ -37,20 +37,20 @@ Value can equal...
 - any number 0-100 (for curtain position) Example: "50"
 
 example payloads
-- {"device":"switchbotone","value":"press"}
-- {"device":"switchbotone","value":"open"}
-- {"device":"switchbotone","value":"50"}
+- {"id":"switchbotone","value":"press"}
+- {"id":"switchbotone","value":"open"}
+- {"id":"switchbotone","value":"50"}
   
 **ESP32 will respond with MQTT on...**
 - switchbotMQTT/#
 
 Example reponses:
 switchbotMQTT/status
-- {"device":"switchbotone","type":"status","description":"connected"}
-- {"device":"switchbotone","type":"status","description":"press"}
-- {"device":"switchbotone","type":"status","description":"idle"}
-- {"device":"switchbotone","type":"error","description":"errorConnect"}
-- {"device":"switchbotone","type":"error","description":"errorCommand"}
+- {"id":"switchbotone","status":"connected"}
+- {"id":"switchbotone","status":"press"}
+- {"id":"switchbotone","status":"idle"}
+- {"id":"switchbotone","status":"errorConnect"}
+- {"id":"switchbotone","status":"errorCommand"}
 
 
 **ESP32 will Suscribe to MQTT topic for device information...**
@@ -58,7 +58,7 @@ switchbotMQTT/status
 
   send a JSON payload of the device you want to control
    example payloads =
-   - {"device":"switchbotone"}
+   - {"id":"switchbotone"}
       
 **ESP32 will respond with MQTT on...**
 - switchbotMQTT/#
@@ -66,7 +66,7 @@ switchbotMQTT/status
   Example reponses:
   switchbotMQTT/status
   example payloads =
-  - {"device":"switchbotone","battLevel":95,"fwVersion":4.9,"numTimers":0,"mode":"Not inverted","inverted":"Not inverted","holdSecs":0}"
+  - {"id":"switchbottwo","status":"info","rssi":-78,"mode":"Press","state":"OFF","batt":94,"numT":0,"inv":false,"hold":0}
 
 Steps
 1. Install Arduino IDE
