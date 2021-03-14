@@ -840,10 +840,10 @@ void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData,
   else if (deviceName == tempName) {
 
     deviceStr = tempStr + aDevice;
-    uint8_t byte2 = pData[1];
-    uint8_t byte3 = pData[2];
-    uint8_t byte4 = pData[3];
-    uint8_t byte5 = pData[4];
+    uint8_t byte2 = pData[4];
+    uint8_t byte3 = pData[5];
+    uint8_t byte4 = pData[6];
+    uint8_t byte5 = pData[7];
 
     int tempSign = (byte4 & 0b10000000) ? 1 : -1;
     float tempC = tempSign * ((byte4 & 0b01111111) + (byte3 / 10));
@@ -862,10 +862,10 @@ void notifyCB(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData,
   }
   else if (deviceName == curtainName) {
     deviceStr = curtainStr + aDevice;
-    uint8_t byte1 = pData[0];
-    uint8_t byte2 = pData[1];
-    uint8_t byte3 = pData[2];
-    uint8_t byte4 = pData[3];
+    uint8_t byte1 = pData[4];
+    uint8_t byte2 = pData[5];
+    uint8_t byte3 = pData[6];
+    uint8_t byte4 = pData[7];
 
     bool calibrated = byte1 & 0b01000000;;
     int battLevel = byte2 & 0b01111111;
