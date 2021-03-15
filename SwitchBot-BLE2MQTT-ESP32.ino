@@ -73,7 +73,7 @@
     Example reponses:
       -switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switchbotMQTT/meter/meterone
           example payloads =
-            {"id":"switchbottwo","status":"info","rssi":-78,"mode":"Press","state":"OFF","batt":94,"numT":0,"inv":false,"hold":0}
+            {"id":"switchbottwo","status":"info","rssi":-78,"mode":"Press","state":"OFF","batt":94}
 
 
 	Errors that cannot be linked to a specific device will be published to
