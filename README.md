@@ -8,9 +8,9 @@ Code can be installed using Arduino IDE for ESP32
 Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
   *** I do not know where performance will be affected by number of devices
 
-v0.10
+v0.11
 
-Created: on March 13 2021
+Created: on March 14 2021
   Author: devWaves
 
 based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
@@ -66,7 +66,7 @@ switchbotMQTT/status
   Example reponses:
   switchbotMQTT/status
   example payloads =
-  - {"id":"switchbottwo","status":"info","rssi":-78,"mode":"Press","state":"OFF","batt":94,"numT":0,"inv":false,"hold":0}
+  - {"id":"switchbottwo","status":"info","rssi":-78,"mode":"Press","state":"OFF","batt":94}
 
 Steps
 1. Install Arduino IDE
