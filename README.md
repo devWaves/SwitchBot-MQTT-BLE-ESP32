@@ -45,20 +45,21 @@ example payloads
 - switchbotMQTT/#
 
 Example reponses:
-switchbotMQTT/status
+switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switchbotMQTT/meter/meterone
 - {"id":"switchbotone","status":"connected"}
 - {"id":"switchbotone","status":"press"}
-- {"id":"switchbotone","status":"idle"}
 - {"id":"switchbotone","status":"errorConnect"}
 - {"id":"switchbotone","status":"errorCommand"}
 
+switchbotMQTT/ESP32
+- {"status":"idle"}
 
-**ESP32 will Suscribe to MQTT topic for device information...**
-- switchbotMQTT/requestInfo
+**ESP32 will Suscribe to MQTT topic to rescan for all device information...**
+- switchbotMQTT/rescan
 
-  send a JSON payload of the device you want to control
+  send a JSON payload of how many seconds you want to rescan for
    example payloads =
-   - {"id":"switchbotone"}
+   - {"sec":"30"}
       
 **ESP32 will respond with MQTT on...**
 - switchbotMQTT/#
@@ -68,7 +69,13 @@ switchbotMQTT/status
   example payloads =
   - {"id":"switchbottwo","status":"info","rssi":-78,"mode":"Press","state":"OFF","batt":94}
 
-Steps
+
+Errors that cannot be linked to a specific device will be published to
+      -switchbotMQTT/ESP32
+
+
+
+Steps to Install on ESP32
 1. Install Arduino IDE
 2. Setup IDE for proper ESP32 type
      https://randomnerdtutorials.com/installing-the-esp32-board-in-arduino-ide-windows-instructions/
