@@ -8,9 +8,9 @@
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.11
+  v0.12
 
-    Created: on March 14 2021
+    Created: on March 18 2021
         Author: devWaves
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
@@ -20,7 +20,7 @@
 
     - It works for curtain open/close/pause/position(%)
 
-    - It can request setting values (battery, mode, firmware version, Number of timers, Press mode, inverted (yes/no), Hold seconds)
+    - It can request setting values (battery, mode, firmware version, Number of timers, Press mode, inverted (yes/no), Hold seconds) using a rescan
 
     - Good for placing one ESP32 in a zone with 1 or 2 devices that has a bad bluetooth signal from your smart hub. MQTT will use Wifi to "boost" the bluetooth signal
 
@@ -60,20 +60,21 @@
             {"id":"switchbotone","status":"errorCommand"}"
 
 
-  ESP32 will Suscribe to MQTT topic for device information
-      -switchbotMQTT/requestInfo
+  ESP32 will Suscribe to MQTT topic to rescan for all device information
+      -switchbotMQTT/rescan
 
-    send a JSON payload of the device you want to control
+    send a JSON payload of how many seconds you want to rescan for
           example payloads =
-            {"id":"switchbotone"}
+            {"sec":"30"}
 
     ESP32 will respond with MQTT on
     -switchbotMQTT/#
 
-    Example reponses:
+    Example reponses as device are detected:
       -switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switchbotMQTT/meter/meterone
           example payloads =
             {"id":"switchbottwo","status":"info","rssi":-78,"mode":"Press","state":"OFF","batt":94}
+
 
 
 	Errors that cannot be linked to a specific device will be published to
@@ -114,20 +115,21 @@ static std::map<std::string, std::string> allCurtains = {
 	{ "curtaintwo", "yy:yy:yy:yy:yy:yy" }*/
 };
 
-/*************************************************************/
+static int tryConnecting = 60;  // How many times to try connecting to bot
+static int trySending = 30;     // How many times to try sending command to bot
+static int initialScan = 30;    // How many seconds to scan for bots on ESP reboot
 
-static int tryConnecting = 60;
-static int trySending = 30;
+/*************************************************************/
 
 void scanEndedCB(NimBLEScanResults results);
 static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsDev = {};
 static std::map<std::string, std::string> allSwitchbotsOpp;
 static std::map<std::string, std::string> deviceTypes;
 static NimBLEScan* pScan;
-static bool isScanning;
 static bool processing = false;
 String esp32Str = ESPMQTTTopic + "/ESP32";
-
+String lastWillStr = ESPMQTTTopic + "/lastwill";
+const char* lastWill = lastWillStr.c_str();
 String buttonStr = ESPMQTTTopic + "/bot/";
 String curtainStr = ESPMQTTTopic + "/curtain/";
 String tempStr = ESPMQTTTopic + "/meter/";
@@ -204,9 +206,11 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
             Serial.println("Assigned advDevService");
             std::string aValueString = advertisedDevice->getServiceData(0);
             callForInfoAdvDev( advertisedDevice, aValueString);
-            delay(500);
           }
         }
+      }
+      else {
+        NimBLEDevice::addIgnored(advStr);
       }
       if (allSwitchbotsDev.size() == allBots.size() + allCurtains.size() + allMeters.size()) {
         Serial.println("Stopping Scan found devices ... ");
@@ -315,7 +319,6 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 };
 
 void scanEndedCB(NimBLEScanResults results) {
-  isScanning = false;
   Serial.println("Scan Ended");
 }
 
@@ -323,7 +326,7 @@ static ClientCallbacks clientCB;
 
 void setup () {
   client.setMqttReconnectionAttemptDelay(100);
-  client.enableLastWillMessage("switchbotMQTT/lastwill", "Offline");
+  client.enableLastWillMessage(lastWill, "Offline");
   client.setKeepAlive(60);
   std::map<std::string, std::string>::iterator it = allBots.begin();
   while (it != allBots.end())
@@ -350,24 +353,31 @@ void setup () {
   }
 
   Serial.begin(115200);
-  client.loop();
-  delay(1000);
   Serial.println("Starting NimBLE Client");
   NimBLEDevice::init("");
   NimBLEDevice::setSecurityAuth(/*BLE_SM_PAIR_AUTHREQ_BOND | BLE_SM_PAIR_AUTHREQ_MITM |*/ BLE_SM_PAIR_AUTHREQ_SC);
   NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+  //NimBLEDevice::setScanFilterMode(2);
   pScan = NimBLEDevice::getScan();
   pScan->setAdvertisedDeviceCallbacks(new AdvertisedDeviceCallbacks());
   pScan->setInterval(45);
   pScan->setWindow(15);
+  pScan->setDuplicateFilter(true);
   pScan->setActiveScan(true);
-  isScanning = true;
-  pScan->start(30, scanEndedCB);
+  pScan->start(initialScan, scanEndedCB);
+}
+
+void rescan(int seconds) {
+  if (pScan->isScanning()) {
+    return;
+  }
+  allSwitchbotsDev = {};
+  pScan->clearResults();
+  pScan->start(seconds, scanEndedCB);
 }
 
 void loop () {
   client.loop();
-  delay(100);
 }
 
 void processRequest(std::string macAdd, std::string aName, const char * command, String deviceTopic) {
@@ -381,11 +391,17 @@ void processRequest(std::string macAdd, std::string aName, const char * command,
     }
     else {
       count++;
-      isScanning = true;
-      pScan->start(5 * count, scanEndedCB);
-      while (isScanning) {
-        Serial.println("Scanning#" + count);
-        delay(500);
+      if (pScan->isScanning()) {
+        while (pScan->isScanning()) {
+          delay(50);
+        }
+      }
+      else {
+        pScan->start(5 * count, scanEndedCB);
+        while (pScan->isScanning()) {
+          Serial.println("Scanning#" + count);
+          delay(500);
+        }
       }
       itS = allSwitchbotsDev.find(macAdd);
       advDevice =  itS->second;
@@ -410,16 +426,10 @@ void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const ch
 
   NimBLEAdvertisedDevice* advDeviceToUse = advDevice;
   std::string addr = advDeviceToUse->getAddress().toString().c_str();
-  if (command == "requestInfo") {
-    Serial.print("allSwitchbotsDev.size()");
-    Serial.println(allSwitchbotsDev.size());
-    allSwitchbotsDev.erase(advDeviceToUse->getAddress().toString());
-    Serial.print("allSwitchbotsDev.size()");
-    Serial.println(allSwitchbotsDev.size());
-    advDeviceToUse = NULL;
-    isScanning = true;
-    pScan->erase(NimBLEAddress(addr));
-    pScan->start(60, scanEndedCB);
+
+  // TODO gets settings from devices
+  if (strcmp(command, "requestInfo") == 0) {
+    client.publish(esp32Str.c_str(), "requestInfoDoesNotWorkYet");
     return;
   }
 
@@ -433,7 +443,7 @@ void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const ch
     doc["id"] = aName.c_str();
     while (shouldContinue) {
       if (count > 1) {
-        delay(100);
+        delay(50);
       }
       isConnected = connectToServer(advDeviceToUse);
       count++;
@@ -458,10 +468,10 @@ void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const ch
       bool isSuccess;
       while (shouldContinue) {
         if (count > 1) {
-          delay(100);
+          delay(50);
         }
-        if (strcmp(command, "requestSettings") == 0) {
-          isSuccess = requestSettings(advDeviceToUse, command, count);
+        if (strcmp(command, "requestInfo") == 0) {
+          isSuccess = requestInfo(advDeviceToUse, command, count);
           count++;
           if (isSuccess) {
             shouldContinue = false;
@@ -509,8 +519,8 @@ void onConnectionEstablished() {
   client.subscribe(ESPMQTTTopic + "/control", [] (const String & payload)  {
     Serial.println("Control MQTT Received...");
     int count = 0;
-    while ((isScanning || processing) && (count < 60) ) {
-      delay(1000);
+    while (( processing || pScan->isScanning()) && (count < 600) ) {
+      delay(100);
       count++;
     }
     processing = true;
@@ -595,18 +605,17 @@ void onConnectionEstablished() {
     }
     delay(500);
     client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
-
     processing = false;
   });
 
   client.subscribe(ESPMQTTTopic + "/requestInfo", [] (const String & payload)  {
     Serial.println("Request Info MQTT Received...");
     int count = 0;
-    while ((isScanning || processing) && (count < 60) ) {
-      delay(1000);
+    while ((processing || pScan->isScanning()) && (count < 600) ) {
+      delay(100);
       count++;
     }
-
+    processing = true;
     Serial.println("Processing Request Info MQTT...");
     StaticJsonDocument<100> docIn;
     deserializeJson(docIn, payload);
@@ -658,6 +667,66 @@ void onConnectionEstablished() {
         serializeJson(docOut, aBuffer);
         Serial.println("Parsing failed = device not from list");
         client.publish(esp32Str.c_str(), aBuffer);
+      }
+    }
+
+    delay(500);
+    client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
+    processing = false;
+  });
+
+  client.subscribe(ESPMQTTTopic + "/rescan", [] (const String & payload)  {
+    Serial.println("Rescan MQTT Received...");
+    if (pScan->isScanning()) {
+      Serial.println("Already scanning. Exiting");
+      return;
+    }
+    int count = 0;
+    while ((processing) && (count < 600) ) {
+      delay(100);
+      count++;
+    }
+    if (pScan->isScanning()) {
+      Serial.println("Already scanning. Exiting");
+      return;
+    }
+    processing = true;
+    Serial.println("Processing Rescan MQTT...");
+    StaticJsonDocument<100> docIn;
+    deserializeJson(docIn, payload);
+
+    if (docIn == NULL) { //Check for errors in parsing
+      Serial.println("Parsing failed");
+      char aBuffer[100];
+      StaticJsonDocument<100> docOut;
+      docOut["status"] = "errorParsingJSON";
+      serializeJson(docOut, aBuffer);
+      client.publish(esp32Str.c_str(), aBuffer);
+    }
+    else {
+      const char * value = docIn["sec"];
+      if (value != "") {
+        bool isNum = is_number(value);
+        if (isNum) {
+          int aVal;
+          sscanf(value, "%d", &aVal);
+          if (aVal < 0) {
+            return;
+          }
+          else if (aVal > 120) {
+            aVal = 120;
+          }
+
+          rescan(aVal);
+        }
+        else {
+          char aBuffer[100];
+          StaticJsonDocument<100> docOut;
+          docOut["status"] = "errorJSONValue";
+          serializeJson(docOut, aBuffer);
+          Serial.println("Parsing failed = device not from list");
+          client.publish(esp32Str.c_str(), aBuffer);
+        }
       }
     }
 
@@ -826,158 +895,6 @@ bool getGeneric(NimBLEAdvertisedDevice* advDeviceToUse) {
   return false;
 }
 
-
-bool requestSettings(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int attempts) {
-  if (advDeviceToUse == NULL) {
-    return false;
-  }
-  Serial.println("Requesting info...");
-  bool returnValue = true;
-  NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
-  NimBLERemoteService* pSvc = nullptr;
-  NimBLERemoteCharacteristic* pChr = nullptr;
-
-  bool tryConnect = !(pClient->isConnected());
-  int count = 1;
-  if (tryConnect) {
-    if (count > 20) {
-      Serial.println("Failed to connect for sending requestinfo");
-      return false;
-    }
-    count++;
-    Serial.println("Attempt to request info. Not connecting. Try connecting...");
-    tryConnect = !(connectToServer(advDeviceToUse));
-  }
-
-  getGeneric(advDeviceToUse);
-
-  std::string deviceName = "";
-  std::map<std::string, std::string>::iterator itS = deviceTypes.find(advDeviceToUse->getAddress().toString());
-  if (itS != deviceTypes.end())
-  {
-    deviceName = itS->second.c_str();
-  }
-
-  if (deviceName == "") {
-    return false;
-  }
-
-  pSvc = pClient->getService("cba20d00-224d-11e6-9fb8-0002a5d5c51b"); // custom device service
-  if (pSvc) {    /** make sure it's not null */
-    pSvc->getCharacteristics(true);
-    std::string aValueString = advDeviceToUse->getServiceData(0);
-    returnValue = callForInfo( advDeviceToUse, aValueString);
-  }
-  else {
-    Serial.println("CUSTOM write service not found.");
-    returnValue = false;
-  }
-
-  if (!returnValue) {
-    if (attempts >= 10) {
-      Serial.println("Request failed. Disconnecting client. Attempt# : " + attempts);
-      pClient->disconnect();
-    }
-    else {
-      Serial.println("Request failed.Attempt# : " + attempts);
-    }
-    return false;
-  }
-  Serial.println("Success! Request info sent/received to/from SwitchBot");
-  return true;
+bool requestInfo(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int attempts) {
+  return false;
 }
-
-bool callForInfo(NimBLEAdvertisedDevice* advDev, std::string aValueString) {
-  Serial.println("getAdvInfo");
-  String aDevice ;
-  String deviceStr ;
-
-  StaticJsonDocument<200> doc;
-  char aBuffer[200];
-  std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(advDev->getAddress().toString().c_str());
-  if (itS != allSwitchbotsOpp.end())
-  {
-    aDevice = itS->second.c_str();
-    doc["id"] = aDevice;
-  }
-  else {
-    return false;
-  }
-
-  std::string deviceName;
-  itS = deviceTypes.find(advDev->getAddress().toString().c_str());
-  if (itS != deviceTypes.end())
-  {
-    deviceName = itS->second.c_str();
-  }
-
-  std::string buttonName = "WoHand";
-  std::string tempName = "WoSensorTH";
-  std::string curtainName = "WoCurtain";
-
-  doc["status"] = "info";
-  doc["rssi"] = advDev->getRSSI();
-
-  if (deviceName == buttonName) {
-    deviceStr = buttonStr + aDevice;
-    uint8_t byte1 = (uint8_t) aValueString[1];
-    uint8_t byte2 = (uint8_t) aValueString[2];
-
-    String aMode = (byte1 & 0b10000000) ? "Switch" : "Press"; // Whether the light switch Add-on is used or not
-    String aState = (byte1 & 0b01000000) ? "OFF" : "ON"; // Mine is opposite, not sure why
-    int battLevel = byte2 & 0b01111111; // %
-
-    doc["mode"] = aMode;
-    doc["state"] = aState;
-    doc["batt"] = battLevel;
-
-  }
-  else if (deviceName == tempName) {
-
-    deviceStr = tempStr + aDevice;
-    uint8_t byte2 = (uint8_t) aValueString[2];
-    uint8_t byte3 = (uint8_t) aValueString[3];
-    uint8_t byte4 = (uint8_t) aValueString[4];
-    uint8_t byte5 = (uint8_t) aValueString[5];
-
-    int tempSign = (byte4 & 0b10000000) ? 1 : -1;
-    float tempC = tempSign * ((byte4 & 0b01111111) + (byte3 / 10));
-    float tempF = (tempC * 9 / 5) + 32;
-    tempF = round(tempF * 10) / 10;
-    bool tempScale = (byte5 & 0b10000000) ;
-    String str1 = (tempScale == true) ? "f" : "c";
-    doc["scale"] = str1;
-    int battLevel = (byte2 & 0b01111111);
-    doc["batt"] = battLevel;
-    doc["C"] = tempC;
-    doc["F"] = tempF;
-    int humidity = byte5 & 0b01111111;
-    doc["hum"] = humidity;
-
-  }
-  else if (deviceName == curtainName) {
-    deviceStr = curtainStr + aDevice;
-
-    uint8_t byte1 = (uint8_t) aValueString[1];
-    uint8_t byte2 = (uint8_t) aValueString[2];
-    uint8_t byte3 = (uint8_t) aValueString[3];
-    uint8_t byte4 = (uint8_t) aValueString[4];
-
-    bool calibrated = byte1 & 0b01000000;
-    int battLevel = byte2 & 0b01111111;
-    int currentPosition = byte3 & 0b01111111;
-    int lightLevel = (byte4 >> 4) & 0b00001111;
-    doc["calib"] = calibrated;
-    doc["batt"] = battLevel;
-    doc["pos"] = currentPosition;
-    doc["light"] = lightLevel;
-
-  }
-  else {
-    return false;
-  }
-  Serial.println("serializing");
-  serializeJson(doc, aBuffer);
-  client.publish(deviceStr.c_str(), aBuffer);
-  Serial.println("published");
-};
