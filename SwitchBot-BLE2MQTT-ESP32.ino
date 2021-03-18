@@ -52,13 +52,16 @@
       -switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switchbotMQTT/meter/meterone
 
           example payloads =
-            {"id":"switchbotone","status":"connected"}"
+            {"id":"switchbotone","status":"connected"}
             {"id":"switchbotone","status":"press"}
-            {"id":"switchbotone","status":"idle"}"
 
-            {"id":"switchbotone","status":"errorConnect"}"
-            {"id":"switchbotone","status":"errorCommand"}"
+            {"id":"switchbotone","status":"errorConnect"}
+            {"id":"switchbotone","status":"errorCommand"}
 
+      -switchbotMQTT/ESP32
+
+          example payloads =
+            {status":"idle"}
 
   ESP32 will Suscribe to MQTT topic to rescan for all device information
       -switchbotMQTT/rescan
@@ -74,7 +77,6 @@
       -switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switchbotMQTT/meter/meterone
           example payloads =
             {"id":"switchbottwo","status":"info","rssi":-78,"mode":"Press","state":"OFF","batt":94}
-
 
 
 	Errors that cannot be linked to a specific device will be published to
