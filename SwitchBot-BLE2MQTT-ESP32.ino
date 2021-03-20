@@ -8,7 +8,7 @@
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.14
+  v0.15
 
     Created: on March 20 2021
         Author: devWaves
@@ -23,7 +23,7 @@
     - It can request status values (bots/curtain/meter: battery, mode, state, position, temp etc) using a "rescan" for all devices
 
     - It can request individual device status values (bots/curtain/meter: battery, mode, state, position, temp etc) using a "requestInfo"
-    
+
     - Good for placing one ESP32 in a zone with 1 or more devices that has a bad bluetooth signal from your smart hub. MQTT will use Wifi to "boost" the bluetooth signal
 
     - ESP32 bluetooth is pretty strong and one ESP32 can work for entire house. The code will try around 60 times to connect/push button. It should not need this many but it depends on ESP32 bluetooth signal to switchbots. If one alone doesn't work, get another esp32 and place it in the problem area
@@ -76,7 +76,7 @@
 
   ESP32 will Suscribe to MQTT topic for device information
       -switchbotMQTT/requestInfo
-      
+
     send a JSON payload of the device you want to control
           example payloads =
             {"id":"switchbotone"}
@@ -142,70 +142,70 @@ static std::map<std::string, std::string> allCurtains = {
 
 static int tryConnecting = 60;  // How many times to try connecting to bot
 static int trySending = 30;     // How many times to try sending command to bot
-static int initialScan = 30;    // How many seconds to scan for bots on ESP reboot
-static int infoScanTime = 30;    // How many seconds to scan for single device status updates
+static int initialScan = 120;    // How many seconds to scan for bots on ESP reboot
+static int infoScanTime = 60;    // How many seconds to scan for single device status updates
 
 /*************************************************************/
 
 
 /*
- * Login page
- */
+   Login page
+*/
 
 String loginIndex =
- "<form name='loginForm'>"
-    "<table width='20%' bgcolor='A09F9F' align='center'>"
-        "<tr>"
-            "<td colspan=2>"
-                "<center><font size=4><b>ESP32 Login Page</b></font></center>"
-                "<br>"
-            "</td>"
-            "<br>"
-            "<br>"
-        "</tr>"
-        "<tr>"
-             "<td>Username:</td>"
-             "<td><input type='text' size=25 name='userid'><br></td>"
-        "</tr>"
-        "<br>"
-        "<br>"
-        "<tr>"
-            "<td>Password:</td>"
-            "<td><input type='Password' size=25 name='pwd'><br></td>"
-            "<br>"
-            "<br>"
-        "</tr>"
-        "<tr>"
-            "<td><input type='submit' onclick='check(this.form)' value='Login'></td>"
-        "</tr>"
-    "</table>"
-"</form>"
-"<script>"
-    "function check(form)"
-    "{"
-    "if(form.userid.value=='" + otaUserId + "' && form.pwd.value=='" + otaPass + "')"
-    "{"
-    "window.open('/serverIndex')"
-    "}"
-    "else"
-    "{"
-    " alert('Error Password or Username')/*displays error message*/"
-    "}"
-    "}"
-"</script>";
+  "<form name='loginForm'>"
+  "<table width='20%' bgcolor='A09F9F' align='center'>"
+  "<tr>"
+  "<td colspan=2>"
+  "<center><font size=4><b>ESP32 Login Page</b></font></center>"
+  "<br>"
+  "</td>"
+  "<br>"
+  "<br>"
+  "</tr>"
+  "<tr>"
+  "<td>Username:</td>"
+  "<td><input type='text' size=25 name='userid'><br></td>"
+  "</tr>"
+  "<br>"
+  "<br>"
+  "<tr>"
+  "<td>Password:</td>"
+  "<td><input type='Password' size=25 name='pwd'><br></td>"
+  "<br>"
+  "<br>"
+  "</tr>"
+  "<tr>"
+  "<td><input type='submit' onclick='check(this.form)' value='Login'></td>"
+  "</tr>"
+  "</table>"
+  "</form>"
+  "<script>"
+  "function check(form)"
+  "{"
+  "if(form.userid.value=='" + otaUserId + "' && form.pwd.value=='" + otaPass + "')"
+  "{"
+  "window.open('/serverIndex')"
+  "}"
+  "else"
+  "{"
+  " alert('Error Password or Username')/*displays error message*/"
+  "}"
+  "}"
+  "</script>";
 
 /*
- * Server Index Page
- */
+   Server Index Page
+*/
 
 String serverIndex =
-"<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>"
-"<form method='POST' action='#' enctype='multipart/form-data' id='upload_form'>"
-   "<input type='file' name='update'>"
-        "<input type='submit' value='Update'>"
-    "</form>"
- "<div id='prg'>progress: 0%</div>"
- "<script>"
+  "<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>"
+  "<form method='POST' action='#' enctype='multipart/form-data' id='upload_form'>"
+  "<input type='file' name='update'>"
+  "<input type='submit' value='Update'>"
+  "</form>"
+  "<div id='prg'>progress: 0%</div>"
+  "<script>"
   "$('form').submit(function(e){"
   "e.preventDefault();"
   "var form = $('#upload_form')[0];"
@@ -228,12 +228,12 @@ String serverIndex =
   "},"
   "success:function(d, s) {"
   "console.log('success!')"
- "},"
- "error: function (a, b, c) {"
- "}"
- "});"
- "});"
- "</script>";
+  "},"
+  "error: function (a, b, c) {"
+  "}"
+  "});"
+  "});"
+  "</script>";
 
 void scanEndedCB(NimBLEScanResults results);
 void rescanEndedCB(NimBLEScanResults results);
@@ -310,6 +310,8 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       std::string advStr = advertisedDevice->getAddress().toString().c_str();
       std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(advStr);
 
+      bool gotAllStatus = false;
+
       if (itS != allSwitchbotsOpp.end())
       {
         if (advertisedDevice->isAdvertisingService(NimBLEUUID("cba20d00-224d-11e6-9fb8-0002a5d5c51b")))
@@ -319,10 +321,13 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           {
             Serial.println("Adding Our Service ... ");
             Serial.println(itS->second.c_str());
-            allSwitchbotsDev.insert ( std::pair<std::string, NimBLEAdvertisedDevice*>(advStr, advertisedDevice) );
-            Serial.println("Assigned advDevService");
             std::string aValueString = advertisedDevice->getServiceData(0);
-            callForInfoAdvDev( advertisedDevice, aValueString);
+            gotAllStatus = callForInfoAdvDev(advertisedDevice, aValueString);
+            if (gotAllStatus) {
+              allSwitchbotsDev.insert ( std::pair<std::string, NimBLEAdvertisedDevice*>(advStr, advertisedDevice) );
+            }
+            Serial.println("Assigned advDevService");
+            
           }
         }
       }
@@ -339,7 +344,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       Serial.println("callForInfoAdvDev");
       String aDevice ;
       String deviceStr ;
-
+      int aLength = aValueString.length();
       StaticJsonDocument<200> doc;
       char aBuffer[200];
       std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(advDev->getAddress().toString().c_str());
@@ -370,6 +375,9 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       doc["rssi"] = advDev->getRSSI();
 
       if (deviceName == buttonName) {
+        if (aLength < 3) {
+          return false;
+        }
         deviceStr = buttonStr + aDevice;
         uint8_t byte1 = (uint8_t) aValueString[1];
         uint8_t byte2 = (uint8_t) aValueString[2];
@@ -384,7 +392,9 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
       }
       else if (deviceName == tempName) {
-
+        if (aLength < 6) {
+          return false;
+        }
         deviceStr = tempStr + aDevice;
         uint8_t byte2 = (uint8_t) aValueString[2];
         uint8_t byte3 = (uint8_t) aValueString[3];
@@ -407,8 +417,10 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
       }
       else if (deviceName == curtainName) {
+        if (aLength < 5) {
+          return false;
+        }
         deviceStr = curtainStr + aDevice;
-
         uint8_t byte1 = (uint8_t) aValueString[1];
         uint8_t byte2 = (uint8_t) aValueString[2];
         uint8_t byte3 = (uint8_t) aValueString[3];
@@ -507,7 +519,7 @@ void setup () {
     }
   });
   server.begin();
-  
+
   client.setMqttReconnectionAttemptDelay(100);
   client.enableLastWillMessage(lastWill, "Offline");
   client.setKeepAlive(60);
