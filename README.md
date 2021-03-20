@@ -8,7 +8,7 @@ Code can be installed using Arduino IDE for ESP32
 Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
   *** I do not know where performance will be affected by number of devices
 
-v0.13
+v0.14
 
 Created: on March 20 2021
   Author: devWaves
@@ -22,6 +22,7 @@ Notes:
  - It can request individual device status values (bots/curtain/meter: battery, mode, state, position, temp etc) using a "requestInfo"
  - Good for placing one ESP32 in a zone with 1 or 2 devices that has a bad bluetooth signal from your smart hub. MQTT will use Wifi to "boost" the bluetooth signal
  - ESP32 bluetooth is pretty strong and one ESP32 can work for entire house. The code will try around 60 times to connect/push button. It should not need this many but it depends on ESP32 bluetooth signal to switchbots. If one alone doesn't work, get another esp32 and place it in the problem area
+ - OTA update added. Go to ESP32 IP address in browser. In Arduino IDE menu - Sketch / Export compile Binary . Upload the .bin file
 
 **ESP32 will Suscribe to MQTT topic for control...**
 - switchbotMQTT/control
