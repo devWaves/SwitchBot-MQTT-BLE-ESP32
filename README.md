@@ -65,7 +65,7 @@ switchbotMQTT/ESP32
 **ESP32 will Suscribe to MQTT topic to rescan for all device information...**
 - switchbotMQTT/requestInfo
 
-  send a JSON payload of how many seconds you want to rescan for
+  send a JSON payload of which device you want status from
    example payloads =
    - {"id":"switchbotone"}
 
