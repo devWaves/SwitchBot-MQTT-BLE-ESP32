@@ -8,7 +8,7 @@
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.13
+  v0.14
 
     Created: on March 20 2021
         Author: devWaves
@@ -27,6 +27,8 @@
     - Good for placing one ESP32 in a zone with 1 or more devices that has a bad bluetooth signal from your smart hub. MQTT will use Wifi to "boost" the bluetooth signal
 
     - ESP32 bluetooth is pretty strong and one ESP32 can work for entire house. The code will try around 60 times to connect/push button. It should not need this many but it depends on ESP32 bluetooth signal to switchbots. If one alone doesn't work, get another esp32 and place it in the problem area
+
+    - OTA update added. Go to ESP32 IP address in browser. In Arduino IDE menu - Sketch / Export compile Binary . Upload the .bin file
 
     ESP32 will Suscribe to MQTT topic for control
       -switchbotMQTT/control
@@ -95,19 +97,32 @@
 #include <NimBLEDevice.h>
 #include "EspMQTTClient.h"
 #include "ArduinoJson.h"
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <WebServer.h>
+#include <ESPmDNS.h>
+#include <Update.h>
 
 /****************** CONFIGURATIONS TO CHANGE *******************/
 
-String ESPMQTTTopic = "switchbotMQTT";
+const char* host = "esp32";					//  hostname defaults is esp32
+const char* ssid = "SSID";					//  WIFI SSID
+const char* password = "Password";			//  WIFI Password
+
+String otaUserId = "admin";					//  user Id for OTA update
+String otaPass = "admin";					//  password for OTA update
+WebServer server(80);						//  default port 80
+
+String ESPMQTTTopic = "switchbotMQTT";		//  MQTT main topic
 
 EspMQTTClient client(
-  "SSID",
-  "Password",
-  "192.168.1.XXX",  // MQTT Broker server ip
-  "MQTTUsername",   // Can be omitted if not needed
-  "MQTTPassword",   // Can be omitted if not needed
-  "ESPMQTT",      // Client name that uniquely identify your device
-  1883            // MQTT Port
+  ssid,
+  password,
+  "192.168.1.XXX",							// MQTT Broker server ip
+  "MQTTUsername",							// Can be omitted if not needed
+  "MQTTPassword",							// Can be omitted if not needed
+  "ESPMQTT",								// Client name that uniquely identify your device
+  1883										// MQTT Port
 );
 
 static std::map<std::string, std::string> allBots = {
@@ -131,6 +146,94 @@ static int initialScan = 30;    // How many seconds to scan for bots on ESP rebo
 static int infoScanTime = 30;    // How many seconds to scan for single device status updates
 
 /*************************************************************/
+
+
+/*
+ * Login page
+ */
+
+String loginIndex =
+ "<form name='loginForm'>"
+    "<table width='20%' bgcolor='A09F9F' align='center'>"
+        "<tr>"
+            "<td colspan=2>"
+                "<center><font size=4><b>ESP32 Login Page</b></font></center>"
+                "<br>"
+            "</td>"
+            "<br>"
+            "<br>"
+        "</tr>"
+        "<tr>"
+             "<td>Username:</td>"
+             "<td><input type='text' size=25 name='userid'><br></td>"
+        "</tr>"
+        "<br>"
+        "<br>"
+        "<tr>"
+            "<td>Password:</td>"
+            "<td><input type='Password' size=25 name='pwd'><br></td>"
+            "<br>"
+            "<br>"
+        "</tr>"
+        "<tr>"
+            "<td><input type='submit' onclick='check(this.form)' value='Login'></td>"
+        "</tr>"
+    "</table>"
+"</form>"
+"<script>"
+    "function check(form)"
+    "{"
+    "if(form.userid.value=='" + otaUserId + "' && form.pwd.value=='" + otaPass + "')"
+    "{"
+    "window.open('/serverIndex')"
+    "}"
+    "else"
+    "{"
+    " alert('Error Password or Username')/*displays error message*/"
+    "}"
+    "}"
+"</script>";
+
+/*
+ * Server Index Page
+ */
+
+String serverIndex =
+"<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>"
+"<form method='POST' action='#' enctype='multipart/form-data' id='upload_form'>"
+   "<input type='file' name='update'>"
+        "<input type='submit' value='Update'>"
+    "</form>"
+ "<div id='prg'>progress: 0%</div>"
+ "<script>"
+  "$('form').submit(function(e){"
+  "e.preventDefault();"
+  "var form = $('#upload_form')[0];"
+  "var data = new FormData(form);"
+  " $.ajax({"
+  "url: '/update',"
+  "type: 'POST',"
+  "data: data,"
+  "contentType: false,"
+  "processData:false,"
+  "xhr: function() {"
+  "var xhr = new window.XMLHttpRequest();"
+  "xhr.upload.addEventListener('progress', function(evt) {"
+  "if (evt.lengthComputable) {"
+  "var per = evt.loaded / evt.total;"
+  "$('#prg').html('progress: ' + Math.round(per*100) + '%');"
+  "}"
+  "}, false);"
+  "return xhr;"
+  "},"
+  "success:function(d, s) {"
+  "console.log('success!')"
+ "},"
+ "error: function (a, b, c) {"
+ "}"
+ "});"
+ "});"
+ "</script>";
 
 void scanEndedCB(NimBLEScanResults results);
 void rescanEndedCB(NimBLEScanResults results);
@@ -346,6 +449,65 @@ void rescanEndedCB(NimBLEScanResults results) {
 static ClientCallbacks clientCB;
 
 void setup () {
+  // Connect to WiFi network
+  WiFi.begin(ssid, password);
+  Serial.println("");
+
+  // Wait for connection
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.print("Connected to ");
+  Serial.println(ssid);
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  /*use mdns for host name resolution*/
+  if (!MDNS.begin(host)) { //http://esp32.local
+    Serial.println("Error setting up MDNS responder!");
+    while (1) {
+      delay(1000);
+    }
+  }
+  Serial.println("mDNS responder started");
+  /*return index page which is stored in serverIndex */
+  server.on("/", HTTP_GET, []() {
+    server.sendHeader("Connection", "close");
+    server.send(200, "text/html", loginIndex);
+  });
+  server.on("/serverIndex", HTTP_GET, []() {
+    server.sendHeader("Connection", "close");
+    server.send(200, "text/html", serverIndex);
+  });
+  /*handling uploading firmware file */
+  server.on("/update", HTTP_POST, []() {
+    server.sendHeader("Connection", "close");
+    server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+    ESP.restart();
+  }, []() {
+    HTTPUpload& upload = server.upload();
+    if (upload.status == UPLOAD_FILE_START) {
+      Serial.printf("Update: %s\n", upload.filename.c_str());
+      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
+        Update.printError(Serial);
+      }
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+      /* flashing firmware to ESP*/
+      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+        Update.printError(Serial);
+      }
+    } else if (upload.status == UPLOAD_FILE_END) {
+      if (Update.end(true)) { //true to set the size to the current progress
+        Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+      } else {
+        Update.printError(Serial);
+      }
+    }
+  });
+  server.begin();
+  
   client.setMqttReconnectionAttemptDelay(100);
   client.enableLastWillMessage(lastWill, "Offline");
   client.setKeepAlive(60);
@@ -413,7 +575,9 @@ void rescanFind(std::string aMac) {
 }
 
 void loop () {
+  server.handleClient();
   client.loop();
+  delay(1);
 }
 
 void processRequest(std::string macAdd, std::string aName, const char * command, String deviceTopic) {
