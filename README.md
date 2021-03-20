@@ -24,7 +24,7 @@ Notes:
  - ESP32 bluetooth is pretty strong and one ESP32 can work for entire house. The code will try around 60 times to connect/push button. It should not need this many but it depends on ESP32 bluetooth signal to switchbots. If one alone doesn't work, get another esp32 and place it in the problem area
  - OTA update added. Go to ESP32 IP address in browser. In Arduino IDE menu - Sketch / Export compile Binary . Upload the .bin file
 
-**ESP32 will Suscribe to MQTT topic for control...**
+**ESP32 will Subscribe to MQTT topic for control...**
 - switchbotMQTT/control
 
 send a JSON payload of the device you want to control (device = device to control) (value = string value)
@@ -55,14 +55,14 @@ switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switc
 switchbotMQTT/ESP32
 - {"status":"idle"}
 
-**ESP32 will Suscribe to MQTT topic to rescan for all device information...**
+**ESP32 will Subscribe to MQTT topic to rescan for all device information...**
 - switchbotMQTT/rescan
 
   send a JSON payload of how many seconds you want to rescan for
    example payloads =
    - {"sec":"30"}
 
-**ESP32 will Suscribe to MQTT topic to rescan for all device information...**
+**ESP32 will Subscribe to MQTT topic for single device status update...**
 - switchbotMQTT/requestInfo
 
   send a JSON payload of which device you want status from
