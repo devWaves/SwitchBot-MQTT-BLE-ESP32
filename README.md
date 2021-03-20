@@ -8,9 +8,9 @@ Code can be installed using Arduino IDE for ESP32
 Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
   *** I do not know where performance will be affected by number of devices
 
-v0.12
+v0.13
 
-Created: on March 18 2021
+Created: on March 20 2021
   Author: devWaves
 
 based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
@@ -18,8 +18,8 @@ based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 Notes:
  - It works for button press/on/off
  - It works for curtain open/close/pause/position(%)
- - It is setup to return values from curtain and temp sensosr but could still be issues with values returned. I don't own curtains or tempsensors to test
- - It can request button setting values (battery, mode, firmware version, Number of timers, Press mode, inverted (yes/no), Hold seconds)
+ - It can request status values (bots/curtain/meter: battery, mode, state, position, temp etc) using a "rescan" for all devices
+ - It can request individual device status values (bots/curtain/meter: battery, mode, state, position, temp etc) using a "requestInfo"
  - Good for placing one ESP32 in a zone with 1 or 2 devices that has a bad bluetooth signal from your smart hub. MQTT will use Wifi to "boost" the bluetooth signal
  - ESP32 bluetooth is pretty strong and one ESP32 can work for entire house. The code will try around 60 times to connect/push button. It should not need this many but it depends on ESP32 bluetooth signal to switchbots. If one alone doesn't work, get another esp32 and place it in the problem area
 
@@ -60,12 +60,19 @@ switchbotMQTT/ESP32
   send a JSON payload of how many seconds you want to rescan for
    example payloads =
    - {"sec":"30"}
-      
+
+**ESP32 will Suscribe to MQTT topic to rescan for all device information...**
+- switchbotMQTT/requestInfo
+
+  send a JSON payload of how many seconds you want to rescan for
+   example payloads =
+   - {"id":"switchbotone"}
+
 **ESP32 will respond with MQTT on...**
 - switchbotMQTT/#
 
   Example reponses:
-  switchbotMQTT/status
+  - switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switchbotMQTT/meter/meterone
   example payloads =
   - {"id":"switchbottwo","status":"info","rssi":-78,"mode":"Press","state":"OFF","batt":94}
 
