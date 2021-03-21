@@ -8,9 +8,9 @@
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.15
+  v0.16
 
-    Created: on March 20 2021
+    Created: on March 21 2021
         Author: devWaves
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
@@ -130,12 +130,12 @@ static std::map<std::string, std::string> allBots = {
   { "switchbottwo", "yy:yy:yy:yy:yy:yy" }
 };
 
-static std::map<std::string, std::string> allMeters = {
+static std::map<std::string, String> allMeters = {
   /*{ "meterone", "xx:xx:xx:xx:xx:xx" },
     { "metertwo", "yy:yy:yy:yy:yy:yy" }*/
 };
 
-static std::map<std::string, std::string> allCurtains = {
+static std::map<std::string, String> allCurtains = {
   /*{ "curtainone", "xx:xx:xx:xx:xx:xx" },
     { "curtaintwo", "yy:yy:yy:yy:yy:yy" }*/
 };
@@ -523,27 +523,35 @@ void setup () {
   client.setMqttReconnectionAttemptDelay(100);
   client.enableLastWillMessage(lastWill, "Offline");
   client.setKeepAlive(60);
-  std::map<std::string, std::string>::iterator it = allBots.begin();
+  std::map<std::string, String>::iterator it = allBots.begin();
+  String anAddr;
+  
   while (it != allBots.end())
   {
-    allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(it->second, it->first) );
-    deviceTypes.insert ( std::pair<std::string, std::string>(it->second, "WoHand") );
+    anAddr = it->second;
+    anAddr.toLowerCase();
+    allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(anAddr.c_str(), it->first) );
+    deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), "WoHand") );
     it++;
   }
 
   it = allCurtains.begin();
   while (it != allCurtains.end())
   {
-    allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(it->second, it->first) );
-    deviceTypes.insert ( std::pair<std::string, std::string>(it->second, "WoCurtain") );
+    anAddr = it->second;
+    anAddr.toLowerCase();
+    allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(anAddr.c_str(), it->first) );
+    deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), "WoCurtain") );
     it++;
   }
 
   it = allMeters.begin();
   while (it != allMeters.end())
   {
-    allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(it->second, it->first) );
-    deviceTypes.insert ( std::pair<std::string, std::string>(it->second, "WoSensorTH") );
+    anAddr = it->second;
+    anAddr.toLowerCase();
+    allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(anAddr.c_str(), it->first) );
+    deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), "WoSensorTH") );
     it++;
   }
 
@@ -751,28 +759,36 @@ void onConnectionEstablished() {
       const char * value = docIn["value"];        //Get value of sensor measurement
       std::string deviceAddr = "";
       String deviceTopic;
+      String anAddr;
+      
       if (aName != NULL && value != NULL) {
         Serial.print("Device: ");
         Serial.println(aName);
         Serial.print("Device value: ");
         Serial.println(value);
 
-        std::map<std::string, std::string>::iterator itS = allBots.find(aName);
+        std::map<std::string, String>::iterator itS = allBots.find(aName);
         if (itS != allBots.end())
         {
-          deviceAddr = itS->second;
+          anAddr = itS->second;
+          anAddr.toLowerCase();
+          deviceAddr = anAddr.c_str();
           deviceTopic = buttonStr;
         }
         itS = allCurtains.find(aName);
         if (itS != allCurtains.end())
         {
-          deviceAddr = itS->second;
+          anAddr = itS->second;
+          anAddr.toLowerCase();
+          deviceAddr = anAddr.c_str();
           deviceTopic = curtainStr;
         }
         itS = allMeters.find(aName);
         if (itS != allMeters.end())
         {
-          deviceAddr = itS->second;
+          anAddr = itS->second;
+          anAddr.toLowerCase();
+          deviceAddr = anAddr.c_str();
           deviceTopic = tempStr;
         }
       }
@@ -848,24 +864,31 @@ void onConnectionEstablished() {
 
       std::string deviceAddr = "";
       String deviceTopic;
-
+      String anAddr;
+      
       if (aName != NULL) {
-        std::map<std::string, std::string>::iterator itS = allBots.find(aName);
+        std::map<std::string, String>::iterator itS = allBots.find(aName);
         if (itS != allBots.end())
         {
-          deviceAddr = itS->second;
+          anAddr = itS->second;
+          anAddr.toLowerCase();
+          deviceAddr = anAddr.c_str();
           deviceTopic = buttonStr;
         }
         itS = allCurtains.find(aName);
         if (itS != allCurtains.end())
         {
-          deviceAddr = itS->second;
+          anAddr = itS->second;
+          anAddr.toLowerCase();
+          deviceAddr = anAddr.c_str();
           deviceTopic = curtainStr;
         }
         itS = allMeters.find(aName);
         if (itS != allMeters.end())
         {
-          deviceAddr = itS->second;
+          anAddr = itS->second;
+          anAddr.toLowerCase();
+          deviceAddr = anAddr.c_str();
           deviceTopic = tempStr;
         }
       }
