@@ -125,7 +125,7 @@ EspMQTTClient client(
   1883										// MQTT Port
 );
 
-static std::map<std::string, std::string> allBots = {
+static std::map<std::string, String> allBots = {
   { "switchbotone", "xx:xx:xx:xx:xx:xx" },
   { "switchbottwo", "yy:yy:yy:yy:yy:yy" }
 };
