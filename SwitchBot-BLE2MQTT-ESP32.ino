@@ -8,9 +8,9 @@
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.16
+  v0.17
 
-    Created: on March 21 2021
+    Created: on March 29 2021
         Author: devWaves
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
@@ -29,6 +29,8 @@
     - ESP32 bluetooth is pretty strong and one ESP32 can work for entire house. The code will try around 60 times to connect/push button. It should not need this many but it depends on ESP32 bluetooth signal to switchbots. If one alone doesn't work, get another esp32 and place it in the problem area
 
     - OTA update added. Go to ESP32 IP address in browser. In Arduino IDE menu - Sketch / Export compile Binary . Upload the .bin file
+
+    - Supports passwords on bot/curtain
 
     ESP32 will Suscribe to MQTT topic for control
       -switchbotMQTT/control
@@ -102,6 +104,7 @@
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <Update.h>
+#include <CRC32.h>
 
 /****************** CONFIGURATIONS TO CHANGE *******************/
 
@@ -138,6 +141,13 @@ static std::map<std::string, String> allMeters = {
 static std::map<std::string, String> allCurtains = {
   /*{ "curtainone", "xx:xx:xx:xx:xx:xx" },
     { "curtaintwo", "yy:yy:yy:yy:yy:yy" }*/
+};
+
+static std::map<std::string, String> allPasswords = {     // Set all the bot/curtain passwords (setup in app first). Ignore if passwords are not used
+  /*{ "switchbotone", "switchbotonePassword" },
+    { "switchbottwo", "switchbottwoPassword" },
+    { "curtainone", "curtainonePassword" },
+    { "curtaintwo", "curtaintwoPassword" }*/
 };
 
 static int tryConnecting = 60;  // How many times to try connecting to bot
@@ -257,6 +267,15 @@ byte bArrayOff[] = {0x57, 0x01, 0x02};
 byte bArrayOpen[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, 0x00};
 byte bArrayClose[] = {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, 0x64};
 byte bArrayPause[] = {0x57, 0x0F, 0x45, 0x01, 0x00, 0xFF};
+byte bArrayPos[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, NULL};
+
+byte bArrayPressPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL};
+byte bArrayOnPass[] = {0x57, 0x11, NULL , NULL, NULL, NULL, 0x01};
+byte bArrayOffPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL, 0x02};
+byte bArrayOpenPass[] =  {0x57, 0x1F, NULL, NULL, NULL, NULL, 0x45, 0x01, 0x05, 0xFF, 0x00};
+byte bArrayClosePass[] = {0x57, 0x1F, NULL, NULL, NULL, NULL, 0x45, 0x01, 0x05, 0xFF, 0x64};
+byte bArrayPausePass[] = {0x57, 0x1F, NULL, NULL, NULL, NULL, 0x45, 0x01, 0x00, 0xFF};
+byte bArrayPosPass[] =  {0x57, 0x1F, NULL, NULL, NULL, NULL, 0x45, 0x01, 0x05, 0xFF, NULL};
 
 class ClientCallbacks : public NimBLEClientCallbacks {
 
@@ -327,7 +346,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
               allSwitchbotsDev.insert ( std::pair<std::string, NimBLEAdvertisedDevice*>(advStr, advertisedDevice) );
             }
             Serial.println("Assigned advDevService");
-            
+
           }
         }
       }
@@ -458,6 +477,30 @@ void rescanEndedCB(NimBLEScanResults results) {
   client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
 }
 
+
+String getPass(std::string aDevice) {
+  std::map<std::string, String>::iterator itS = allPasswords.find(aDevice);
+  String aPass = "";
+  if (itS != allPasswords.end())
+  {
+    aPass = itS->second;
+  }
+  return aPass;
+}
+
+uint32_t getPassCRC(String aDevice) {
+  uint8_t byteBuffer[aDevice.length() + 1];
+  aDevice.getBytes(byteBuffer, aDevice.length() + 1);
+  size_t numBytes = sizeof(byteBuffer) - 1;
+  CRC32 crc;
+  for (size_t i = 0; i < numBytes; i++)
+  {
+    crc.update(byteBuffer[i]);
+  }
+  uint32_t checksum = crc.finalize();
+  return checksum;
+}
+
 static ClientCallbacks clientCB;
 
 void setup () {
@@ -525,7 +568,7 @@ void setup () {
   client.setKeepAlive(60);
   std::map<std::string, String>::iterator it = allBots.begin();
   String anAddr;
-  
+
   while (it != allBots.end())
   {
     anAddr = it->second;
@@ -604,7 +647,7 @@ void processRequest(std::string macAdd, std::string aName, const char * command,
   int count = 1;
   std::map<std::string, NimBLEAdvertisedDevice*>::iterator itS = allSwitchbotsDev.find(macAdd);
   NimBLEAdvertisedDevice* advDevice =  itS->second;
-  bool shouldContinue = (advDevice == NULL);
+  bool shouldContinue = (advDevice == nullptr);
   while (shouldContinue) {
     if (count > 3) {
       shouldContinue = false;
@@ -625,10 +668,10 @@ void processRequest(std::string macAdd, std::string aName, const char * command,
       }
       itS = allSwitchbotsDev.find(macAdd);
       advDevice =  itS->second;
-      shouldContinue = (advDevice == NULL);
+      shouldContinue = (advDevice == nullptr);
     }
   }
-  if (advDevice == NULL)
+  if (advDevice == nullptr)
   {
     StaticJsonDocument<100> doc;
     char aBuffer[100];
@@ -647,7 +690,7 @@ void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const ch
   NimBLEAdvertisedDevice* advDeviceToUse = advDevice;
   std::string addr = advDeviceToUse->getAddress().toString().c_str();
 
-  if (advDeviceToUse != NULL)
+  if ((advDeviceToUse != nullptr) && (advDeviceToUse != NULL))
   {
     char aBuffer[100];
     StaticJsonDocument<100> doc;
@@ -694,8 +737,6 @@ void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const ch
         if (count > 1) {
           delay(50);
         }
-
-
         isSuccess = sendCommand(advDeviceToUse, command, count);
         count++;
         if (isSuccess) {
@@ -746,7 +787,7 @@ void onConnectionEstablished() {
     StaticJsonDocument<100> docIn;
     deserializeJson(docIn, payload);
 
-    if (docIn == NULL) { //Check for errors in parsing
+    if (docIn == nullptr) { //Check for errors in parsing
       char aBuffer[100];
       StaticJsonDocument<100> docOut;
       Serial.println("Parsing failed");
@@ -760,8 +801,8 @@ void onConnectionEstablished() {
       std::string deviceAddr = "";
       String deviceTopic;
       String anAddr;
-      
-      if (aName != NULL && value != NULL) {
+
+      if (aName != nullptr && value != nullptr) {
         Serial.print("Device: ");
         Serial.println(aName);
         Serial.print("Device value: ");
@@ -849,7 +890,7 @@ void onConnectionEstablished() {
     StaticJsonDocument<100> docIn;
     deserializeJson(docIn, payload);
 
-    if (docIn == NULL) { //Check for errors in parsing
+    if (docIn == nullptr) { //Check for errors in parsing
       Serial.println("Parsing failed");
       char aBuffer[100];
       StaticJsonDocument<100> docOut;
@@ -865,8 +906,8 @@ void onConnectionEstablished() {
       std::string deviceAddr = "";
       String deviceTopic;
       String anAddr;
-      
-      if (aName != NULL) {
+
+      if (aName != nullptr) {
         std::map<std::string, String>::iterator itS = allBots.find(aName);
         if (itS != allBots.end())
         {
@@ -929,7 +970,7 @@ void onConnectionEstablished() {
     StaticJsonDocument<100> docIn;
     deserializeJson(docIn, payload);
 
-    if (docIn == NULL) { //Check for errors in parsing
+    if (docIn == nullptr) { //Check for errors in parsing
       Serial.println("Parsing failed");
       char aBuffer[100];
       StaticJsonDocument<100> docOut;
@@ -1012,14 +1053,14 @@ bool connectToServer(NimBLEAdvertisedDevice* advDeviceToUse) {
 }
 
 bool sendCommandBytes(NimBLERemoteCharacteristic* pChr, byte* bArray, int aSize ) {
-  if (pChr == NULL) {
+  if (pChr == nullptr) {
     return false;
   }
   return pChr->writeValue(bArray, aSize, false);
 }
 
 bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int attempts) {
-  if (advDeviceToUse == NULL) {
+  if (advDeviceToUse == nullptr) {
     return false;
   }
   Serial.println("Sending command...");
@@ -1049,30 +1090,153 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
     if (pChr->canWrite()) {
       bool wasSuccess = false;
       bool isNum = is_number(type);
+      String aPass = "";
+      std::map<std::string, std::string>::iterator itU = allSwitchbotsOpp.find(advDeviceToUse->getAddress());
+      if (itU != allSwitchbotsOpp.end())
+      {
+        aPass = getPass(itU->second.c_str());
+      }
+      uint8_t aPassCRC[4];
+      if (aPass != "") {
+        uint32_t aCRC = getPassCRC(aPass);
+        for (int i = 0; i < 4; ++i)
+        {
+          aPassCRC[i] = ((uint8_t*)&aCRC)[3 - i];
+        }
+      }
       if (isNum) {
         int aVal;
         sscanf(type, "%d", &aVal);
-        byte bArrayPos[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, aVal};
-        wasSuccess = sendCommandBytes(pChr, bArrayPos, 7);
+        if (aPass == "") {
+          byte anArray[7];
+          for (int i = 0; i < 7; i++) {
+            if (i = 6) {
+              anArray[i] = aVal;
+            }
+            else {
+              anArray[i] = bArrayPos[i];
+            }
+          }
+          wasSuccess = sendCommandBytes(pChr, anArray, 7);
+        }
+        else {
+          byte anArray[11];
+          for (int i = 0; i < 11; i++) {
+            if (i = 10) {
+              anArray[i] = aVal;
+            }
+            else if (i >= 2 &&  i <= 5) {
+              anArray[i] = aPassCRC[i - 2];
+            }
+            else {
+              anArray[i] = bArrayPosPass[i];
+            }
+          }
+          wasSuccess = sendCommandBytes(pChr, anArray , 11);
+        }
       }
       else {
         if (strcmp(type, "press") == 0) {
-          wasSuccess = sendCommandBytes(pChr, bArrayPress, 2);
+          if (aPass == "") {
+            wasSuccess = sendCommandBytes(pChr, bArrayPress, 2);
+          }
+          else {
+            byte anArray[6];
+            for (int i = 0; i < 6; i++) {
+              if ((i >= 2) && (i <= 5)) {
+                anArray[i] = aPassCRC[i - 2];
+              }
+              else {
+                anArray[i] = bArrayPressPass[i];
+              }
+            }
+            wasSuccess = sendCommandBytes(pChr, anArray , 6);
+          }
         }
         else if (strcmp(type, "on") == 0) {
-          wasSuccess = sendCommandBytes(pChr, bArrayOn, 3);
+          if (aPass == "") {
+            wasSuccess = sendCommandBytes(pChr, bArrayOn, 3);
+          }
+          else {
+            byte anArray[7];
+            for (int i = 0; i < 7; i++) {
+              if (i >= 2 &&  i <= 5) {
+                anArray[i] = aPassCRC[i - 2];
+              }
+              else {
+                anArray[i] = bArrayOnPass[i];
+              }
+            }
+            wasSuccess = sendCommandBytes(pChr, anArray , 7);
+          }
         }
         else if (strcmp(type, "off") == 0) {
-          wasSuccess = sendCommandBytes(pChr, bArrayOff, 3);
+          if (aPass == "") {
+            wasSuccess = sendCommandBytes(pChr, bArrayOff, 3);
+          }
+          else {
+            byte anArray[7];
+            for (int i = 0; i < 7; i++) {
+              if (i >= 2 &&  i <= 5) {
+                anArray[i] = aPassCRC[i - 2];
+              }
+              else {
+                anArray[i] = bArrayOffPass[i];
+              }
+            }
+            wasSuccess = sendCommandBytes(pChr, anArray , 7);
+          }
         }
         else if (strcmp(type, "open") == 0) {
-          wasSuccess = sendCommandBytes(pChr, bArrayOpen, 7);
+          if (aPass == "") {
+            wasSuccess = sendCommandBytes(pChr, bArrayOpen, 7);
+          }
+          else {
+            byte anArray[11];
+            for (int i = 0; i < 11; i++) {
+              if (i >= 2 &&  i <= 5) {
+                anArray[i] = aPassCRC[i - 2];
+              }
+              else {
+                anArray[i] = bArrayOpenPass[i];
+              }
+            }
+            wasSuccess = sendCommandBytes(pChr, anArray , 11);
+          }
         }
         else if (strcmp(type, "close") == 0) {
-          wasSuccess = sendCommandBytes(pChr, bArrayClose, 7);
+          if (aPass == "") {
+            wasSuccess = sendCommandBytes(pChr, bArrayClose, 7);
+          }
+          else {
+            byte anArray[11];
+            for (int i = 0; i < 11; i++) {
+              if (i >= 2 &&  i <= 5) {
+                anArray[i] = aPassCRC[i - 2];
+              }
+              else {
+                anArray[i] = bArrayClosePass[i];
+              }
+            }
+            wasSuccess = sendCommandBytes(pChr, anArray , 11);
+          }
         }
         else if (strcmp(type, "pause") == 0) {
-          wasSuccess = sendCommandBytes(pChr, bArrayPause, 6);
+          if (aPass == "") {
+            wasSuccess = sendCommandBytes(pChr, bArrayPause, 6);
+          }
+          else {
+            byte anArray[10];
+            for (int i = 0; i < 10; i++) {
+              if (i >= 2 &&  i <= 5) {
+                anArray[i] = aPassCRC[i - 2];
+              }
+              else {
+                anArray[i] = bArrayPausePass[i];
+              }
+            }
+            wasSuccess = sendCommandBytes(pChr, anArray , 10);
+          }
         }
         if (wasSuccess) {
           Serial.print("Wrote new value to: ");
@@ -1127,7 +1291,7 @@ bool getGeneric(NimBLEAdvertisedDevice* advDeviceToUse) {
 }
 
 bool requestInfo(NimBLEAdvertisedDevice* advDeviceToUse) {
-  if (advDeviceToUse == NULL) {
+  if (advDeviceToUse == nullptr) {
     return false;
   }
   Serial.println("Requesting info...");
