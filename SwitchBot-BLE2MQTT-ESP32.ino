@@ -8,9 +8,9 @@
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.17
+  v0.18
 
-    Created: on March 29 2021
+    Created: on March 30 2021
         Author: devWaves
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
@@ -30,7 +30,7 @@
 
     - OTA update added. Go to ESP32 IP address in browser. In Arduino IDE menu - Sketch / Export compile Binary . Upload the .bin file
 
-    - Supports passwords on bot/curtain
+    - Supports passwords on bot
 
     ESP32 will Suscribe to MQTT topic for control
       -switchbotMQTT/control
@@ -143,11 +143,9 @@ static std::map<std::string, String> allCurtains = {
     { "curtaintwo", "yy:yy:yy:yy:yy:yy" }*/
 };
 
-static std::map<std::string, String> allPasswords = {     // Set all the bot/curtain passwords (setup in app first). Ignore if passwords are not used
+static std::map<std::string, String> allPasswords = {     // Set all the bot passwords (setup in app first). Ignore if passwords are not used
   /*{ "switchbotone", "switchbotonePassword" },
-    { "switchbottwo", "switchbottwoPassword" },
-    { "curtainone", "curtainonePassword" },
-    { "curtaintwo", "curtaintwoPassword" }*/
+    { "switchbottwo", "switchbottwoPassword" }
 };
 
 static int tryConnecting = 60;  // How many times to try connecting to bot
@@ -267,15 +265,11 @@ byte bArrayOff[] = {0x57, 0x01, 0x02};
 byte bArrayOpen[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, 0x00};
 byte bArrayClose[] = {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, 0x64};
 byte bArrayPause[] = {0x57, 0x0F, 0x45, 0x01, 0x00, 0xFF};
-byte bArrayPos[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, NULL};
+//byte bArrayPos[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, NULL};
 
 byte bArrayPressPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL};
 byte bArrayOnPass[] = {0x57, 0x11, NULL , NULL, NULL, NULL, 0x01};
 byte bArrayOffPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL, 0x02};
-byte bArrayOpenPass[] =  {0x57, 0x1F, NULL, NULL, NULL, NULL, 0x45, 0x01, 0x05, 0xFF, 0x00};
-byte bArrayClosePass[] = {0x57, 0x1F, NULL, NULL, NULL, NULL, 0x45, 0x01, 0x05, 0xFF, 0x64};
-byte bArrayPausePass[] = {0x57, 0x1F, NULL, NULL, NULL, NULL, 0x45, 0x01, 0x00, 0xFF};
-byte bArrayPosPass[] =  {0x57, 0x1F, NULL, NULL, NULL, NULL, 0x45, 0x01, 0x05, 0xFF, NULL};
 
 class ClientCallbacks : public NimBLEClientCallbacks {
 
@@ -476,7 +470,6 @@ void rescanEndedCB(NimBLEScanResults results) {
   Serial.println("ReScan Ended");
   client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
 }
-
 
 String getPass(std::string aDevice) {
   std::map<std::string, String>::iterator itS = allPasswords.find(aDevice);
@@ -1107,33 +1100,8 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
       if (isNum) {
         int aVal;
         sscanf(type, "%d", &aVal);
-        if (aPass == "") {
-          byte anArray[7];
-          for (int i = 0; i < 7; i++) {
-            if (i = 6) {
-              anArray[i] = aVal;
-            }
-            else {
-              anArray[i] = bArrayPos[i];
-            }
-          }
-          wasSuccess = sendCommandBytes(pChr, anArray, 7);
-        }
-        else {
-          byte anArray[11];
-          for (int i = 0; i < 11; i++) {
-            if (i = 10) {
-              anArray[i] = aVal;
-            }
-            else if (i >= 2 &&  i <= 5) {
-              anArray[i] = aPassCRC[i - 2];
-            }
-            else {
-              anArray[i] = bArrayPosPass[i];
-            }
-          }
-          wasSuccess = sendCommandBytes(pChr, anArray , 11);
-        }
+        byte bArrayPos[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, aVal};
+        wasSuccess = sendCommandBytes(pChr, bArrayPos, 7);
       }
       else {
         if (strcmp(type, "press") == 0) {
@@ -1188,55 +1156,13 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
           }
         }
         else if (strcmp(type, "open") == 0) {
-          if (aPass == "") {
-            wasSuccess = sendCommandBytes(pChr, bArrayOpen, 7);
-          }
-          else {
-            byte anArray[11];
-            for (int i = 0; i < 11; i++) {
-              if (i >= 2 &&  i <= 5) {
-                anArray[i] = aPassCRC[i - 2];
-              }
-              else {
-                anArray[i] = bArrayOpenPass[i];
-              }
-            }
-            wasSuccess = sendCommandBytes(pChr, anArray , 11);
-          }
+          wasSuccess = sendCommandBytes(pChr, bArrayOpen, 7);
         }
         else if (strcmp(type, "close") == 0) {
-          if (aPass == "") {
-            wasSuccess = sendCommandBytes(pChr, bArrayClose, 7);
-          }
-          else {
-            byte anArray[11];
-            for (int i = 0; i < 11; i++) {
-              if (i >= 2 &&  i <= 5) {
-                anArray[i] = aPassCRC[i - 2];
-              }
-              else {
-                anArray[i] = bArrayClosePass[i];
-              }
-            }
-            wasSuccess = sendCommandBytes(pChr, anArray , 11);
-          }
+          wasSuccess = sendCommandBytes(pChr, bArrayClose, 7);
         }
         else if (strcmp(type, "pause") == 0) {
-          if (aPass == "") {
-            wasSuccess = sendCommandBytes(pChr, bArrayPause, 6);
-          }
-          else {
-            byte anArray[10];
-            for (int i = 0; i < 10; i++) {
-              if (i >= 2 &&  i <= 5) {
-                anArray[i] = aPassCRC[i - 2];
-              }
-              else {
-                anArray[i] = bArrayPausePass[i];
-              }
-            }
-            wasSuccess = sendCommandBytes(pChr, anArray , 10);
-          }
+          wasSuccess = sendCommandBytes(pChr, bArrayPause, 6);
         }
         if (wasSuccess) {
           Serial.print("Wrote new value to: ");
