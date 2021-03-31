@@ -145,7 +145,7 @@ static std::map<std::string, String> allCurtains = {
 
 static std::map<std::string, String> allPasswords = {     // Set all the bot passwords (setup in app first). Ignore if passwords are not used
   /*{ "switchbotone", "switchbotonePassword" },
-    { "switchbottwo", "switchbottwoPassword" }
+    { "switchbottwo", "switchbottwoPassword" }*/
 };
 
 static int tryConnecting = 60;  // How many times to try connecting to bot
