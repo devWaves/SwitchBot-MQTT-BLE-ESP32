@@ -8,14 +8,16 @@
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.18
+  v0.19
 
-    Created: on March 30 2021
+    Created: on April 11 2021
         Author: devWaves
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
   Notes:
+    - Support bots and curtains and meters
+  
     - It works for button press/on/off
 
     - It works for curtain open/close/pause/position(%)
@@ -31,6 +33,11 @@
     - OTA update added. Go to ESP32 IP address in browser. In Arduino IDE menu - Sketch / Export compile Binary . Upload the .bin file
 
     - Supports passwords on bot
+
+    - Automatically rescan every X seconds
+
+    - Automatically requestInfo X seconds after successful control command
+
 
     ESP32 will Suscribe to MQTT topic for control
       -switchbotMQTT/control
@@ -108,24 +115,24 @@
 
 /****************** CONFIGURATIONS TO CHANGE *******************/
 
-const char* host = "esp32";					//  hostname defaults is esp32
-const char* ssid = "SSID";					//  WIFI SSID
-const char* password = "Password";			//  WIFI Password
+static const char* host = "esp32";				//  hostname defaults is esp32
+static const char* ssid = "SSID";				//  WIFI SSID
+static const char* password = "Password";		//  WIFI Password
 
-String otaUserId = "admin";					//  user Id for OTA update
-String otaPass = "admin";					//  password for OTA update
-WebServer server(80);						//  default port 80
+static String otaUserId = "admin";				//  user Id for OTA update
+static String otaPass = "admin";				//  password for OTA update
+static WebServer server(80);					//  default port 80
 
-String ESPMQTTTopic = "switchbotMQTT";		//  MQTT main topic
+static String ESPMQTTTopic = "switchbotMQTT";	//  MQTT main topic
 
-EspMQTTClient client(
+static EspMQTTClient client(
   ssid,
   password,
-  "192.168.1.XXX",							// MQTT Broker server ip
-  "MQTTUsername",							// Can be omitted if not needed
-  "MQTTPassword",							// Can be omitted if not needed
-  "ESPMQTT",								// Client name that uniquely identify your device
-  1883										// MQTT Port
+  "192.168.1.XXX",								//  MQTT Broker server ip
+  "MQTTUsername",								//  Can be omitted if not needed
+  "MQTTPassword",								//  Can be omitted if not needed
+  "ESPMQTT",									//  Client name that uniquely identify your device
+  1883											//  MQTT Port
 );
 
 static std::map<std::string, String> allBots = {
@@ -148,10 +155,22 @@ static std::map<std::string, String> allPasswords = {     // Set all the bot pas
     { "switchbottwo", "switchbottwoPassword" }*/
 };
 
-static int tryConnecting = 60;  // How many times to try connecting to bot
-static int trySending = 30;     // How many times to try sending command to bot
-static int initialScan = 120;    // How many seconds to scan for bots on ESP reboot
-static int infoScanTime = 60;    // How many seconds to scan for single device status updates
+static std::map<std::string, int> botScanTime = {     // X seconds after a successful control command ESP32 will perform a requestInfo on the bot. If a "hold time" is set on the bot include that value + 5to10 secs
+  { "switchbotone", 10 },
+  { "switchbottwo", 10 }
+  /*,{ "curtainone", 20 },
+    { "curtaintwo", 20 }*/
+};
+
+static int tryConnecting = 60;          // How many times to try connecting to bot
+static int trySending = 30;             // How many times to try sending command to bot
+static int initialScan = 120;           // How many seconds to scan for bots on ESP reboot and autoRescan
+static int infoScanTime = 60;           // How many seconds to scan for single device status updates
+
+static bool autoRescan = true;          // perform automatic rescan (uses rescanTime and initialScan)
+static bool scanAfterControl = true;    // perform requestInfo after successful control command (uses botScanTime, curtainScanTime)
+static int rescanTime = 600;            // Automatically rescan for device info every X seconds (default 10 min)
+
 
 /*************************************************************/
 
@@ -160,7 +179,7 @@ static int infoScanTime = 60;    // How many seconds to scan for single device s
    Login page
 */
 
-String loginIndex =
+static String loginIndex =
   "<form name='loginForm'>"
   "<table width='20%' bgcolor='A09F9F' align='center'>"
   "<tr>"
@@ -206,7 +225,7 @@ String loginIndex =
    Server Index Page
 */
 
-String serverIndex =
+static String serverIndex =
   "<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>"
   "<form method='POST' action='#' enctype='multipart/form-data' id='upload_form'>"
   "<input type='file' name='update'>"
@@ -246,30 +265,31 @@ String serverIndex =
 void scanEndedCB(NimBLEScanResults results);
 void rescanEndedCB(NimBLEScanResults results);
 static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsDev = {};
+static std::map<std::string, long> rescanTimes = {};
 static std::map<std::string, std::string> allSwitchbotsOpp;
 static std::map<std::string, std::string> deviceTypes;
 static NimBLEScan* pScan;
-bool isRescanning = false;
+static bool isRescanning = false;
 static bool processing = false;
 static bool initialScanComplete = false;
-String esp32Str = ESPMQTTTopic + "/ESP32";
-String lastWillStr = ESPMQTTTopic + "/lastwill";
-const char* lastWill = lastWillStr.c_str();
-String buttonStr = ESPMQTTTopic + "/bot/";
-String curtainStr = ESPMQTTTopic + "/curtain/";
-String tempStr = ESPMQTTTopic + "/meter/";
+static String esp32Str = ESPMQTTTopic + "/ESP32";
+static String lastWillStr = ESPMQTTTopic + "/lastwill";
+static const char* lastWill = lastWillStr.c_str();
+static String buttonStr = ESPMQTTTopic + "/bot/";
+static String curtainStr = ESPMQTTTopic + "/curtain/";
+static String tempStr = ESPMQTTTopic + "/meter/";
 
-byte bArrayPress[] = {0x57, 0x01};
-byte bArrayOn[] = {0x57, 0x01, 0x01};
-byte bArrayOff[] = {0x57, 0x01, 0x02};
-byte bArrayOpen[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, 0x00};
-byte bArrayClose[] = {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, 0x64};
-byte bArrayPause[] = {0x57, 0x0F, 0x45, 0x01, 0x00, 0xFF};
-//byte bArrayPos[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, NULL};
+static byte bArrayPress[] = {0x57, 0x01};
+static byte bArrayOn[] = {0x57, 0x01, 0x01};
+static byte bArrayOff[] = {0x57, 0x01, 0x02};
+static byte bArrayOpen[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, 0x00};
+static byte bArrayClose[] = {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, 0x64};
+static byte bArrayPause[] = {0x57, 0x0F, 0x45, 0x01, 0x00, 0xFF};
+//static byte bArrayPos[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, NULL};
 
-byte bArrayPressPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL};
-byte bArrayOnPass[] = {0x57, 0x11, NULL , NULL, NULL, NULL, 0x01};
-byte bArrayOffPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL, 0x02};
+static byte bArrayPressPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL};
+static byte bArrayOnPass[] = {0x57, 0x11, NULL , NULL, NULL, NULL, 0x01};
+static byte bArrayOffPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL, 0x02};
 
 class ClientCallbacks : public NimBLEClientCallbacks {
 
@@ -630,10 +650,55 @@ void rescanFind(std::string aMac) {
   pScan->start(infoScanTime, scanEndedCB, true);
 }
 
+long lastScanCheck = 0;
+long lastRescan = 0;
+
 void loop () {
   server.handleClient();
   client.loop();
+  if (!processing && !(pScan->isScanning()) && !isRescanning) {
+    if (autoRescan) {
+      recurringRescan();
+    }
+    if (scanAfterControl) {
+      recurringScan();
+    }
+  }
   delay(1);
+}
+
+void recurringRescan() {
+  if ((millis() - lastRescan) >= (rescanTime * 1000)) {
+    rescan(initialScan);
+    lastRescan = millis();
+  }
+}
+
+void recurringScan() {
+  if ((millis() - lastScanCheck) >= 500) {
+    if (!rescanTimes.empty()) {
+      std::map<std::string, long>::iterator it = rescanTimes.begin();
+      std::map<std::string, std::string>::iterator itB;
+      std::map<std::string, int>::iterator itS;
+      while (it != rescanTimes.end())
+      {
+        itB = allSwitchbotsOpp.find(it->first);
+        itS = botScanTime.find(itB->second);
+        long lastTime = it->second;
+        long scanTime = itS->second;
+        if ((millis() - lastTime) >= (scanTime * 1000)) {
+          Serial.println("ready to auto requestInfo");
+          rescanFind(it->first);
+          rescanTimes.erase(it->first);
+          it = rescanTimes.begin();
+        }
+        else {
+          it++;
+        }
+      }
+    }
+    lastScanCheck = millis();
+  }
 }
 
 void processRequest(std::string macAdd, std::string aName, const char * command, String deviceTopic) {
@@ -737,6 +802,15 @@ void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const ch
           doc["status"] = command;
           serializeJson(doc, aBuffer);
           client.publish(deviceTopic.c_str(),  aBuffer);
+          if (scanAfterControl) {
+            std::map<std::string, std::string>::iterator itI = allSwitchbotsOpp.find(addr);
+            std::map<std::string, int>::iterator itW = botScanTime.find(itI->second);
+            if (itW != botScanTime.end())
+            {
+              rescanTimes.erase(addr);
+              rescanTimes.insert ( std::pair<std::string, long>(addr, millis()));
+            }
+          }
         }
         else {
           if (count > trySending) {
