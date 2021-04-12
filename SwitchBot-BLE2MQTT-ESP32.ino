@@ -8,7 +8,7 @@
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.19
+  v0.20
 
     Created: on April 11 2021
         Author: devWaves
@@ -17,7 +17,7 @@
 
   Notes:
     - Support bots and curtains and meters
-  
+
     - It works for button press/on/off
 
     - It works for curtain open/close/pause/position(%)
@@ -168,7 +168,7 @@ static int initialScan = 120;           // How many seconds to scan for bots on 
 static int infoScanTime = 60;           // How many seconds to scan for single device status updates
 
 static bool autoRescan = true;          // perform automatic rescan (uses rescanTime and initialScan)
-static bool scanAfterControl = true;    // perform requestInfo after successful control command (uses botScanTime, curtainScanTime)
+static bool scanAfterControl = true;    // perform requestInfo after successful control command (uses botScanTime)
 static int rescanTime = 600;            // Automatically rescan for device info every X seconds (default 10 min)
 
 
@@ -290,6 +290,9 @@ static byte bArrayPause[] = {0x57, 0x0F, 0x45, 0x01, 0x00, 0xFF};
 static byte bArrayPressPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL};
 static byte bArrayOnPass[] = {0x57, 0x11, NULL , NULL, NULL, NULL, 0x01};
 static byte bArrayOffPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL, 0x02};
+
+long lastRescan = 0;
+long lastScanCheck = 0;
 
 class ClientCallbacks : public NimBLEClientCallbacks {
 
@@ -487,6 +490,7 @@ void scanEndedCB(NimBLEScanResults results) {
 
 void rescanEndedCB(NimBLEScanResults results) {
   isRescanning = false;
+  lastRescan = millis();
   Serial.println("ReScan Ended");
   client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
 }
@@ -627,13 +631,17 @@ void setup () {
 }
 
 void rescan(int seconds) {
+  lastRescan = millis();
   while (pScan->isScanning()) {
     delay(50);
   }
   allSwitchbotsDev = {};
   pScan->clearResults();
+  lastRescan = millis();
   isRescanning = true;
+  delay(50);
   client.publish(esp32Str.c_str(), "{\"status\":\"scanning\"}");
+  delay(50);
   pScan->start(seconds, rescanEndedCB);
 }
 
@@ -641,17 +649,16 @@ void rescanFind(std::string aMac) {
   if (isRescanning) {
     return;
   }
-  while (pScan->isScanning()) {
+  while (pScan->isScanning() || processing) {
     delay(50);
   }
   allSwitchbotsDev.erase(aMac);
   pScan->erase(NimBLEAddress(aMac));
+  delay(100);
   client.publish(esp32Str.c_str(), "{\"status\":\"scanning\"}");
+  delay(50);
   pScan->start(infoScanTime, scanEndedCB, true);
 }
-
-long lastScanCheck = 0;
-long lastRescan = 0;
 
 void loop () {
   server.handleClient();
@@ -668,14 +675,23 @@ void loop () {
 }
 
 void recurringRescan() {
+  if(isRescanning){return;}
   if ((millis() - lastRescan) >= (rescanTime * 1000)) {
-    rescan(initialScan);
-    lastRescan = millis();
+    if (!processing && !(pScan->isScanning()) && !isRescanning) {
+      rescan(initialScan);
+    }
+    else {
+      long tempVal = (millis() - ((rescanTime * 1000)-5000));
+      if (tempVal < 0) {
+        tempVal = 0;
+      }
+      lastRescan = tempVal;
+    }
   }
 }
 
 void recurringScan() {
-  if ((millis() - lastScanCheck) >= 500) {
+  if ((millis() - lastScanCheck) >= 200) {
     if (!rescanTimes.empty()) {
       std::map<std::string, long>::iterator it = rescanTimes.begin();
       std::map<std::string, std::string>::iterator itB;
@@ -687,10 +703,12 @@ void recurringScan() {
         long lastTime = it->second;
         long scanTime = itS->second;
         if ((millis() - lastTime) >= (scanTime * 1000)) {
-          Serial.println("ready to auto requestInfo");
-          rescanFind(it->first);
-          rescanTimes.erase(it->first);
-          it = rescanTimes.begin();
+          if (!processing && !(pScan->isScanning()) && !isRescanning) {
+            rescanFind(it->first);
+            rescanTimes.erase(it->first);
+            delay(100);
+            it = rescanTimes.begin();
+          }
         }
         else {
           it++;
@@ -937,7 +955,7 @@ void onConnectionEstablished() {
         client.publish(esp32Str.c_str(), aBuffer);
       }
     }
-    delay(500);
+    delay(100);
     client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
     processing = false;
   });
@@ -1268,7 +1286,6 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
 }
 
 bool getGeneric(NimBLEAdvertisedDevice* advDeviceToUse) {
-
   NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
   NimBLERemoteService* pSvc = nullptr;
   NimBLERemoteCharacteristic* pChr = nullptr;;
