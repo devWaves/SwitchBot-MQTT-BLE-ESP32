@@ -640,7 +640,7 @@ void setup () {
 
 void rescan(int seconds) {
   lastRescan = millis();
-  while (pScan->isScanning() || processing) {
+  while (pScan->isScanning()) {
     delay(50);
   }
   allSwitchbotsDev = {};
@@ -657,7 +657,7 @@ void rescanFind(std::string aMac) {
   if (isRescanning) {
     return;
   }
-  while (pScan->isScanning() || processing) {
+  while (pScan->isScanning()) {
     delay(50);
   }
   allSwitchbotsDev.erase(aMac);
@@ -787,19 +787,16 @@ void processRequest(std::string macAdd, std::string aName, const char * command,
 }
 
 bool processQueue() {
-
   struct QueueCommand aCommand;
   while (!commandQueue.isEmpty()) {
     aCommand = commandQueue.getHead();
     if ((aCommand.topic == ESPMQTTTopic + "/rescan") && isRescanning) {
       commandQueue.dequeue();
     }
-
     else {
       if ( processing || pScan->isScanning() || isRescanning ) {
         return false;
       }
-
       if (aCommand.topic == ESPMQTTTopic + "/control") {
         controlMQTT(aCommand.payload);
       }
@@ -1026,7 +1023,6 @@ void rescanMQTT(const String & payload) {
         else if (aVal > 120) {
           aVal = 120;
         }
-        processing = false;
         rescan(aVal);
       }
       else {
