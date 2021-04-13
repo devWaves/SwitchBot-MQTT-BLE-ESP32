@@ -8,7 +8,7 @@
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      *** I do not know where performance will be affected by number of devices
 
-  v0.20
+  v0.21
 
     Created: on April 11 2021
         Author: devWaves
@@ -112,6 +112,7 @@
 #include <ESPmDNS.h>
 #include <Update.h>
 #include <CRC32.h>
+#include <ArduinoQueue.h>
 
 /****************** CONFIGURATIONS TO CHANGE *******************/
 
@@ -155,7 +156,7 @@ static std::map<std::string, String> allPasswords = {     // Set all the bot pas
     { "switchbottwo", "switchbottwoPassword" }*/
 };
 
-static std::map<std::string, int> botScanTime = {     // X seconds after a successful control command ESP32 will perform a requestInfo on the bot. If a "hold time" is set on the bot include that value + 5to10 secs
+static std::map<std::string, int> botScanTime = {     // X seconds after a successful control command ESP32 will perform a requestInfo on the bot. If a "hold time" is set on the bot include that value + 5to10 secs. Default is 30 sec if not in list
   { "switchbotone", 10 },
   { "switchbottwo", 10 }
   /*,{ "curtainone", 20 },
@@ -170,7 +171,7 @@ static int infoScanTime = 60;           // How many seconds to scan for single d
 static bool autoRescan = true;          // perform automatic rescan (uses rescanTime and initialScan)
 static bool scanAfterControl = true;    // perform requestInfo after successful control command (uses botScanTime)
 static int rescanTime = 600;            // Automatically rescan for device info every X seconds (default 10 min)
-
+static int queueSize = 50;              // Max number of control/requestInfo/rescan MQTT commands stored in the queue. If you send more then queueSize, they will be ignored
 
 /*************************************************************/
 
@@ -290,6 +291,13 @@ static byte bArrayPause[] = {0x57, 0x0F, 0x45, 0x01, 0x00, 0xFF};
 static byte bArrayPressPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL};
 static byte bArrayOnPass[] = {0x57, 0x11, NULL , NULL, NULL, NULL, 0x01};
 static byte bArrayOffPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL, 0x02};
+
+struct QueueCommand {
+  String payload;
+  String topic;
+};
+
+ArduinoQueue<QueueCommand> commandQueue(queueSize);
 
 long lastRescan = 0;
 long lastScanCheck = 0;
@@ -632,7 +640,7 @@ void setup () {
 
 void rescan(int seconds) {
   lastRescan = millis();
-  while (pScan->isScanning()) {
+  while (pScan->isScanning() || processing) {
     delay(50);
   }
   allSwitchbotsDev = {};
@@ -663,25 +671,33 @@ void rescanFind(std::string aMac) {
 void loop () {
   server.handleClient();
   client.loop();
+  if (isRescanning) {
+    lastRescan = millis();
+  }
   if (!processing && !(pScan->isScanning()) && !isRescanning) {
-    if (autoRescan) {
-      recurringRescan();
-    }
-    if (scanAfterControl) {
-      recurringScan();
+    if (processQueue()) {
+      if (autoRescan) {
+        recurringRescan();
+      }
+      if (scanAfterControl) {
+        recurringScan();
+      }
     }
   }
   delay(1);
 }
 
 void recurringRescan() {
-  if(isRescanning){return;}
+  if (isRescanning) {
+    lastRescan = millis();
+    return;
+  }
   if ((millis() - lastRescan) >= (rescanTime * 1000)) {
     if (!processing && !(pScan->isScanning()) && !isRescanning) {
       rescan(initialScan);
     }
     else {
-      long tempVal = (millis() - ((rescanTime * 1000)-5000));
+      long tempVal = (millis() - ((rescanTime * 1000) - 5000));
       if (tempVal < 0) {
         tempVal = 0;
       }
@@ -701,7 +717,11 @@ void recurringScan() {
         itB = allSwitchbotsOpp.find(it->first);
         itS = botScanTime.find(itB->second);
         long lastTime = it->second;
-        long scanTime = itS->second;
+        long scanTime = 30; //default if not in list
+        if (itS != botScanTime.end())
+        {
+          scanTime = itS->second;
+        }
         if ((millis() - lastTime) >= (scanTime * 1000)) {
           if (!processing && !(pScan->isScanning()) && !isRescanning) {
             rescanFind(it->first);
@@ -722,29 +742,34 @@ void recurringScan() {
 void processRequest(std::string macAdd, std::string aName, const char * command, String deviceTopic) {
   int count = 1;
   std::map<std::string, NimBLEAdvertisedDevice*>::iterator itS = allSwitchbotsDev.find(macAdd);
-  NimBLEAdvertisedDevice* advDevice =  itS->second;
+  NimBLEAdvertisedDevice* advDevice = nullptr;
+  if (itS != allSwitchbotsDev.end())
+  {
+    advDevice =  itS->second;
+  }
   bool shouldContinue = (advDevice == nullptr);
   while (shouldContinue) {
     if (count > 3) {
       shouldContinue = false;
     }
     else {
-      count++;
       if (pScan->isScanning()) {
         while (pScan->isScanning()) {
-          delay(50);
+          delay(10);
         }
       }
-      else {
-        pScan->start(5 * count, scanEndedCB, true);
-        while (pScan->isScanning()) {
-          Serial.println("Scanning#" + count);
-          delay(500);
-        }
+      pScan->start(10 * count, scanEndedCB, true);
+      delay(500);
+      while (pScan->isScanning()) {
+        delay(10);
       }
       itS = allSwitchbotsDev.find(macAdd);
-      advDevice =  itS->second;
+      if (itS != allSwitchbotsDev.end())
+      {
+        advDevice =  itS->second;
+      }
       shouldContinue = (advDevice == nullptr);
+      count++;
     }
   }
   if (advDevice == nullptr)
@@ -759,6 +784,35 @@ void processRequest(std::string macAdd, std::string aName, const char * command,
   else {
     sendToDevice(advDevice, aName, command, deviceTopic);
   }
+}
+
+bool processQueue() {
+
+  struct QueueCommand aCommand;
+  while (!commandQueue.isEmpty()) {
+    aCommand = commandQueue.getHead();
+    if ((aCommand.topic == ESPMQTTTopic + "/rescan") && isRescanning) {
+      commandQueue.dequeue();
+    }
+
+    else {
+      if ( processing || pScan->isScanning() || isRescanning ) {
+        return false;
+      }
+
+      if (aCommand.topic == ESPMQTTTopic + "/control") {
+        controlMQTT(aCommand.payload);
+      }
+      else if (aCommand.topic == ESPMQTTTopic + "/requestInfo") {
+        requestInfoMQTT(aCommand.payload);
+      }
+      else if (aCommand.topic == ESPMQTTTopic + "/rescan") {
+        rescanMQTT(aCommand.payload);
+      }
+      commandQueue.dequeue();
+    }
+  }
+  return true;
 }
 
 void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const char * command, String deviceTopic) {
@@ -850,8 +904,210 @@ bool is_number(const std::string& s)
   return !s.empty() && it == s.end();
 }
 
-void onConnectionEstablished() {
+void controlMQTT(const String & payload) {
+  processing = true;
+  Serial.println("Processing Control MQTT...");
+  StaticJsonDocument<100> docIn;
+  deserializeJson(docIn, payload);
 
+  if (docIn == nullptr) { //Check for errors in parsing
+    char aBuffer[100];
+    StaticJsonDocument<100> docOut;
+    Serial.println("Parsing failed");
+    docOut["status"] = "errorParsingJSON";
+    serializeJson(docOut, aBuffer);
+    client.publish(esp32Str.c_str(), aBuffer);
+  }
+  else {
+    const char * aName = docIn["id"]; //Get sensor type value
+    const char * value = docIn["value"];        //Get value of sensor measurement
+    std::string deviceAddr = "";
+    String deviceTopic;
+    String anAddr;
+
+    if (aName != nullptr && value != nullptr) {
+      Serial.print("Device: ");
+      Serial.println(aName);
+      Serial.print("Device value: ");
+      Serial.println(value);
+
+      std::map<std::string, String>::iterator itS = allBots.find(aName);
+      if (itS != allBots.end())
+      {
+        anAddr = itS->second;
+        anAddr.toLowerCase();
+        deviceAddr = anAddr.c_str();
+        deviceTopic = buttonStr;
+      }
+      itS = allCurtains.find(aName);
+      if (itS != allCurtains.end())
+      {
+        anAddr = itS->second;
+        anAddr.toLowerCase();
+        deviceAddr = anAddr.c_str();
+        deviceTopic = curtainStr;
+      }
+      itS = allMeters.find(aName);
+      if (itS != allMeters.end())
+      {
+        anAddr = itS->second;
+        anAddr.toLowerCase();
+        deviceAddr = anAddr.c_str();
+        deviceTopic = tempStr;
+      }
+    }
+    if (deviceAddr != "") {
+      bool isNum = is_number(value);
+      deviceTopic = deviceTopic + aName;
+      if (isNum) {
+        int aVal;
+        sscanf(value, "%d", &aVal);
+        if (aVal < 0) {
+          value = "0";
+        }
+        else if (aVal > 100) {
+          value = "100";
+        }
+        processRequest(deviceAddr, aName, value, deviceTopic);
+      }
+      else {
+        if ((strcmp(value, "press") == 0) || (strcmp(value, "on") == 0) || (strcmp(value, "off") == 0) || (strcmp(value, "open") == 0) || (strcmp(value, "close") == 0) || (strcmp(value, "pause") == 0)) {
+          processRequest(deviceAddr, aName, value, deviceTopic);
+        }
+        else {
+          char aBuffer[100];
+          StaticJsonDocument<100> docOut;
+          docOut["status"] = "errorJSONValue";
+          serializeJson(docOut, aBuffer);
+          Serial.println("Parsing failed = value not a valid command");
+          client.publish(esp32Str.c_str(), aBuffer);
+        }
+      }
+    }
+    else {
+      char aBuffer[100];
+      StaticJsonDocument<100> docOut;
+      docOut["status"] = "errorJSONDevice";
+      serializeJson(docOut, aBuffer);
+      Serial.println("Parsing failed = device not from list");
+      client.publish(esp32Str.c_str(), aBuffer);
+    }
+  }
+  delay(100);
+  client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
+  processing = false;
+}
+
+void rescanMQTT(const String & payload) {
+  isRescanning = true;
+  processing = true;
+  Serial.println("Processing Rescan MQTT...");
+  StaticJsonDocument<100> docIn;
+  deserializeJson(docIn, payload);
+
+  if (docIn == nullptr) { //Check for errors in parsing
+    Serial.println("Parsing failed");
+    char aBuffer[100];
+    StaticJsonDocument<100> docOut;
+    docOut["status"] = "errorParsingJSON";
+    serializeJson(docOut, aBuffer);
+    client.publish(esp32Str.c_str(), aBuffer);
+  }
+  else {
+    const char * value = docIn["sec"];
+    if (value != "") {
+      bool isNum = is_number(value);
+      if (isNum) {
+        int aVal;
+        sscanf(value, "%d", &aVal);
+        if (aVal < 0) {
+          return;
+        }
+        else if (aVal > 120) {
+          aVal = 120;
+        }
+        processing = false;
+        rescan(aVal);
+      }
+      else {
+        char aBuffer[100];
+        StaticJsonDocument<100> docOut;
+        docOut["status"] = "errorJSONValue";
+        serializeJson(docOut, aBuffer);
+        Serial.println("Parsing failed = device not from list");
+        client.publish(esp32Str.c_str(), aBuffer);
+      }
+    }
+  }
+  processing = false;
+}
+
+void requestInfoMQTT(const String & payload) {
+  processing = true;
+  Serial.println("Processing Request Info MQTT...");
+  StaticJsonDocument<100> docIn;
+  deserializeJson(docIn, payload);
+
+  if (docIn == nullptr) { //Check for errors in parsing
+    Serial.println("Parsing failed");
+    char aBuffer[100];
+    StaticJsonDocument<100> docOut;
+    docOut["status"] = "errorParsingJSON";
+    serializeJson(docOut, aBuffer);
+    client.publish(esp32Str.c_str(), aBuffer);
+  }
+  else {
+    const char * aName = docIn["id"]; //Get sensor type value
+    Serial.print("Device: ");
+    Serial.println(aName);
+
+    std::string deviceAddr = "";
+    String deviceTopic;
+    String anAddr;
+
+    if (aName != nullptr) {
+      std::map<std::string, String>::iterator itS = allBots.find(aName);
+      if (itS != allBots.end())
+      {
+        anAddr = itS->second;
+        anAddr.toLowerCase();
+        deviceAddr = anAddr.c_str();
+        deviceTopic = buttonStr;
+      }
+      itS = allCurtains.find(aName);
+      if (itS != allCurtains.end())
+      {
+        anAddr = itS->second;
+        anAddr.toLowerCase();
+        deviceAddr = anAddr.c_str();
+        deviceTopic = curtainStr;
+      }
+      itS = allMeters.find(aName);
+      if (itS != allMeters.end())
+      {
+        anAddr = itS->second;
+        anAddr.toLowerCase();
+        deviceAddr = anAddr.c_str();
+        deviceTopic = tempStr;
+      }
+    }
+    if (deviceAddr != "") {
+      deviceTopic = deviceTopic + aName;
+      processRequest(deviceAddr, aName, "requestInfo", deviceTopic);
+    }
+    else {
+      char aBuffer[100];
+      StaticJsonDocument<100> docOut;
+      docOut["status"] = "errorJSONId";
+      serializeJson(docOut, aBuffer);
+      Serial.println("Parsing failed = device not from list");
+      client.publish(esp32Str.c_str(), aBuffer);
+    }
+  }
+  processing = false;
+}
+
+void onConnectionEstablished() {
   if (!initialScanComplete) {
     initialScanComplete = true;
     client.publish(esp32Str.c_str(), "{\"status\":\"boot\"}");
@@ -862,234 +1118,41 @@ void onConnectionEstablished() {
 
   client.subscribe(ESPMQTTTopic + "/control", [] (const String & payload)  {
     Serial.println("Control MQTT Received...");
-    int count = 0;
-    while (( processing || pScan->isScanning()) && (count < 600) ) {
-      delay(100);
-      count++;
-    }
-    processing = true;
-    Serial.println("Processing Control MQTT...");
-    StaticJsonDocument<100> docIn;
-    deserializeJson(docIn, payload);
-
-    if (docIn == nullptr) { //Check for errors in parsing
-      char aBuffer[100];
-      StaticJsonDocument<100> docOut;
-      Serial.println("Parsing failed");
-      docOut["status"] = "errorParsingJSON";
-      serializeJson(docOut, aBuffer);
-      client.publish(esp32Str.c_str(), aBuffer);
+    if (!commandQueue.isFull()) {
+      struct QueueCommand queueCommand;
+      queueCommand.payload = payload;
+      queueCommand.topic = ESPMQTTTopic + "/control";
+      commandQueue.enqueue(queueCommand);
     }
     else {
-      const char * aName = docIn["id"]; //Get sensor type value
-      const char * value = docIn["value"];        //Get value of sensor measurement
-      std::string deviceAddr = "";
-      String deviceTopic;
-      String anAddr;
-
-      if (aName != nullptr && value != nullptr) {
-        Serial.print("Device: ");
-        Serial.println(aName);
-        Serial.print("Device value: ");
-        Serial.println(value);
-
-        std::map<std::string, String>::iterator itS = allBots.find(aName);
-        if (itS != allBots.end())
-        {
-          anAddr = itS->second;
-          anAddr.toLowerCase();
-          deviceAddr = anAddr.c_str();
-          deviceTopic = buttonStr;
-        }
-        itS = allCurtains.find(aName);
-        if (itS != allCurtains.end())
-        {
-          anAddr = itS->second;
-          anAddr.toLowerCase();
-          deviceAddr = anAddr.c_str();
-          deviceTopic = curtainStr;
-        }
-        itS = allMeters.find(aName);
-        if (itS != allMeters.end())
-        {
-          anAddr = itS->second;
-          anAddr.toLowerCase();
-          deviceAddr = anAddr.c_str();
-          deviceTopic = tempStr;
-        }
-      }
-      if (deviceAddr != "") {
-        bool isNum = is_number(value);
-        deviceTopic = deviceTopic + aName;
-        if (isNum) {
-          int aVal;
-          sscanf(value, "%d", &aVal);
-          if (aVal < 0) {
-            value = "0";
-          }
-          else if (aVal > 100) {
-            value = "100";
-          }
-          processRequest(deviceAddr, aName, value, deviceTopic);
-        }
-        else {
-          if ((strcmp(value, "press") == 0) || (strcmp(value, "on") == 0) || (strcmp(value, "off") == 0) || (strcmp(value, "open") == 0) || (strcmp(value, "close") == 0) || (strcmp(value, "pause") == 0)) {
-            processRequest(deviceAddr, aName, value, deviceTopic);
-          }
-          else {
-            char aBuffer[100];
-            StaticJsonDocument<100> docOut;
-            docOut["status"] = "errorJSONValue";
-            serializeJson(docOut, aBuffer);
-            Serial.println("Parsing failed = value not a valid command");
-            client.publish(esp32Str.c_str(), aBuffer);
-          }
-        }
-      }
-      else {
-        char aBuffer[100];
-        StaticJsonDocument<100> docOut;
-        docOut["status"] = "errorJSONDevice";
-        serializeJson(docOut, aBuffer);
-        Serial.println("Parsing failed = device not from list");
-        client.publish(esp32Str.c_str(), aBuffer);
-      }
+      client.publish(esp32Str.c_str(), "{\"status\":\"errorQueueFull\"}");
     }
-    delay(100);
-    client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
-    processing = false;
   });
 
   client.subscribe(ESPMQTTTopic + "/requestInfo", [] (const String & payload)  {
     Serial.println("Request Info MQTT Received...");
-    int count = 0;
-    if (isRescanning) {
-      return;
-    }
-    while ((processing || pScan->isScanning()) && (count < 600) ) {
-      delay(100);
-      count++;
-    }
-    processing = true;
-    Serial.println("Processing Request Info MQTT...");
-    StaticJsonDocument<100> docIn;
-    deserializeJson(docIn, payload);
-
-    if (docIn == nullptr) { //Check for errors in parsing
-      Serial.println("Parsing failed");
-      char aBuffer[100];
-      StaticJsonDocument<100> docOut;
-      docOut["status"] = "errorParsingJSON";
-      serializeJson(docOut, aBuffer);
-      client.publish(esp32Str.c_str(), aBuffer);
+    if (!commandQueue.isFull()) {
+      struct QueueCommand queueCommand;
+      queueCommand.payload = payload;
+      queueCommand.topic = ESPMQTTTopic + "/requestInfo";
+      commandQueue.enqueue(queueCommand);
     }
     else {
-      const char * aName = docIn["id"]; //Get sensor type value
-      Serial.print("Device: ");
-      Serial.println(aName);
-
-      std::string deviceAddr = "";
-      String deviceTopic;
-      String anAddr;
-
-      if (aName != nullptr) {
-        std::map<std::string, String>::iterator itS = allBots.find(aName);
-        if (itS != allBots.end())
-        {
-          anAddr = itS->second;
-          anAddr.toLowerCase();
-          deviceAddr = anAddr.c_str();
-          deviceTopic = buttonStr;
-        }
-        itS = allCurtains.find(aName);
-        if (itS != allCurtains.end())
-        {
-          anAddr = itS->second;
-          anAddr.toLowerCase();
-          deviceAddr = anAddr.c_str();
-          deviceTopic = curtainStr;
-        }
-        itS = allMeters.find(aName);
-        if (itS != allMeters.end())
-        {
-          anAddr = itS->second;
-          anAddr.toLowerCase();
-          deviceAddr = anAddr.c_str();
-          deviceTopic = tempStr;
-        }
-      }
-      if (deviceAddr != "") {
-        deviceTopic = deviceTopic + aName;
-        processRequest(deviceAddr, aName, "requestInfo", deviceTopic);
-      }
-      else {
-        char aBuffer[100];
-        StaticJsonDocument<100> docOut;
-        docOut["status"] = "errorJSONId";
-        serializeJson(docOut, aBuffer);
-        Serial.println("Parsing failed = device not from list");
-        client.publish(esp32Str.c_str(), aBuffer);
-      }
+      client.publish(esp32Str.c_str(), "{\"status\":\"errorQueueFull\"}");
     }
-    processing = false;
   });
 
   client.subscribe(ESPMQTTTopic + "/rescan", [] (const String & payload)  {
     Serial.println("Rescan MQTT Received...");
-    if (isRescanning) {
-      Serial.println("Already scanning. Exiting");
-      return;
-    }
-    int count = 0;
-    while ((processing || pScan->isScanning()) && (count < 600) ) {
-      delay(100);
-      count++;
-    }
-    if (isRescanning) {
-      Serial.println("Already scanning. Exiting");
-      return;
-    }
-    isRescanning = true;
-    processing = true;
-    Serial.println("Processing Rescan MQTT...");
-    StaticJsonDocument<100> docIn;
-    deserializeJson(docIn, payload);
-
-    if (docIn == nullptr) { //Check for errors in parsing
-      Serial.println("Parsing failed");
-      char aBuffer[100];
-      StaticJsonDocument<100> docOut;
-      docOut["status"] = "errorParsingJSON";
-      serializeJson(docOut, aBuffer);
-      client.publish(esp32Str.c_str(), aBuffer);
+    if (!commandQueue.isFull()) {
+      struct QueueCommand queueCommand;
+      queueCommand.payload = payload;
+      queueCommand.topic = ESPMQTTTopic + "/rescan";
+      commandQueue.enqueue(queueCommand);
     }
     else {
-      const char * value = docIn["sec"];
-      if (value != "") {
-        bool isNum = is_number(value);
-        if (isNum) {
-          int aVal;
-          sscanf(value, "%d", &aVal);
-          if (aVal < 0) {
-            return;
-          }
-          else if (aVal > 120) {
-            aVal = 120;
-          }
-
-          rescan(aVal);
-        }
-        else {
-          char aBuffer[100];
-          StaticJsonDocument<100> docOut;
-          docOut["status"] = "errorJSONValue";
-          serializeJson(docOut, aBuffer);
-          Serial.println("Parsing failed = device not from list");
-          client.publish(esp32Str.c_str(), aBuffer);
-        }
-      }
+      client.publish(esp32Str.c_str(), "{\"status\":\"errorQueueFull\"}");
     }
-    processing = false;
   });
 }
 
