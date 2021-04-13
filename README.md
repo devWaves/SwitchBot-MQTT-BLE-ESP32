@@ -8,7 +8,7 @@ Code can be installed using Arduino IDE for ESP32
 Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
   *** I do not know where performance will be affected by number of devices
 
-v0.20
+v0.21
 
 Created: on April 11 2021
   Author: devWaves
@@ -95,6 +95,7 @@ Steps to Install on ESP32
 4. Install EspMQTTClient library
 5. Install ArduinoJson library
 6. Install CRC32 library (by Christopher Baker)
-7. Modify code for your Wifi and MQTT configurations and SwitchBot MAC address
-8. Compile and upload to ESP32 (I am using Wemos D1 Mini ESP32)
-9. Reboot ESP32 plug it in with 5v usb (no data needed)
+7. Install ArduinoQueue library
+8. Modify code for your Wifi and MQTT configurations and SwitchBot MAC address
+9. Compile and upload to ESP32 (I am using Wemos D1 Mini ESP32)
+10. Reboot ESP32 plug it in with 5v usb (no data needed)
