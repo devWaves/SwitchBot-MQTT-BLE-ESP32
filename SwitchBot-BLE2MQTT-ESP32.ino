@@ -2,15 +2,16 @@
 
   https://github.com/devWaves/SwitchBot-MQTT-BLE-ESP32
 
-  does not use/require switchbot hub
+  **does not use/require switchbot hub
 
   Code can be installed using Arduino IDE for ESP32
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
-     *** I do not know where performance will be affected by number of devices
+     * I do not know where performance will be affected by number of devices
+     ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v0.22
+  v1.0
 
-    Created: on April 12 2021
+    Created: on April 18 2021
         Author: devWaves
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
@@ -116,42 +117,42 @@
 
 /****************** CONFIGURATIONS TO CHANGE *******************/
 
-static const char* host = "esp32";				//  hostname defaults is esp32
-static const char* ssid = "SSID";				//  WIFI SSID
-static const char* password = "Password";		//  WIFI Password
+static const char* host = "esp32";                   //  hostname defaults is esp32
+static const char* ssid = "SSID";                    //  WIFI SSID
+static const char* password = "Password";            //  WIFI Password
 
-static String otaUserId = "admin";				//  user Id for OTA update
-static String otaPass = "admin";				//  password for OTA update
-static WebServer server(80);					//  default port 80
+static String otaUserId = "admin";                   //  user Id for OTA update
+static String otaPass = "admin";                     //  password for OTA update
+static WebServer server(80);                         //  default port 80
 
-static String ESPMQTTTopic = "switchbotMQTT";	//  MQTT main topic
+static std::string ESPMQTTTopic = "switchbotMQTT";   //  MQTT main topic
 
 static EspMQTTClient client(
   ssid,
   password,
-  "192.168.1.XXX",								//  MQTT Broker server ip
-  "MQTTUsername",								//  Can be omitted if not needed
-  "MQTTPassword",								//  Can be omitted if not needed
-  "ESPMQTT",									//  Client name that uniquely identify your device
-  1883											//  MQTT Port
+  "192.168.1.XXX",                            //  MQTT Broker server ip
+  "MQTTUsername",                             //  Can be omitted if not needed
+  "MQTTPassword",                             //  Can be omitted if not needed
+  "ESPMQTT",                                  //  Client name that uniquely identify your device
+  1883                                        //  MQTT Port
 );
 
-static std::map<std::string, String> allBots = {
-  { "switchbotone", "xx:xx:xx:xx:xx:xx" },
-  { "switchbottwo", "yy:yy:yy:yy:yy:yy" }
+static std::map<std::string, std::string> allBots = {
+  { "switchbotone", "xX:xX:xX:xX:xX:xX" },
+  { "switchbottwo", "yY:yY:yY:yY:yY:yY" }
 };
 
-static std::map<std::string, String> allMeters = {
-  /*{ "meterone", "xx:xx:xx:xx:xx:xx" },
-    { "metertwo", "yy:yy:yy:yy:yy:yy" }*/
+static std::map<std::string, std::string> allMeters = {
+  /*{ "meterone", "xX:xX:xX:xX:xX:xX" },
+    { "metertwo", "yY:yY:yY:yY:yY:yY" }*/
 };
 
-static std::map<std::string, String> allCurtains = {
-  /*{ "curtainone", "xx:xx:xx:xx:xx:xx" },
-    { "curtaintwo", "yy:yy:yy:yy:yy:yy" }*/
+static std::map<std::string, std::string> allCurtains = {
+  /*{ "curtainone", "xX:xX:xX:xX:xX:xX" },
+    { "curtaintwo", "yY:yY:yY:yY:yY:yY" }*/
 };
 
-static std::map<std::string, String> allPasswords = {     // Set all the bot passwords (setup in app first). Ignore if passwords are not used
+static std::map<std::string, std::string> allPasswords = {     // Set all the bot passwords (setup in app first). Ignore if passwords are not used
   /*{ "switchbotone", "switchbotonePassword" },
     { "switchbottwo", "switchbottwoPassword" }*/
 };
@@ -180,12 +181,14 @@ static int queueSize = 50;              // Max number of control/requestInfo/res
    Login page
 */
 
-static String loginIndex =
+static const String versionNum = "1.0";
+static const String loginIndex =
   "<form name='loginForm'>"
   "<table width='20%' bgcolor='A09F9F' align='center'>"
   "<tr>"
   "<td colspan=2>"
-  "<center><font size=4><b>ESP32 Login Page</b></font></center>"
+  "<center><font size=4><b>SwitchBot ESP32 MQTT version: " + versionNum + "</b></font></center>"
+  "<center><font size=2><b>(Unofficial)</b></font></center>"
   "<br>"
   "</td>"
   "<br>"
@@ -226,7 +229,7 @@ static String loginIndex =
    Server Index Page
 */
 
-static String serverIndex =
+static const String serverIndex =
   "<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>"
   "<form method='POST' action='#' enctype='multipart/form-data' id='upload_form'>"
   "<input type='file' name='update'>"
@@ -273,12 +276,20 @@ static NimBLEScan* pScan;
 static bool isRescanning = false;
 static bool processing = false;
 static bool initialScanComplete = false;
-static String esp32Str = ESPMQTTTopic + "/ESP32";
-static String lastWillStr = ESPMQTTTopic + "/lastwill";
+static std::string esp32Str = ESPMQTTTopic + "/ESP32";
+static std::string lastWillStr = ESPMQTTTopic + "/lastwill";
 static const char* lastWill = lastWillStr.c_str();
-static String buttonStr = ESPMQTTTopic + "/bot/";
-static String curtainStr = ESPMQTTTopic + "/curtain/";
-static String tempStr = ESPMQTTTopic + "/meter/";
+static std::string buttonStr = ESPMQTTTopic + "/bot/";
+static std::string curtainStr = ESPMQTTTopic + "/curtain/";
+static std::string tempStr = ESPMQTTTopic + "/meter/";
+
+static std::string rescanStdStr = ESPMQTTTopic + "/rescan";
+static std::string controlStdStr = ESPMQTTTopic + "/control";
+static std::string requestInfoStdStr = ESPMQTTTopic + "/requestInfo";
+
+static const String rescanStr = rescanStdStr.c_str();
+static const String controlStr = controlStdStr.c_str();
+static const String requestInfoStr = requestInfoStdStr.c_str();
 
 static byte bArrayPress[] = {0x57, 0x01};
 static byte bArrayOn[] = {0x57, 0x01, 0x01};
@@ -292,9 +303,16 @@ static byte bArrayPressPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL};
 static byte bArrayOnPass[] = {0x57, 0x11, NULL , NULL, NULL, NULL, 0x01};
 static byte bArrayOffPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL, 0x02};
 
+struct to_lower {
+  int operator() ( int ch )
+  {
+    return std::tolower ( ch );
+  }
+};
+
 struct QueueCommand {
-  String payload;
-  String topic;
+  std::string payload;
+  std::string topic;
 };
 
 ArduinoQueue<QueueCommand> commandQueue(queueSize);
@@ -386,8 +404,8 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
     bool callForInfoAdvDev(NimBLEAdvertisedDevice* advDev,  std::string aValueString) {
       Serial.println("callForInfoAdvDev");
-      String aDevice ;
-      String deviceStr ;
+      std::string aDevice ;
+      std::string deviceStr ;
       int aLength = aValueString.length();
       StaticJsonDocument<200> doc;
       char aBuffer[200];
@@ -426,8 +444,8 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         uint8_t byte1 = (uint8_t) aValueString[1];
         uint8_t byte2 = (uint8_t) aValueString[2];
 
-        String aMode = (byte1 & 0b10000000) ? "Switch" : "Press"; // Whether the light switch Add-on is used or not
-        String aState = (byte1 & 0b01000000) ? "OFF" : "ON"; // Mine is opposite, not sure why
+        std::string aMode = (byte1 & 0b10000000) ? "Switch" : "Press"; // Whether the light switch Add-on is used or not
+        std::string aState = (byte1 & 0b01000000) ? "OFF" : "ON"; // Mine is opposite, not sure why
         int battLevel = byte2 & 0b01111111; // %
 
         doc["mode"] = aMode;
@@ -450,7 +468,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         float tempF = (tempC * 9 / 5) + 32;
         tempF = round(tempF * 10) / 10;
         bool tempScale = (byte5 & 0b10000000) ;
-        String str1 = (tempScale == true) ? "f" : "c";
+        std::string str1 = (tempScale == true) ? "f" : "c";
         doc["scale"] = str1;
         int battLevel = (byte2 & 0b01111111);
         doc["batt"] = battLevel;
@@ -503,9 +521,9 @@ void rescanEndedCB(NimBLEScanResults results) {
   client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
 }
 
-String getPass(std::string aDevice) {
-  std::map<std::string, String>::iterator itS = allPasswords.find(aDevice);
-  String aPass = "";
+std::string getPass(std::string aDevice) {
+  std::map<std::string, std::string>::iterator itS = allPasswords.find(aDevice);
+  std::string aPass = "";
   if (itS != allPasswords.end())
   {
     aPass = itS->second;
@@ -513,12 +531,10 @@ String getPass(std::string aDevice) {
   return aPass;
 }
 
-uint32_t getPassCRC(String aDevice) {
-  uint8_t byteBuffer[aDevice.length() + 1];
-  aDevice.getBytes(byteBuffer, aDevice.length() + 1);
-  size_t numBytes = sizeof(byteBuffer) - 1;
+uint32_t getPassCRC(std::string aDevice) {
+  const uint8_t * byteBuffer = (const unsigned char *)(aDevice.c_str());
   CRC32 crc;
-  for (size_t i = 0; i < numBytes; i++)
+  for (size_t i = 0; i < aDevice.length(); i++)
   {
     crc.update(byteBuffer[i]);
   }
@@ -591,13 +607,13 @@ void setup () {
   client.setMqttReconnectionAttemptDelay(100);
   client.enableLastWillMessage(lastWill, "Offline");
   client.setKeepAlive(60);
-  std::map<std::string, String>::iterator it = allBots.begin();
-  String anAddr;
+  std::map<std::string, std::string>::iterator it = allBots.begin();
+  std::string anAddr;
 
   while (it != allBots.end())
   {
     anAddr = it->second;
-    anAddr.toLowerCase();
+    std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
     allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(anAddr.c_str(), it->first) );
     deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), "WoHand") );
     it++;
@@ -607,7 +623,7 @@ void setup () {
   while (it != allCurtains.end())
   {
     anAddr = it->second;
-    anAddr.toLowerCase();
+    std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
     allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(anAddr.c_str(), it->first) );
     deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), "WoCurtain") );
     it++;
@@ -617,7 +633,7 @@ void setup () {
   while (it != allMeters.end())
   {
     anAddr = it->second;
-    anAddr.toLowerCase();
+    std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
     allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(anAddr.c_str(), it->first) );
     deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), "WoSensorTH") );
     it++;
@@ -739,7 +755,7 @@ void recurringScan() {
   }
 }
 
-void processRequest(std::string macAdd, std::string aName, const char * command, String deviceTopic) {
+void processRequest(std::string macAdd, std::string aName, const char * command, std::string deviceTopic) {
   int count = 1;
   std::map<std::string, NimBLEAdvertisedDevice*>::iterator itS = allSwitchbotsDev.find(macAdd);
   NimBLEAdvertisedDevice* advDevice = nullptr;
@@ -812,7 +828,7 @@ bool processQueue() {
   return true;
 }
 
-void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const char * command, String deviceTopic) {
+void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const char * command, std::string deviceTopic) {
 
   NimBLEAdvertisedDevice* advDeviceToUse = advDevice;
   std::string addr = advDeviceToUse->getAddress().toString().c_str();
@@ -901,7 +917,7 @@ bool is_number(const std::string& s)
   return !s.empty() && it == s.end();
 }
 
-void controlMQTT(const String & payload) {
+void controlMQTT(std::string payload) {
   processing = true;
   Serial.println("Processing Control MQTT...");
   StaticJsonDocument<100> docIn;
@@ -919,8 +935,8 @@ void controlMQTT(const String & payload) {
     const char * aName = docIn["id"]; //Get sensor type value
     const char * value = docIn["value"];        //Get value of sensor measurement
     std::string deviceAddr = "";
-    String deviceTopic;
-    String anAddr;
+    std::string deviceTopic;
+    std::string anAddr;
 
     if (aName != nullptr && value != nullptr) {
       Serial.print("Device: ");
@@ -928,11 +944,11 @@ void controlMQTT(const String & payload) {
       Serial.print("Device value: ");
       Serial.println(value);
 
-      std::map<std::string, String>::iterator itS = allBots.find(aName);
+      std::map<std::string, std::string>::iterator itS = allBots.find(aName);
       if (itS != allBots.end())
       {
         anAddr = itS->second;
-        anAddr.toLowerCase();
+        std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
         deviceAddr = anAddr.c_str();
         deviceTopic = buttonStr;
       }
@@ -940,7 +956,7 @@ void controlMQTT(const String & payload) {
       if (itS != allCurtains.end())
       {
         anAddr = itS->second;
-        anAddr.toLowerCase();
+        std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
         deviceAddr = anAddr.c_str();
         deviceTopic = curtainStr;
       }
@@ -948,7 +964,7 @@ void controlMQTT(const String & payload) {
       if (itS != allMeters.end())
       {
         anAddr = itS->second;
-        anAddr.toLowerCase();
+        std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
         deviceAddr = anAddr.c_str();
         deviceTopic = tempStr;
       }
@@ -995,7 +1011,7 @@ void controlMQTT(const String & payload) {
   processing = false;
 }
 
-void rescanMQTT(const String & payload) {
+void rescanMQTT(std::string payload) {
   isRescanning = true;
   processing = true;
   Serial.println("Processing Rescan MQTT...");
@@ -1038,7 +1054,7 @@ void rescanMQTT(const String & payload) {
   processing = false;
 }
 
-void requestInfoMQTT(const String & payload) {
+void requestInfoMQTT(std::string payload) {
   processing = true;
   Serial.println("Processing Request Info MQTT...");
   StaticJsonDocument<100> docIn;
@@ -1058,15 +1074,15 @@ void requestInfoMQTT(const String & payload) {
     Serial.println(aName);
 
     std::string deviceAddr = "";
-    String deviceTopic;
-    String anAddr;
+    std::string deviceTopic;
+    std::string anAddr;
 
     if (aName != nullptr) {
-      std::map<std::string, String>::iterator itS = allBots.find(aName);
+      std::map<std::string, std::string>::iterator itS = allBots.find(aName);
       if (itS != allBots.end())
       {
         anAddr = itS->second;
-        anAddr.toLowerCase();
+        std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
         deviceAddr = anAddr.c_str();
         deviceTopic = buttonStr;
       }
@@ -1074,7 +1090,7 @@ void requestInfoMQTT(const String & payload) {
       if (itS != allCurtains.end())
       {
         anAddr = itS->second;
-        anAddr.toLowerCase();
+        std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
         deviceAddr = anAddr.c_str();
         deviceTopic = curtainStr;
       }
@@ -1082,7 +1098,7 @@ void requestInfoMQTT(const String & payload) {
       if (itS != allMeters.end())
       {
         anAddr = itS->second;
-        anAddr.toLowerCase();
+        std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
         deviceAddr = anAddr.c_str();
         deviceTopic = tempStr;
       }
@@ -1112,11 +1128,11 @@ void onConnectionEstablished() {
     pScan->start(initialScan, scanEndedCB, true);
   }
 
-  client.subscribe(ESPMQTTTopic + "/control", [] (const String & payload)  {
+  client.subscribe(controlStr, [] (const String & payload)  {
     Serial.println("Control MQTT Received...");
     if (!commandQueue.isFull()) {
       struct QueueCommand queueCommand;
-      queueCommand.payload = payload;
+      queueCommand.payload = payload.c_str();
       queueCommand.topic = ESPMQTTTopic + "/control";
       commandQueue.enqueue(queueCommand);
     }
@@ -1125,11 +1141,11 @@ void onConnectionEstablished() {
     }
   });
 
-  client.subscribe(ESPMQTTTopic + "/requestInfo", [] (const String & payload)  {
+  client.subscribe(requestInfoStr, [] (const String & payload)  {
     Serial.println("Request Info MQTT Received...");
     if (!commandQueue.isFull()) {
       struct QueueCommand queueCommand;
-      queueCommand.payload = payload;
+      queueCommand.payload = payload.c_str();
       queueCommand.topic = ESPMQTTTopic + "/requestInfo";
       commandQueue.enqueue(queueCommand);
     }
@@ -1138,11 +1154,11 @@ void onConnectionEstablished() {
     }
   });
 
-  client.subscribe(ESPMQTTTopic + "/rescan", [] (const String & payload)  {
+  client.subscribe(rescanStr, [] (const String & payload)  {
     Serial.println("Rescan MQTT Received...");
     if (!commandQueue.isFull()) {
       struct QueueCommand queueCommand;
-      queueCommand.payload = payload;
+      queueCommand.payload = payload.c_str();
       queueCommand.topic = ESPMQTTTopic + "/rescan";
       commandQueue.enqueue(queueCommand);
     }
@@ -1234,7 +1250,7 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
     if (pChr->canWrite()) {
       bool wasSuccess = false;
       bool isNum = is_number(type);
-      String aPass = "";
+      std::string aPass = "";
       std::map<std::string, std::string>::iterator itU = allSwitchbotsOpp.find(advDeviceToUse->getAddress());
       if (itU != allSwitchbotsOpp.end())
       {
