@@ -9,7 +9,7 @@
      * I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v1.0
+  v1.1
 
     Created: on April 18 2021
         Author: devWaves
@@ -181,7 +181,7 @@ static int queueSize = 50;              // Max number of control/requestInfo/res
    Login page
 */
 
-static const String versionNum = "1.0";
+static const String versionNum = "1.1";
 static const String loginIndex =
   "<form name='loginForm'>"
   "<table width='20%' bgcolor='A09F9F' align='center'>"
@@ -1230,7 +1230,7 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
   NimBLERemoteCharacteristic* pChr = nullptr;
   bool tryConnect = !(pClient->isConnected());
   int count = 1;
-  if (tryConnect) {
+  while (tryConnect) {
     if (count > 20) {
       Serial.println("Failed to connect for sending command");
       return false;
