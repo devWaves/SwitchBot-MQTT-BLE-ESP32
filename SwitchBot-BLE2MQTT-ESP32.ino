@@ -9,9 +9,9 @@
      * I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v1.1
+  v1.2
 
-    Created: on April 18 2021
+    Created: on April 19 2021
         Author: devWaves
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
@@ -181,7 +181,7 @@ static int queueSize = 50;              // Max number of control/requestInfo/res
    Login page
 */
 
-static const String versionNum = "1.1";
+static const String versionNum = "1.2";
 static const String loginIndex =
   "<form name='loginForm'>"
   "<table width='20%' bgcolor='A09F9F' align='center'>"
@@ -1224,13 +1224,18 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
     return false;
   }
   Serial.println("Sending command...");
-  bool returnValue = true;
-  NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
-  NimBLERemoteService* pSvc = nullptr;
-  NimBLERemoteCharacteristic* pChr = nullptr;
+  std::string anAddr = advDeviceToUse->getAddress();
+  if (!NimBLEDevice::getClientListSize()) {
+    return false;
+  }
+  NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
+  if (!pClient) {
+    return false;
+  }
+
   bool tryConnect = !(pClient->isConnected());
   int count = 1;
-  while (tryConnect) {
+  while (tryConnect  || !pClient ) {
     if (count > 20) {
       Serial.println("Failed to connect for sending command");
       return false;
@@ -1238,10 +1243,15 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
     count++;
     Serial.println("Attempt to send command. Not connecting. Try connecting...");
     tryConnect = !(connectToServer(advDeviceToUse));
+    if (!tryConnect) {
+      pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
+    }
   }
 
   //getGeneric(advDeviceToUse);
-
+  NimBLERemoteService* pSvc = nullptr;
+  NimBLERemoteCharacteristic* pChr = nullptr;
+  bool returnValue = true;
   pSvc = pClient->getService("cba20d00-224d-11e6-9fb8-0002a5d5c51b");
   if (pSvc) {
     pChr = pSvc->getCharacteristic("cba20002-224d-11e6-9fb8-0002a5d5c51b");
@@ -1251,7 +1261,7 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
       bool wasSuccess = false;
       bool isNum = is_number(type);
       std::string aPass = "";
-      std::map<std::string, std::string>::iterator itU = allSwitchbotsOpp.find(advDeviceToUse->getAddress());
+      std::map<std::string, std::string>::iterator itU = allSwitchbotsOpp.find(anAddr);
       if (itU != allSwitchbotsOpp.end())
       {
         aPass = getPass(itU->second.c_str());
