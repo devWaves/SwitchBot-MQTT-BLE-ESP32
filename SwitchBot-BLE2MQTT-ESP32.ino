@@ -9,7 +9,7 @@
      * I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v1.2
+  v1.3
 
     Created: on April 19 2021
         Author: devWaves
@@ -181,7 +181,7 @@ static int queueSize = 50;              // Max number of control/requestInfo/res
    Login page
 */
 
-static const String versionNum = "1.2";
+static const String versionNum = "1.3";
 static const String loginIndex =
   "<form name='loginForm'>"
   "<table width='20%' bgcolor='A09F9F' align='center'>"
@@ -464,16 +464,16 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         uint8_t byte5 = (uint8_t) aValueString[5];
 
         int tempSign = (byte4 & 0b10000000) ? 1 : -1;
-        float tempC = tempSign * ((byte4 & 0b01111111) + (byte3 / 10));
-        float tempF = (tempC * 9 / 5) + 32;
-        tempF = round(tempF * 10) / 10;
+        float tempC = tempSign * ((byte4 & 0b01111111) + ((byte3 & 0b00001111)/ 10.0));
+        float tempF = (tempC * 9 / 5.0) + 32;
+        tempF = round(tempF * 10) / 10.0;
         bool tempScale = (byte5 & 0b10000000) ;
         std::string str1 = (tempScale == true) ? "f" : "c";
         doc["scale"] = str1;
         int battLevel = (byte2 & 0b01111111);
         doc["batt"] = battLevel;
-        doc["C"] = tempC;
-        doc["F"] = tempF;
+        doc["C"] = serialized(String(tempC,1));
+        doc["F"] = serialized(String(tempF,1));
         int humidity = byte5 & 0b01111111;
         doc["hum"] = humidity;
 
