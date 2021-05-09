@@ -9,9 +9,9 @@
      * I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v1.3
+  v1.4
 
-    Created: on May 1 2021
+    Created: on May 9 2021
         Author: devWaves
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
@@ -117,6 +117,10 @@
 
 /****************** CONFIGURATIONS TO CHANGE *******************/
 
+static bool ledOnBootScan = true;                    // Turn on LED during initial boot scan
+static bool ledOnScan = true;                        // Turn on LED while scanning (non-boot)
+static bool ledOnCommand = true;                     // Turn on LED while MQTT command is processing. If scanning, LED will blink after scan completes. You may not notice it, there is no delay after scan
+
 static const char* host = "esp32";                   //  hostname defaults is esp32
 static const char* ssid = "SSID";                    //  WIFI SSID
 static const char* password = "Password";            //  WIFI Password
@@ -181,7 +185,7 @@ static int queueSize = 50;              // Max number of control/requestInfo/res
    Login page
 */
 
-static const String versionNum = "1.3";
+static const String versionNum = "1.4";
 static const String loginIndex =
   "<form name='loginForm'>"
   "<table width='20%' bgcolor='A09F9F' align='center'>"
@@ -276,6 +280,7 @@ static NimBLEScan* pScan;
 static bool isRescanning = false;
 static bool processing = false;
 static bool initialScanComplete = false;
+static bool firstScan = true;
 static std::string esp32Str = ESPMQTTTopic + "/ESP32";
 static std::string lastWillStr = ESPMQTTTopic + "/lastwill";
 static const char* lastWill = lastWillStr.c_str();
@@ -464,7 +469,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         uint8_t byte5 = (uint8_t) aValueString[5];
 
         int tempSign = (byte4 & 0b10000000) ? 1 : -1;
-        float tempC = tempSign * ((byte4 & 0b01111111) + ((byte3 & 0b00001111)/ 10.0));
+        float tempC = tempSign * ((byte4 & 0b01111111) + ((byte3 & 0b00001111) / 10.0));
         float tempF = (tempC * 9 / 5.0) + 32;
         tempF = round(tempF * 10) / 10.0;
         bool tempScale = (byte5 & 0b10000000) ;
@@ -472,8 +477,8 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         doc["scale"] = str1;
         int battLevel = (byte2 & 0b01111111);
         doc["batt"] = battLevel;
-        doc["C"] = serialized(String(tempC,1));
-        doc["F"] = serialized(String(tempF,1));
+        doc["C"] = serialized(String(tempC, 1));
+        doc["F"] = serialized(String(tempF, 1));
         int humidity = byte5 & 0b01111111;
         doc["hum"] = humidity;
 
@@ -510,11 +515,18 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 };
 
 void scanEndedCB(NimBLEScanResults results) {
+  if ((ledOnScan && !firstScan) || (ledOnBootScan && firstScan)) {
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+  firstScan = false;
   Serial.println("Scan Ended");
   client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
 }
 
 void rescanEndedCB(NimBLEScanResults results) {
+  if (ledOnScan) {
+    digitalWrite(LED_BUILTIN, LOW);
+  }
   isRescanning = false;
   lastRescan = millis();
   Serial.println("ReScan Ended");
@@ -545,6 +557,7 @@ uint32_t getPassCRC(std::string aDevice) {
 static ClientCallbacks clientCB;
 
 void setup () {
+  pinMode (LED_BUILTIN, OUTPUT);
   // Connect to WiFi network
   WiFi.begin(ssid, password);
   Serial.println("");
@@ -666,6 +679,9 @@ void rescan(int seconds) {
   delay(50);
   client.publish(esp32Str.c_str(), "{\"status\":\"scanning\"}");
   delay(50);
+  if (ledOnScan) {
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
   pScan->start(seconds, rescanEndedCB);
 }
 
@@ -681,6 +697,9 @@ void rescanFind(std::string aMac) {
   delay(100);
   client.publish(esp32Str.c_str(), "{\"status\":\"scanning\"}");
   delay(50);
+  if (ledOnScan) {
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
   pScan->start(infoScanTime, scanEndedCB, true);
 }
 
@@ -774,6 +793,9 @@ void processRequest(std::string macAdd, std::string aName, const char * command,
           delay(10);
         }
       }
+      if (ledOnScan) {
+        digitalWrite(LED_BUILTIN, HIGH);
+      }
       pScan->start(10 * count, scanEndedCB, true);
       delay(500);
       while (pScan->isScanning()) {
@@ -814,12 +836,24 @@ bool processQueue() {
         return false;
       }
       if (aCommand.topic == ESPMQTTTopic + "/control") {
+        if (ledOnCommand) {
+          digitalWrite(LED_BUILTIN, HIGH);
+        }
         controlMQTT(aCommand.payload);
+        if (ledOnCommand) {
+          digitalWrite(LED_BUILTIN, LOW);
+        }
       }
       else if (aCommand.topic == ESPMQTTTopic + "/requestInfo") {
+        if (ledOnCommand) {
+          digitalWrite(LED_BUILTIN, HIGH);
+        }
         requestInfoMQTT(aCommand.payload);
       }
       else if (aCommand.topic == ESPMQTTTopic + "/rescan") {
+        if (ledOnCommand) {
+          digitalWrite(LED_BUILTIN, HIGH);
+        }
         rescanMQTT(aCommand.payload);
       }
       commandQueue.dequeue();
@@ -1122,9 +1156,13 @@ void requestInfoMQTT(std::string payload) {
 void onConnectionEstablished() {
   if (!initialScanComplete) {
     initialScanComplete = true;
+    firstScan = true;
     client.publish(esp32Str.c_str(), "{\"status\":\"boot\"}");
     delay(100);
     client.publish(esp32Str.c_str(), "{\"status\":\"scanning\"}");
+    if (ledOnBootScan) {
+      digitalWrite(LED_BUILTIN, HIGH);
+    }
     pScan->start(initialScan, scanEndedCB, true);
   }
 
