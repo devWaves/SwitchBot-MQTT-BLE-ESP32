@@ -9,9 +9,9 @@
      * I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v1.4
+  v1.5
 
-    Created: on May 9 2021
+    Created: on May 10 2021
         Author: devWaves
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
@@ -185,7 +185,7 @@ static int queueSize = 50;              // Max number of control/requestInfo/res
    Login page
 */
 
-static const String versionNum = "1.4";
+static const String versionNum = "1.5";
 static const String loginIndex =
   "<form name='loginForm'>"
   "<table width='20%' bgcolor='A09F9F' align='center'>"
@@ -515,7 +515,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 };
 
 void scanEndedCB(NimBLEScanResults results) {
-  if ((ledOnScan && !firstScan) || (ledOnBootScan && firstScan)) {
+  if ((ledOnScan && !firstScan) || (ledOnBootScan && firstScan)  || ledOnCommand) {
     digitalWrite(LED_BUILTIN, LOW);
   }
   firstScan = false;
@@ -524,7 +524,7 @@ void scanEndedCB(NimBLEScanResults results) {
 }
 
 void rescanEndedCB(NimBLEScanResults results) {
-  if (ledOnScan) {
+  if (ledOnScan || ledOnCommand) {
     digitalWrite(LED_BUILTIN, LOW);
   }
   isRescanning = false;
