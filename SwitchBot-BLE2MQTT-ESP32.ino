@@ -9,14 +9,16 @@
      * I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v1.5
+  v1.6
 
-    Created: on May 10 2021
+    Created: on May 15 2021
         Author: devWaves
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
   Notes:
+    - Supports Home Assistant MQTT Discovery
+    
     - Support bots and curtains and meters
 
     - It works for button press/on/off
@@ -38,69 +40,78 @@
     - Automatically rescan every X seconds
 
     - Automatically requestInfo X seconds after successful control command
-
+    
 
     ESP32 will Suscribe to MQTT topic for control
-      -switchbotMQTT/control
+      -<ESPMQTTTopic>/control
 
-    send a JSON payload of the device you want to control
-      device = device to control
-        value = string value
-          "press"
-          "on"
-          "off"
-          "open"
-          "close"
-          "pause"
-          any number 0-100 (for curtain position) Example: "50"
+    ESP32 will subscribe to MQTT 'set' topic for every configure device.
+      - <ESPMQTTTopic>/bot/<name>/set
+      - <ESPMQTTTopic>/curtain/<name>/set
+      - <ESPMQTTTopic>/meter/<name>/set
 
-          example payloads =
-            {"id":"switchbotone","value":"press"}
-            {"id":"switchbotone","value":"open"}
-            {"id":"switchbotone","value":"50"}
+    Send a payload to the 'set' topic of the device you want to control
+      Strings:
+        - "PRESS"
+        - "ON"
+        - "OFF"
+        - "OPEN"
+        - "CLOSE"
+        - "PAUSE"
+      Integer 0-100 (for curtain position) Example: 50
 
-  ESP32 will respond with MQTT on
-      -switchbotMQTT/#
+  ESP32 will respond with MQTT on 'status' topic for every configured device
+      - <ESPMQTTTopic>/bot/<name>/status
+      - <ESPMQTTTopic>/curtain/<name>/status
+      - <ESPMQTTTopic>/meter/<name>/status
 
     Example reponses:
-      -switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switchbotMQTT/meter/meterone
+      - <ESPMQTTTopic>/bot/<name>/status
+      - <ESPMQTTTopic>/curtain/<name>/status
+      - <ESPMQTTTopic>/meter/<name>/status
 
-          example payloads =
-            {"id":"switchbotone","status":"connected"}
-            {"id":"switchbotone","status":"press"}
+    Example payload:
+      - {"status":"connected"}
+      - {"status":"press"}
+      - {"status":"errorConnect"}
+      - {"status":"errorCommand"}
+      - {"status":50}
 
-            {"id":"switchbotone","status":"errorConnect"}
-            {"id":"switchbotone","status":"errorCommand"}
-
-      -switchbotMQTT/ESP32
-
-          example payloads =
-            {status":"idle"}
+  ESP32 will respond with MQTT on esp32Topic with ESP32 status
+    - <ESPMQTTTopic>/ESP32
+    
+    example payloads:
+      {status":"idle"}
 
   ESP32 will Suscribe to MQTT topic to rescan for all device information
-      -switchbotMQTT/rescan
+      - switchbotMQTT/rescan
 
     send a JSON payload of how many seconds you want to rescan for
           example payloads =
             {"sec":"30"}
 
   ESP32 will Suscribe to MQTT topic for device information
-      -switchbotMQTT/requestInfo
+      - <ESPMQTTTopic>/requestInfo
 
     send a JSON payload of the device you want to control
           example payloads =
             {"id":"switchbotone"}
 
     ESP32 will respond with MQTT on
-    -switchbotMQTT/#
+    - <ESPMQTTTopic>/#
 
     Example reponses as device are detected:
-      -switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switchbotMQTT/meter/meterone
-          example payloads =
-            {"id":"switchbottwo","status":"info","rssi":-78,"mode":"Press","state":"OFF","batt":94}
+      - <ESPMQTTTopic>/bot/<name>/status
+      - <ESPMQTTTopic>/curtain/<name>/status
+      - <ESPMQTTTopic>/meter/<name>/status
+     
+    Example payloads: 
+      - {"rssi":-78,"mode":"Press","state":"OFF","batt":94}
+      - {"rssi":-66,"calib":true,"batt":55,"pos":50,"state":"open","light":1}
+      - {"rssi":-66,"scale":"c","batt":55,"C":"21.5","F":"70.7","hum":"65"}
 
   Errors that cannot be linked to a specific device will be published to
-      -switchbotMQTT/ESP32
+      - <ESPMQTTTopic>/ESP32
 
 */
 
@@ -116,58 +127,46 @@
 #include <ArduinoQueue.h>
 
 /****************** CONFIGURATIONS TO CHANGE *******************/
-
+/* ESP32 Settings */
 static bool ledOnBootScan = true;                    // Turn on LED during initial boot scan
 static bool ledOnScan = true;                        // Turn on LED while scanning (non-boot)
 static bool ledOnCommand = true;                     // Turn on LED while MQTT command is processing. If scanning, LED will blink after scan completes. You may not notice it, there is no delay after scan
 
+/* Wifi Settings */
 static const char* host = "esp32";                   //  hostname defaults is esp32
 static const char* ssid = "SSID";                    //  WIFI SSID
 static const char* password = "Password";            //  WIFI Password
 
+/* Webserver Settings */
 static String otaUserId = "admin";                   //  user Id for OTA update
 static String otaPass = "admin";                     //  password for OTA update
 static WebServer server(80);                         //  default port 80
 
-static std::string ESPMQTTTopic = "switchbotMQTT";   //  MQTT main topic
+/* MQTT Settings */
+static const char* mqtt_host = "192.168.0.1";         //  MQTT Broker server ip
+static const char* mqtt_user = "switchbot";           //  MQTT Broker username. If empty, no authentication will be used
+static const char* mqtt_pass = "switchbot";           //  MQTT Broker password.
+static const char* mqtt_clientname = "switchbot";     //  Client name that uniquely identify your device
+static const int mqtt_port = 1883;                    //  MQTT Port
+static std::string ESPMQTTTopic = "switchbot";        //  MQTT main topic
+static const uint16_t mqtt_packet_size = 1024;
 
 static EspMQTTClient client(
   ssid,
   password,
-  "192.168.1.XXX",                            //  MQTT Broker server ip
-  "MQTTUsername",                             //  Can be omitted if not needed
-  "MQTTPassword",                             //  Can be omitted if not needed
-  "ESPMQTT",                                  //  Client name that uniquely identify your device
-  1883                                        //  MQTT Port
+  mqtt_host,                            //  MQTT Broker server ip
+  mqtt_user,                            //  Can be omitted if not needed
+  mqtt_pass,                            //  Can be omitted if not needed
+  mqtt_clientname,                      //  Client name that uniquely identify your device
+  mqtt_port                             //  MQTT Port
 );
 
-static std::map<std::string, std::string> allBots = {
-  { "switchbotone", "xX:xX:xX:xX:xX:xX" },
-  { "switchbottwo", "yY:yY:yY:yY:yY:yY" }
-};
+/* Home Assistant Settings */
+static bool home_assistant_mqtt_discovery = true;                    //  Enable to publish Home Assistant MQTT Discovery config
+static std::string home_assistant_mqtt_prefix = "homeassistant";     //  MQTT Home Assistant prefix
+static bool home_assistant_expose_seperate_curtain_position = false; // When enabled, a seperate sensor will be added that will expose the curtain position. This is useful when using the Prometheus integration to graph curtain positions. The cover entity doesn't expose the position for Prometheus
 
-static std::map<std::string, std::string> allMeters = {
-  /*{ "meterone", "xX:xX:xX:xX:xX:xX" },
-    { "metertwo", "yY:yY:yY:yY:yY:yY" }*/
-};
-
-static std::map<std::string, std::string> allCurtains = {
-  /*{ "curtainone", "xX:xX:xX:xX:xX:xX" },
-    { "curtaintwo", "yY:yY:yY:yY:yY:yY" }*/
-};
-
-static std::map<std::string, std::string> allPasswords = {     // Set all the bot passwords (setup in app first). Ignore if passwords are not used
-  /*{ "switchbotone", "switchbotonePassword" },
-    { "switchbottwo", "switchbottwoPassword" }*/
-};
-
-static std::map<std::string, int> botScanTime = {     // X seconds after a successful control command ESP32 will perform a requestInfo on the bot. If a "hold time" is set on the bot include that value + 5to10 secs. Default is 30 sec if not in list
-  { "switchbotone", 10 },
-  { "switchbottwo", 10 }
-  /*,{ "curtainone", 20 },
-    { "curtaintwo", 20 }*/
-};
-
+/* Switchbot General Settings */
 static int tryConnecting = 60;          // How many times to try connecting to bot
 static int trySending = 30;             // How many times to try sending command to bot
 static int initialScan = 120;           // How many seconds to scan for bots on ESP reboot and autoRescan
@@ -178,6 +177,53 @@ static bool scanAfterControl = true;    // perform requestInfo after successful 
 static int rescanTime = 600;            // Automatically rescan for device info every X seconds (default 10 min)
 static int queueSize = 50;              // Max number of control/requestInfo/rescan MQTT commands stored in the queue. If you send more then queueSize, they will be ignored
 
+/* Switchbot Bot Settings */
+static std::map<std::string, std::string> allBots = {
+  { "switchbotone", "xX:xX:xX:xX:xX:xX" },
+  { "switchbottwo", "yY:yY:yY:yY:yY:yY" }
+};
+
+/* Switchbot Meter Settings */
+static std::map<std::string, std::string> allMeters = {
+  /*{ "meterone", "xX:xX:xX:xX:xX:xX" },
+    { "metertwo", "yY:yY:yY:yY:yY:yY" }*/
+};
+
+/* Switchbot Curtain Settings */
+static int curtainClosedPosition = 90;    // When 2 curtains are controlled (left -> right and right -> left) it's possible one of the curtains pushes one of the switchbots more open. Change this value to set a position where a curtain is still considered closed
+static std::map<std::string, std::string> allCurtains = {
+  /*{ "curtainone", "xX:xX:xX:xX:xX:xX" },
+    { "curtaintwo", "yY:yY:yY:yY:yY:yY" }*/
+};
+
+/* Switchbot Bot/Meter/Curtain Passwords */
+static std::map<std::string, std::string> allPasswords = {     // Set all the bot passwords (setup in app first). Ignore if passwords are not used
+  /*{ "switchbotone", "switchbotonePassword" },
+    { "switchbottwo", "switchbottwoPassword" }*/
+};
+
+/* Switchbot Bot/Meter/Curtain scan interval */
+static std::map<std::string, int> botScanTime = {     // X seconds after a successful control command ESP32 will perform a requestInfo on the bot. If a "hold time" is set on the bot include that value + 5to10 secs. Default is 30 sec if not in list
+  { "switchbotone", 10 },
+  { "switchbottwo", 10 }
+  /*,{ "curtainone", 20 },
+    { "curtaintwo", 20 }*/
+};
+
+
+/* Don't change the following */
+static bool home_assistant_discovery_set_up = false;
+
+static std::string manufacturer = "WonderLabs SwitchBot";
+static std::string curtainModel = "Curtain";
+static std::string curtainName = "WoCurtain";
+static std::string botModel = "Bot";
+static std::string botName = "WoHand";
+static std::string meterModel = "Meter";
+static std::string meterName = "WoSensorTH";
+
+
+
 /*************************************************************/
 
 
@@ -185,7 +231,7 @@ static int queueSize = 50;              // Max number of control/requestInfo/res
    Login page
 */
 
-static const String versionNum = "1.5";
+static const String versionNum = "1.6";
 static const String loginIndex =
   "<form name='loginForm'>"
   "<table width='20%' bgcolor='A09F9F' align='center'>"
@@ -281,20 +327,21 @@ static bool isRescanning = false;
 static bool processing = false;
 static bool initialScanComplete = false;
 static bool firstScan = true;
-static std::string esp32Str = ESPMQTTTopic + "/ESP32";
+static std::string esp32Topic = ESPMQTTTopic + "/ESP32";
 static std::string lastWillStr = ESPMQTTTopic + "/lastwill";
 static const char* lastWill = lastWillStr.c_str();
-static std::string buttonStr = ESPMQTTTopic + "/bot/";
-static std::string curtainStr = ESPMQTTTopic + "/curtain/";
-static std::string tempStr = ESPMQTTTopic + "/meter/";
+static std::string botTopic = ESPMQTTTopic + "/bot/";
+static std::string curtainTopic = ESPMQTTTopic + "/curtain/";
+static std::string meterTopic = ESPMQTTTopic + "/meter/";
 
 static std::string rescanStdStr = ESPMQTTTopic + "/rescan";
-static std::string controlStdStr = ESPMQTTTopic + "/control";
+//static std::string controlStdStr = ESPMQTTTopic + "/control";
+static std::string controlStdStr = ESPMQTTTopic + "/#/#/set";
 static std::string requestInfoStdStr = ESPMQTTTopic + "/requestInfo";
 
-static const String rescanStr = rescanStdStr.c_str();
-static const String controlStr = controlStdStr.c_str();
-static const String requestInfoStr = requestInfoStdStr.c_str();
+static const String rescanTopic = rescanStdStr.c_str();
+static const String controlTopic = controlStdStr.c_str();
+static const String requestInfoTopic = requestInfoStdStr.c_str();
 
 static byte bArrayPress[] = {0x57, 0x01};
 static byte bArrayOn[] = {0x57, 0x01, 0x01};
@@ -318,6 +365,7 @@ struct to_lower {
 struct QueueCommand {
   std::string payload;
   std::string topic;
+  std::string device;
 };
 
 ArduinoQueue<QueueCommand> commandQueue(queueSize);
@@ -418,7 +466,6 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       if (itS != allSwitchbotsOpp.end())
       {
         aDevice = itS->second.c_str();
-        doc["id"] = aDevice;
       }
       else {
         return false;
@@ -434,18 +481,13 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       Serial.println("deviceName:");
       Serial.print(deviceName.c_str());
 
-      std::string buttonName = "WoHand";
-      std::string tempName = "WoSensorTH";
-      std::string curtainName = "WoCurtain";
-
-      doc["status"] = "info";
       doc["rssi"] = advDev->getRSSI();
 
-      if (deviceName == buttonName) {
+      if (deviceName == botName) {
         if (aLength < 3) {
           return false;
         }
-        deviceStr = buttonStr + aDevice;
+        deviceStr = botTopic + aDevice + "/state";
         uint8_t byte1 = (uint8_t) aValueString[1];
         uint8_t byte2 = (uint8_t) aValueString[2];
 
@@ -458,11 +500,11 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         doc["batt"] = battLevel;
 
       }
-      else if (deviceName == tempName) {
+      else if (deviceName == meterName) {
         if (aLength < 6) {
           return false;
         }
-        deviceStr = tempStr + aDevice;
+        deviceStr = meterTopic + aDevice + "/state";
         uint8_t byte2 = (uint8_t) aValueString[2];
         uint8_t byte3 = (uint8_t) aValueString[3];
         uint8_t byte4 = (uint8_t) aValueString[4];
@@ -487,7 +529,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         if (aLength < 5) {
           return false;
         }
-        deviceStr = curtainStr + aDevice;
+        deviceStr = curtainTopic + aDevice + "/state";
         uint8_t byte1 = (uint8_t) aValueString[1];
         uint8_t byte2 = (uint8_t) aValueString[2];
         uint8_t byte3 = (uint8_t) aValueString[3];
@@ -500,6 +542,9 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         doc["calib"] = calibrated;
         doc["batt"] = battLevel;
         doc["pos"] = currentPosition;
+        doc["state"] = "open";
+        if(currentPosition >= curtainClosedPosition)
+          doc["state"] = "closed";
         doc["light"] = lightLevel;
 
       }
@@ -520,7 +565,7 @@ void scanEndedCB(NimBLEScanResults results) {
   }
   firstScan = false;
   Serial.println("Scan Ended");
-  client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
+  client.publish(esp32Topic.c_str(), "{\"status\":\"idle\"}");
 }
 
 void rescanEndedCB(NimBLEScanResults results) {
@@ -530,7 +575,7 @@ void rescanEndedCB(NimBLEScanResults results) {
   isRescanning = false;
   lastRescan = millis();
   Serial.println("ReScan Ended");
-  client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
+  client.publish(esp32Topic.c_str(), "{\"status\":\"idle\"}");
 }
 
 std::string getPass(std::string aDevice) {
@@ -620,6 +665,7 @@ void setup () {
   client.setMqttReconnectionAttemptDelay(100);
   client.enableLastWillMessage(lastWill, "Offline");
   client.setKeepAlive(60);
+  
   std::map<std::string, std::string>::iterator it = allBots.begin();
   std::string anAddr;
 
@@ -628,7 +674,7 @@ void setup () {
     anAddr = it->second;
     std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
     allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(anAddr.c_str(), it->first) );
-    deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), "WoHand") );
+    deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), botName) );
     it++;
   }
 
@@ -638,17 +684,17 @@ void setup () {
     anAddr = it->second;
     std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
     allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(anAddr.c_str(), it->first) );
-    deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), "WoCurtain") );
+    deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), curtainName) );
     it++;
   }
-
+  
   it = allMeters.begin();
   while (it != allMeters.end())
   {
     anAddr = it->second;
     std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
     allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(anAddr.c_str(), it->first) );
-    deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), "WoSensorTH") );
+    deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), meterName) );
     it++;
   }
 
@@ -677,7 +723,7 @@ void rescan(int seconds) {
   lastRescan = millis();
   isRescanning = true;
   delay(50);
-  client.publish(esp32Str.c_str(), "{\"status\":\"scanning\"}");
+  client.publish(esp32Topic.c_str(), "{\"status\":\"scanning\"}");
   delay(50);
   if (ledOnScan) {
     digitalWrite(LED_BUILTIN, HIGH);
@@ -695,7 +741,7 @@ void rescanFind(std::string aMac) {
   allSwitchbotsDev.erase(aMac);
   pScan->erase(NimBLEAddress(aMac));
   delay(100);
-  client.publish(esp32Str.c_str(), "{\"status\":\"scanning\"}");
+  client.publish(esp32Topic.c_str(), "{\"status\":\"scanning\"}");
   delay(50);
   if (ledOnScan) {
     digitalWrite(LED_BUILTIN, HIGH);
@@ -705,7 +751,170 @@ void rescanFind(std::string aMac) {
 
 void loop () {
   server.handleClient();
+  client.setMaxPacketSize(mqtt_packet_size);
   client.loop();
+
+  if(client.isConnected() && home_assistant_mqtt_discovery && !home_assistant_discovery_set_up) {
+    Serial.println("Home Assistant MQTT Discovery enabled and devices are not yet set up.");
+
+    std::map<std::string, std::string>::iterator it = allBots.begin();
+    std::string aDevice;
+  
+    while (it != allBots.end())
+    {
+      aDevice = it->first;
+
+      client.publish((home_assistant_mqtt_prefix + "/sensor/" + aDevice + "/battery/config").c_str(), ("{\"~\":\"" + (botTopic + aDevice) + "\"," +
+                                                                                                        + "\"name\":\"" + aDevice + " Battery\"," +
+                                                                                                        + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + aDevice + "\" }," +
+                                                                                                        + "\"uniq_id\":\"switchbot_" + it->second + "_battery\"," +
+                                                                                                        + "\"stat_t\":\"~/state\"," +
+                                                                                                        + "\"dev_cla\":\"battery\"," +
+                                                                                                        + "\"unit_of_meas\": \"%\", " +
+                                                                                                        + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
+
+      client.publish((home_assistant_mqtt_prefix + "/sensor/" + aDevice + "/linkquality/config").c_str(), ("{\"~\":\"" + (botTopic + aDevice) + "\"," +
+                                                                                                        + "\"name\":\"" + aDevice + " Linkquality\"," +
+                                                                                                        + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + aDevice + "\" }," +
+                                                                                                        + "\"uniq_id\":\"switchbot_" + it->second + "_linkquality\"," +
+                                                                                                        + "\"stat_t\":\"~/state\"," +
+                                                                                                        + "\"icon\":\"mdi:signal\"," +
+                                                                                                        + "\"unit_of_meas\": \"rssi\", " +
+                                                                                                        + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
+      
+      client.publish((home_assistant_mqtt_prefix + "/switch/" + aDevice + "/config").c_str(), ("{\"~\":\"" + (botTopic + it->first) + "\", " +
+                                                                                                        + "\"name\":\"" + aDevice + " Curtain\"," +
+                                                                                                        + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + aDevice + "\" }," +
+                                                                                                        + "\"uniq_id\":\"switchbot_" + it->second + "\", " +
+                                                                                                        + "\"stat_t\":\"~/state\", " +
+                                                                                                        + "\"cmd_t\": \"~/set\", "+
+                                                                                                        + "\"value_template\":\"{{ value_json.state }}\"}").c_str(), true);
+      it++;
+    }
+  
+    it = allCurtains.begin();
+    while (it != allCurtains.end())
+    {
+      aDevice = it->first;
+
+      client.publish((home_assistant_mqtt_prefix + "/sensor/" + aDevice + "/battery/config").c_str(), ("{\"~\":\"" + (curtainTopic + aDevice) + "\"," +
+                                                                                                        + "\"name\":\"" + aDevice + " Battery\"," +
+                                                                                                        + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + aDevice + "\" }," +
+                                                                                                        + "\"uniq_id\":\"switchbot_" + it->second + "_battery\"," +
+                                                                                                        + "\"stat_t\":\"~/state\"," +
+                                                                                                        + "\"dev_cla\":\"battery\"," +
+                                                                                                        + "\"unit_of_meas\": \"%\", " +
+                                                                                                        + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
+
+      client.publish((home_assistant_mqtt_prefix + "/sensor/" + aDevice + "/linkquality/config").c_str(), ("{\"~\":\"" + (curtainTopic + aDevice) + "\"," +
+                                                                                                        + "\"name\":\"" + aDevice + " Linkquality\"," +
+                                                                                                        + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + aDevice + "\" }," +
+                                                                                                        + "\"uniq_id\":\"switchbot_" + it->second + "_linkquality\"," +
+                                                                                                        + "\"stat_t\":\"~/state\"," +
+                                                                                                        + "\"icon\":\"mdi:signal\"," +
+                                                                                                        + "\"unit_of_meas\": \"rssi\", " +
+                                                                                                        + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
+
+      client.publish((home_assistant_mqtt_prefix + "/sensor/" + aDevice + "/illuminance/config").c_str(), ("{\"~\":\"" + (curtainTopic + aDevice) + "\"," +
+                                                                                                        + "\"name\":\"" + aDevice + " Illuminance\"," +
+                                                                                                        + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + aDevice + "\" }," +
+                                                                                                        + "\"uniq_id\":\"switchbot_" + it->second + "_illuminance\"," +
+                                                                                                        + "\"stat_t\":\"~/state\"," +
+                                                                                                        + "\"dev_cla\":\"illuminance\"," +
+                                                                                                        + "\"value_template\":\"{{ value_json.light }}\"}").c_str(), true);
+
+      client.publish((home_assistant_mqtt_prefix + "/binary_sensor/" + aDevice + "/calibrated/config").c_str(), ("{\"~\":\"" + (curtainTopic + aDevice) + "\"," +
+                                                                                                        + "\"name\":\"" + aDevice + " Calibrated\"," +
+                                                                                                        + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + aDevice + "\" }," +
+                                                                                                        + "\"uniq_id\":\"switchbot_" + it->second + "_calibrated\"," +
+                                                                                                        + "\"stat_t\":\"~/state\"," +
+                                                                                                        + "\"pl_on\":true," +
+                                                                                                        + "\"pl_off\":false," +
+                                                                                                        + "\"value_template\":\"{{ value_json.calib }}\"}").c_str(), true);
+      
+      client.publish((home_assistant_mqtt_prefix + "/cover/" + aDevice + "/config").c_str(), ("{\"~\":\"" + (curtainTopic + it->first) + "\", " +
+                                                                                                        + "\"name\":\"" + aDevice + " Curtain\"," +
+                                                                                                        + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + aDevice + "\" }," +
+                                                                                                        + "\"uniq_id\":\"switchbot_" + it->second + "\", " +
+                                                                                                        + "\"stat_t\":\"~/state\", " +
+                                                                                                        + "\"dev_cla\":\"curtain\", " +
+                                                                                                        + "\"pl_stop\":\"PAUSE\", " +
+                                                                                                        + "\"pos_open\": 100, "+
+                                                                                                        + "\"pos_clsd\": 0, "+
+                                                                                                        + "\"cmd_t\": \"~/set\", "+
+                                                                                                        + "\"pos_t\":\"~/state\", " +
+                                                                                                        + "\"pos_tpl\":\"{{ value_json.pos }}\", " +
+                                                                                                        + "\"set_pos_t\": \"~/set\", "+
+                                                                                                        + "\"set_pos_tpl\": \"{{ position }}\", "+
+                                                                                                        + "\"value_template\":\"{{ value_json.state }}\"}").c_str(), true);
+      if(home_assistant_expose_seperate_curtain_position) {
+        client.publish((home_assistant_mqtt_prefix + "/sensor/" + aDevice + "/position/config").c_str(), ("{\"~\":\"" + (curtainTopic + aDevice) + "\"," +
+                                                                                                          + "\"name\":\"" + aDevice + " Position\"," +
+                                                                                                          + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + aDevice + "\" }," +
+                                                                                                          + "\"uniq_id\":\"switchbot_" + it->second + "_position\"," +
+                                                                                                          + "\"stat_t\":\"~/state\"," +
+                                                                                                          + "\"value_template\":\"{{ value_json.pos }}\"}").c_str(), true);
+      }
+      
+      it++;
+    }
+    
+    it = allMeters.begin();
+    while (it != allMeters.end())
+    {
+      aDevice = it->first;
+
+      client.publish((home_assistant_mqtt_prefix + "/sensor/" + aDevice + "/battery/config").c_str(), ("{\"~\":\"" + (meterTopic + aDevice) + "\"," +
+                                                                                                        + "\"name\":\"" + aDevice + " Battery\"," +
+                                                                                                        + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + aDevice + "\" }," +
+                                                                                                        + "\"uniq_id\":\"switchbot_" + it->second + "_battery\"," +
+                                                                                                        + "\"stat_t\":\"~/state\"," +
+                                                                                                        + "\"dev_cla\":\"battery\"," +
+                                                                                                        + "\"unit_of_meas\": \"%\", " +
+                                                                                                        + "\"value_template\":\"{{ value_json.batt }}\"}").c_str());
+
+      client.publish((home_assistant_mqtt_prefix + "/sensor/" + aDevice + "/linkquality/config").c_str(), ("{\"~\":\"" + (meterTopic + aDevice) + "\"," +
+                                                                                                        + "\"name\":\"" + aDevice + " Linkquality\"," +
+                                                                                                        + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + aDevice + "\" }," +
+                                                                                                        + "\"uniq_id\":\"switchbot_" + it->second + "_linkquality\"," +
+                                                                                                        + "\"stat_t\":\"~/state\"," +
+                                                                                                        + "\"icon\":\"mdi:signal\"," +
+                                                                                                        + "\"unit_of_meas\": \"rssi\", " +
+                                                                                                        + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str());
+
+      client.publish((home_assistant_mqtt_prefix + "/sensor/" + aDevice + "/temperature_c/config").c_str(), ("{\"~\":\"" + (meterTopic + aDevice) + "\"," +
+                                                                                                        + "\"name\":\"" + aDevice + " Temperature C\"," +
+                                                                                                        + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + aDevice + "\" }," +
+                                                                                                        + "\"uniq_id\":\"switchbot_" + it->second + "_temperature_c\"," +
+                                                                                                        + "\"stat_t\":\"~/state\"," +
+                                                                                                        + "\"dev_cla\":\"temperature\", " +
+                                                                                                        + "\"unit_of_meas\": \"°C\", " +
+                                                                                                        + "\"value_template\":\"{{ value_json.C }}\"}").c_str());
+
+      client.publish((home_assistant_mqtt_prefix + "/sensor/" + aDevice + "/temperature_f/config").c_str(), ("{\"~\":\"" + (meterTopic + aDevice) + "\"," +
+                                                                                                        + "\"name\":\"" + aDevice + " Temperature F\"," +
+                                                                                                        + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + aDevice + "\" }," +
+                                                                                                        + "\"uniq_id\":\"switchbot_" + it->second + "_temperature_f\"," +
+                                                                                                        + "\"stat_t\":\"~/state\"," +
+                                                                                                        + "\"dev_cla\":\"temperature\", " +
+                                                                                                        + "\"unit_of_meas\": \"°F\", " +
+                                                                                                        + "\"value_template\":\"{{ value_json.F }}\"}").c_str());
+
+      client.publish((home_assistant_mqtt_prefix + "/sensor/" + aDevice + "/humidity/config").c_str(), ("{\"~\":\"" + (meterTopic + aDevice) + "\"," +
+                                                                                                        + "\"name\":\"" + aDevice + " Humidity\"," +
+                                                                                                        + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + aDevice + "\" }," +
+                                                                                                        + "\"uniq_id\":\"switchbot_" + it->second + "_humidity\"," +
+                                                                                                        + "\"stat_t\":\"~/state\"," +
+                                                                                                        + "\"dev_cla\":\"humidity\", " +
+                                                                                                        + "\"unit_of_meas\": \"%\", " +
+                                                                                                        + "\"value_template\":\"{{ value_json.hum }}\"}").c_str());
+      
+      it++;
+    }
+
+    home_assistant_discovery_set_up = true;
+  }
+  
   if (isRescanning) {
     lastRescan = millis();
   }
@@ -835,11 +1044,14 @@ bool processQueue() {
       if ( processing || pScan->isScanning() || isRescanning ) {
         return false;
       }
+      Serial.print("Received something on ");
+      Serial.println(aCommand.topic.c_str());
+      Serial.println(aCommand.device.c_str());
       if (aCommand.topic == ESPMQTTTopic + "/control") {
-        if (ledOnCommand) {
+	if (ledOnCommand) {
           digitalWrite(LED_BUILTIN, HIGH);
         }
-        controlMQTT(aCommand.payload);
+        controlMQTT(aCommand.device, aCommand.payload);
         if (ledOnCommand) {
           digitalWrite(LED_BUILTIN, LOW);
         }
@@ -866,12 +1078,13 @@ void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const ch
 
   NimBLEAdvertisedDevice* advDeviceToUse = advDevice;
   std::string addr = advDeviceToUse->getAddress().toString().c_str();
+  deviceTopic = deviceTopic + "/status";
 
   if ((advDeviceToUse != nullptr) && (advDeviceToUse != NULL))
   {
     char aBuffer[100];
     StaticJsonDocument<100> doc;
-    doc["id"] = aName.c_str();
+//    doc["id"] = aName.c_str();
     if (strcmp(command, "requestInfo") == 0) {
       bool isSuccess = requestInfo(advDeviceToUse);
       if (!isSuccess) {
@@ -951,97 +1164,84 @@ bool is_number(const std::string& s)
   return !s.empty() && it == s.end();
 }
 
-void controlMQTT(std::string payload) {
+void controlMQTT(std::string device, std::string payload) {
   processing = true;
   Serial.println("Processing Control MQTT...");
-  StaticJsonDocument<100> docIn;
-  deserializeJson(docIn, payload);
 
-  if (docIn == nullptr) { //Check for errors in parsing
-    char aBuffer[100];
-    StaticJsonDocument<100> docOut;
-    Serial.println("Parsing failed");
-    docOut["status"] = "errorParsingJSON";
-    serializeJson(docOut, aBuffer);
-    client.publish(esp32Str.c_str(), aBuffer);
+  std::string deviceAddr = "";
+  std::string deviceTopic;
+  std::string anAddr;
+
+  Serial.print("Device: ");
+  Serial.println(device.c_str());
+  Serial.print("Device value: ");
+  Serial.println(payload.c_str());
+
+  std::map<std::string, std::string>::iterator itS = allBots.find(device.c_str());
+  if (itS != allBots.end())
+  {
+    anAddr = itS->second;
+    std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+    deviceAddr = anAddr.c_str();
+    deviceTopic = botTopic;
   }
-  else {
-    const char * aName = docIn["id"]; //Get sensor type value
-    const char * value = docIn["value"];        //Get value of sensor measurement
-    std::string deviceAddr = "";
-    std::string deviceTopic;
-    std::string anAddr;
+  itS = allCurtains.find(device.c_str());
+  if (itS != allCurtains.end())
+  {
+    anAddr = itS->second;
+    std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+    deviceAddr = anAddr.c_str();
+    deviceTopic = curtainTopic;
+  }
+  itS = allMeters.find(device.c_str());
+  if (itS != allMeters.end())
+  {
+    anAddr = itS->second;
+    std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+    deviceAddr = anAddr.c_str();
+    deviceTopic = meterTopic;
+  }
 
-    if (aName != nullptr && value != nullptr) {
-      Serial.print("Device: ");
-      Serial.println(aName);
-      Serial.print("Device value: ");
-      Serial.println(value);
-
-      std::map<std::string, std::string>::iterator itS = allBots.find(aName);
-      if (itS != allBots.end())
-      {
-        anAddr = itS->second;
-        std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
-        deviceAddr = anAddr.c_str();
-        deviceTopic = buttonStr;
+  if (deviceAddr != "") {
+    bool isNum = is_number(payload.c_str());
+    deviceTopic = deviceTopic + device;
+    if (isNum) {
+      int aVal;
+      sscanf(payload.c_str(), "%d", &aVal);
+      if (aVal < 0) {
+        payload = "0";
       }
-      itS = allCurtains.find(aName);
-      if (itS != allCurtains.end())
-      {
-        anAddr = itS->second;
-        std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
-        deviceAddr = anAddr.c_str();
-        deviceTopic = curtainStr;
+      else if (aVal > 100) {
+        payload = "100";
       }
-      itS = allMeters.find(aName);
-      if (itS != allMeters.end())
-      {
-        anAddr = itS->second;
-        std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
-        deviceAddr = anAddr.c_str();
-        deviceTopic = tempStr;
-      }
-    }
-    if (deviceAddr != "") {
-      bool isNum = is_number(value);
-      deviceTopic = deviceTopic + aName;
-      if (isNum) {
-        int aVal;
-        sscanf(value, "%d", &aVal);
-        if (aVal < 0) {
-          value = "0";
-        }
-        else if (aVal > 100) {
-          value = "100";
-        }
-        processRequest(deviceAddr, aName, value, deviceTopic);
-      }
-      else {
-        if ((strcmp(value, "press") == 0) || (strcmp(value, "on") == 0) || (strcmp(value, "off") == 0) || (strcmp(value, "open") == 0) || (strcmp(value, "close") == 0) || (strcmp(value, "pause") == 0)) {
-          processRequest(deviceAddr, aName, value, deviceTopic);
-        }
-        else {
-          char aBuffer[100];
-          StaticJsonDocument<100> docOut;
-          docOut["status"] = "errorJSONValue";
-          serializeJson(docOut, aBuffer);
-          Serial.println("Parsing failed = value not a valid command");
-          client.publish(esp32Str.c_str(), aBuffer);
-        }
-      }
+      
+      processRequest(deviceAddr, device, payload.c_str(), deviceTopic);
     }
     else {
-      char aBuffer[100];
-      StaticJsonDocument<100> docOut;
-      docOut["status"] = "errorJSONDevice";
-      serializeJson(docOut, aBuffer);
-      Serial.println("Parsing failed = device not from list");
-      client.publish(esp32Str.c_str(), aBuffer);
+      if ((strcmp(payload.c_str(), "PRESS") == 0) || (strcmp(payload.c_str(), "ON") == 0) || (strcmp(payload.c_str(), "OFF") == 0) || (strcmp(payload.c_str(), "OPEN") == 0) || (strcmp(payload.c_str(), "CLOSE") == 0) || (strcmp(payload.c_str(), "PAUSE") == 0)) {
+        processRequest(deviceAddr, device, payload.c_str(), deviceTopic);
+      }
+      else {
+        char aBuffer[100];
+        StaticJsonDocument<100> docOut;
+        docOut["status"] = "errorJSONValue";
+        serializeJson(docOut, aBuffer);
+        Serial.println("Parsing failed = value not a valid command");
+        client.publish(esp32Topic.c_str(), aBuffer);
+      }
     }
   }
+  else {
+    char aBuffer[100];
+    StaticJsonDocument<100> docOut;
+    docOut["status"] = "errorJSONDevice";
+    serializeJson(docOut, aBuffer);
+    Serial.println("Parsing failed = device not from list");
+    client.publish(esp32Topic.c_str(), aBuffer);
+  }
+
   delay(100);
-  client.publish(esp32Str.c_str(), "{\"status\":\"idle\"}");
+  client.publish(esp32Topic.c_str(), "{\"status\":\"idle\"}");
   processing = false;
 }
 
@@ -1058,7 +1258,7 @@ void rescanMQTT(std::string payload) {
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorParsingJSON";
     serializeJson(docOut, aBuffer);
-    client.publish(esp32Str.c_str(), aBuffer);
+    client.publish(esp32Topic.c_str(), aBuffer);
   }
   else {
     const char * value = docIn["sec"];
@@ -1081,7 +1281,7 @@ void rescanMQTT(std::string payload) {
         docOut["status"] = "errorJSONValue";
         serializeJson(docOut, aBuffer);
         Serial.println("Parsing failed = device not from list");
-        client.publish(esp32Str.c_str(), aBuffer);
+        client.publish(esp32Topic.c_str(), aBuffer);
       }
     }
   }
@@ -1100,7 +1300,7 @@ void requestInfoMQTT(std::string payload) {
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorParsingJSON";
     serializeJson(docOut, aBuffer);
-    client.publish(esp32Str.c_str(), aBuffer);
+    client.publish(esp32Topic.c_str(), aBuffer);
   }
   else {
     const char * aName = docIn["id"]; //Get sensor type value
@@ -1118,7 +1318,7 @@ void requestInfoMQTT(std::string payload) {
         anAddr = itS->second;
         std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
         deviceAddr = anAddr.c_str();
-        deviceTopic = buttonStr;
+        deviceTopic = botTopic;
       }
       itS = allCurtains.find(aName);
       if (itS != allCurtains.end())
@@ -1126,7 +1326,7 @@ void requestInfoMQTT(std::string payload) {
         anAddr = itS->second;
         std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
         deviceAddr = anAddr.c_str();
-        deviceTopic = curtainStr;
+        deviceTopic = curtainTopic;
       }
       itS = allMeters.find(aName);
       if (itS != allMeters.end())
@@ -1134,7 +1334,7 @@ void requestInfoMQTT(std::string payload) {
         anAddr = itS->second;
         std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
         deviceAddr = anAddr.c_str();
-        deviceTopic = tempStr;
+        deviceTopic = meterTopic;
       }
     }
     if (deviceAddr != "") {
@@ -1147,39 +1347,96 @@ void requestInfoMQTT(std::string payload) {
       docOut["status"] = "errorJSONId";
       serializeJson(docOut, aBuffer);
       Serial.println("Parsing failed = device not from list");
-      client.publish(esp32Str.c_str(), aBuffer);
+      client.publish(esp32Topic.c_str(), aBuffer);
     }
   }
   processing = false;
 }
 
 void onConnectionEstablished() {
+  std::map<std::string, std::string>::iterator it = allBots.begin();
+  std::string anAddr;
+  std::string aDevice;
+  
   if (!initialScanComplete) {
     initialScanComplete = true;
     firstScan = true;
-    client.publish(esp32Str.c_str(), "{\"status\":\"boot\"}");
+    client.publish(esp32Topic.c_str(), "{\"status\":\"boot\"}");
     delay(100);
-    client.publish(esp32Str.c_str(), "{\"status\":\"scanning\"}");
-    if (ledOnBootScan) {
-      digitalWrite(LED_BUILTIN, HIGH);
-    }
+    client.publish(esp32Topic.c_str(), "{\"status\":\"scanning\"}");
     pScan->start(initialScan, scanEndedCB, true);
   }
 
-  client.subscribe(controlStr, [] (const String & payload)  {
-    Serial.println("Control MQTT Received...");
-    if (!commandQueue.isFull()) {
-      struct QueueCommand queueCommand;
-      queueCommand.payload = payload.c_str();
-      queueCommand.topic = ESPMQTTTopic + "/control";
-      commandQueue.enqueue(queueCommand);
-    }
-    else {
-      client.publish(esp32Str.c_str(), "{\"status\":\"errorQueueFull\"}");
-    }
-  });
+  it = allCurtains.begin();
+  while (it != allCurtains.end())
+  {
+    std::string deviceStr ;
+    aDevice = it->first.c_str();
 
-  client.subscribe(requestInfoStr, [] (const String & payload)  {
+    client.subscribe((curtainTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
+      Serial.println("Control MQTT Received...");
+      if (!commandQueue.isFull()) {
+        struct QueueCommand queueCommand;
+        queueCommand.payload = payload.c_str();
+        queueCommand.topic = ESPMQTTTopic + "/control";
+        queueCommand.device = aDevice;
+        commandQueue.enqueue(queueCommand);
+      }
+      else {
+        client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
+      }
+    });
+
+    it++;
+  }
+
+  it = allBots.begin();
+  while (it != allBots.end())
+  {
+    std::string deviceStr ;
+    aDevice = it->first.c_str();
+
+    client.subscribe((botTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
+      Serial.println("Control MQTT Received...");
+      if (!commandQueue.isFull()) {
+        struct QueueCommand queueCommand;
+        queueCommand.payload = payload.c_str();
+        queueCommand.topic = ESPMQTTTopic + "/control";
+        queueCommand.device = aDevice;
+        commandQueue.enqueue(queueCommand);
+      }
+      else {
+        client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
+      }
+    });
+
+    it++;
+  }
+
+  it = allMeters.begin();
+  while (it != allMeters.end())
+  {
+    std::string deviceStr ;
+    aDevice = it->first.c_str();
+
+    client.subscribe((meterTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
+      Serial.println("Control MQTT Received...");
+      if (!commandQueue.isFull()) {
+        struct QueueCommand queueCommand;
+        queueCommand.payload = payload.c_str();
+        queueCommand.topic = ESPMQTTTopic + "/control";
+        queueCommand.device = aDevice;
+        commandQueue.enqueue(queueCommand);
+      }
+      else {
+        client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
+      }
+    });
+
+    it++;
+  }
+
+  client.subscribe(requestInfoTopic, [] (const String & payload)  {
     Serial.println("Request Info MQTT Received...");
     if (!commandQueue.isFull()) {
       struct QueueCommand queueCommand;
@@ -1188,11 +1445,11 @@ void onConnectionEstablished() {
       commandQueue.enqueue(queueCommand);
     }
     else {
-      client.publish(esp32Str.c_str(), "{\"status\":\"errorQueueFull\"}");
+      client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
     }
   });
 
-  client.subscribe(rescanStr, [] (const String & payload)  {
+  client.subscribe(rescanTopic, [] (const String & payload)  {
     Serial.println("Rescan MQTT Received...");
     if (!commandQueue.isFull()) {
       struct QueueCommand queueCommand;
@@ -1201,7 +1458,7 @@ void onConnectionEstablished() {
       commandQueue.enqueue(queueCommand);
     }
     else {
-      client.publish(esp32Str.c_str(), "{\"status\":\"errorQueueFull\"}");
+      client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
     }
   });
 }
@@ -1319,7 +1576,7 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
         wasSuccess = sendCommandBytes(pChr, bArrayPos, 7);
       }
       else {
-        if (strcmp(type, "press") == 0) {
+        if (strcmp(type, "PRESS") == 0) {
           if (aPass == "") {
             wasSuccess = sendCommandBytes(pChr, bArrayPress, 2);
           }
@@ -1336,7 +1593,7 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
             wasSuccess = sendCommandBytes(pChr, anArray , 6);
           }
         }
-        else if (strcmp(type, "on") == 0) {
+        else if (strcmp(type, "ON") == 0) {
           if (aPass == "") {
             wasSuccess = sendCommandBytes(pChr, bArrayOn, 3);
           }
@@ -1353,7 +1610,7 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
             wasSuccess = sendCommandBytes(pChr, anArray , 7);
           }
         }
-        else if (strcmp(type, "off") == 0) {
+        else if (strcmp(type, "OFF") == 0) {
           if (aPass == "") {
             wasSuccess = sendCommandBytes(pChr, bArrayOff, 3);
           }
@@ -1370,13 +1627,13 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
             wasSuccess = sendCommandBytes(pChr, anArray , 7);
           }
         }
-        else if (strcmp(type, "open") == 0) {
+        else if (strcmp(type, "OPEN") == 0) {
           wasSuccess = sendCommandBytes(pChr, bArrayOpen, 7);
         }
-        else if (strcmp(type, "close") == 0) {
+        else if (strcmp(type, "CLOSE") == 0) {
           wasSuccess = sendCommandBytes(pChr, bArrayClose, 7);
         }
-        else if (strcmp(type, "pause") == 0) {
+        else if (strcmp(type, "PAUSE") == 0) {
           wasSuccess = sendCommandBytes(pChr, bArrayPause, 6);
         }
         if (wasSuccess) {
