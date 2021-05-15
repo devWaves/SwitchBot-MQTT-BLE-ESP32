@@ -783,7 +783,7 @@ void loop () {
                                                                                                         + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
       
       client.publish((home_assistant_mqtt_prefix + "/switch/" + aDevice + "/config").c_str(), ("{\"~\":\"" + (botTopic + it->first) + "\", " +
-                                                                                                        + "\"name\":\"" + aDevice + " Curtain\"," +
+                                                                                                        + "\"name\":\"" + aDevice + " Switch\"," +
                                                                                                         + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + aDevice + "\" }," +
                                                                                                         + "\"uniq_id\":\"switchbot_" + it->second + "\", " +
                                                                                                         + "\"stat_t\":\"~/state\", " +
