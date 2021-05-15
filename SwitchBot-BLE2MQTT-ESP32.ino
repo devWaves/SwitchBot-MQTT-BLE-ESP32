@@ -853,6 +853,7 @@ void loop () {
                                                                                                           + "\"device\": {\"identifiers\":[\"switchbot_" + it->second + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + aDevice + "\" }," +
                                                                                                           + "\"uniq_id\":\"switchbot_" + it->second + "_position\"," +
                                                                                                           + "\"stat_t\":\"~/state\"," +
+                                                                                                          + "\"unit_of_meas\": \"%\", " +
                                                                                                           + "\"value_template\":\"{{ value_json.pos }}\"}").c_str(), true);
       }
       
