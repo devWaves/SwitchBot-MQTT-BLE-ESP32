@@ -334,7 +334,8 @@ void rescanEndedCB(NimBLEScanResults results);
 static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsDev = {};
 static std::map<std::string, long> rescanTimes = {};
 static std::map<std::string, std::string> allSwitchbotsOpp;
-static std::map<std::string, bool> discoveredDevices;
+static std::map<std::string, bool> discoveredDevices = {};
+static std::map<std::string, bool> botsInPressMode = {}; 
 static std::map<std::string, std::string> deviceTypes;
 static NimBLEScan* pScan;
 static bool isRescanning = false;
@@ -641,10 +642,18 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
         bool isSwitch = (byte1 & 0b10000000);
         std::string aMode = isSwitch ? "Switch" : "Press"; // Whether the light switch Add-on is used or not
-        if(isSwitch){
+        if (isSwitch) {
+          std::map<std::string, bool>::iterator itP = botsInPressMode.find(deviceMac);
+          if (itP != botsInPressMode.end())
+          {
+            botsInPressMode.erase(deviceMac);
+          }
           aState = (byte1 & 0b01000000) ? "OFF" : "ON"; // Mine is opposite, not sure why
         }
-        else {aState = "OFF";}
+        else {
+          botsInPressMode.insert (std::pair<std::string, bool>(deviceMac, true));
+          aState = "OFF";
+        }
         int battLevel = byte2 & 0b01111111; // %
 
         doc["mode"] = aMode;
@@ -694,13 +703,14 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           }
         }
 
-        std::map<std::string, int>::iterator itW = botScanTime.find(aDevice);
-        if (itW != botScanTime.end())
+        std::map<std::string, long>::iterator itW = rescanTimes.find(deviceMac);
+        if (itW != rescanTimes.end())
         {
-          Serial.printf("Adding %s to rescanTimes...\n", deviceMac.c_str());
           rescanTimes.erase(deviceMac);
-          rescanTimes.insert ( std::pair<std::string, long>(deviceMac, millis()));
         }
+        Serial.printf("Adding %s to rescanTimes...\n", deviceMac.c_str());
+        rescanTimes.insert ( std::pair<std::string, long>(deviceMac, millis()));
+		
       }
       else if (deviceName == curtainName) {
         if (aLength < 5) {
@@ -1171,14 +1181,19 @@ void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const ch
           if(!is_number(command)) {
             client.publish(deviceStateTopic.c_str(), command);
           }
+          std::map<std::string, bool>::iterator itP = botsInPressMode.find(addr);
+          if (itP != botsInPressMode.end())
+          {
+            client.publish(deviceStateTopic.c_str(), "OFF");
+          }
           if (scanAfterControl) {
             std::map<std::string, std::string>::iterator itI = allSwitchbotsOpp.find(addr);
-            std::map<std::string, int>::iterator itW = botScanTime.find(itI->second);
-            if (itW != botScanTime.end())
+            std::map<std::string, long>::iterator itW = rescanTimes.find(addr);
+            if (itW != rescanTimes.end())
             {
               rescanTimes.erase(addr);
-              rescanTimes.insert ( std::pair<std::string, long>(addr, millis()));
             }
+            rescanTimes.insert ( std::pair<std::string, long>(addr, millis()));
           }
         }
         else {
