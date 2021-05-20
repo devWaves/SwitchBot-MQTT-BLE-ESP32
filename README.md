@@ -9,14 +9,18 @@ Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP3
   ** I do not know where performance will be affected by number of devices
   ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-v1.5
+v2.0
 
-Created: on May 10 2021
+Created: on May 20 2021
   Author: devWaves
+  
+  Contributions from:
+          HardcoreWR
 
 based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
 Notes:
+ - Supports Home Assistant MQTT Discovery
  - Support bots and curtains and meters
  - It works for button press/on/off
  - It works for curtain open/close/pause/position(%)
@@ -30,61 +34,83 @@ Notes:
  - Automatically requestInfo X seconds after successful control command
 
 **ESP32 will Subscribe to MQTT topic for control...**
-- switchbotMQTT/control
+ - [ESPMQTTTopic]/control
 
-send a JSON payload of the device you want to control (device = device to control) (value = string value)
-Value can equal...
-- "press"
-- "on"
-- "off"
-- "open"
-- "close"
-- "pause"
-- any number 0-100 (for curtain position) Example: "50"
+**ESP32 will subscribe to MQTT 'set' topic for every configure device.**
+ - [ESPMQTTTopic]/bot/[name]/set
+ - [ESPMQTTTopic]/curtain/[name]/set
+ - [ESPMQTTTopic]/meter/[name]/set
 
-example payloads
-- {"id":"switchbotone","value":"press"}
-- {"id":"switchbotone","value":"open"}
-- {"id":"switchbotone","value":"50"}
+Send a payload to the 'set' topic of the device you want to control
+ - "PRESS"
+ - "ON"
+ - "OFF"
+ - "OPEN"
+ - "CLOSE"
+ - "PAUSE"
+ - 0-100 (for curtain position) Example: 50
   
-**ESP32 will respond with MQTT on...**
-- switchbotMQTT/#
+**ESP32 will respond with MQTT on 'status' topic for every configured device**
+ - [ESPMQTTTopic]/bot/[name]/status
+ - [ESPMQTTTopic]/curtain/[name]/status
+ - [ESPMQTTTopic]/meter/[name]/status
 
 Example reponses:
-switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switchbotMQTT/meter/meterone
-- {"id":"switchbotone","status":"connected"}
-- {"id":"switchbotone","status":"press"}
-- {"id":"switchbotone","status":"errorConnect"}
-- {"id":"switchbotone","status":"errorCommand"}
+ - [ESPMQTTTopic]/bot/[name]/status
+ - [ESPMQTTTopic]/curtain/[name]/status
+ - [ESPMQTTTopic]/meter/[name]/status
 
-switchbotMQTT/ESP32
-- {"status":"idle"}
+Example payload:
+ - {"status":"connected"}
+ - {"status":"press"}
+ - {"status":"errorConnect"}
+ - {"status":"errorCommand"}
+ - {"status":"commandSent"}
+
+**ESP32 will respond with MQTT on esp32Topic with ESP32 status**
+ - [ESPMQTTTopic]/ESP32
+
+Example payload:
+ - {status":"idle"}
 
 **ESP32 will Subscribe to MQTT topic to rescan for all device information...**
-- switchbotMQTT/rescan
+ - [ESPMQTTTopic]/rescan
 
   send a JSON payload of how many seconds you want to rescan for
    example payloads =
    - {"sec":"30"}
 
 **ESP32 will Subscribe to MQTT topic for single device status update...**
-- switchbotMQTT/requestInfo
+ - [ESPMQTTTopic]/requestInfo
 
   send a JSON payload of which device you want status from
    example payloads =
    - {"id":"switchbotone"}
 
 **ESP32 will respond with MQTT on...**
-- switchbotMQTT/#
+ - [ESPMQTTTopic]/#
 
-  Example reponses:
-  - switchbotMQTT/bot/switchbotone  or  switchbotMQTT/curtain/curtainone   or  switchbotMQTT/meter/meterone
-  example payloads =
-  - {"id":"switchbottwo","status":"info","rssi":-78,"mode":"Press","state":"OFF","batt":94}
-
+Example reponses as device are detected:
+ - [ESPMQTTTopic]/bot/[name]/attributes
+ - [ESPMQTTTopic]/curtain/[name]/attributes
+ - [ESPMQTTTopic]/meter/[name]/attributes
+	Example payloads: 
+	 - {"rssi":-78,"mode":"Press","state":"OFF","batt":94}
+	 - {"rssi":-66,"calib":true,"batt":55,"pos":50,"state":"open","light":1}
+	 - {"rssi":-66,"scale":"c","batt":55,"C":"21.5","F":"70.7","hum":"65"}
+	 
+ - [ESPMQTTTopic]/bot/[name]/state
+ - [ESPMQTTTopic]/curtain/[name]/state
+ - [ESPMQTTTopic]/meter/[name]/state
+	Example payloads: 
+	 - ON
+	 - OFF
+	 - OPEN
+	 - CLOSE
+	 - 50
 
 Errors that cannot be linked to a specific device will be published to
-      -switchbotMQTT/ESP32
+ - [ESPMQTTTopic]/ESP32
 
 
 <strong>Steps to Install on ESP32</strong>
