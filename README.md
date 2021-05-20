@@ -9,10 +9,13 @@ Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP3
   ** I do not know where performance will be affected by number of devices
   ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-v1.6
+v2alpha
 
-Created: on May 15 2021
+Created: on May 20 2021
   Author: devWaves
+  
+  Contributions from:
+          HardcoreWR
 
 based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
@@ -62,7 +65,7 @@ Example payload:
  - {"status":"press"}
  - {"status":"errorConnect"}
  - {"status":"errorCommand"}
- - {"status":50}
+ - {"status":"commandSent"}
 
 **ESP32 will respond with MQTT on esp32Topic with ESP32 status**
  - [ESPMQTTTopic]/ESP32
@@ -88,14 +91,23 @@ Example payload:
  - [ESPMQTTTopic]/#
 
 Example reponses as device are detected:
- - [ESPMQTTTopic]/bot/[name]/status
- - [ESPMQTTTopic]/curtain/[name]/status
- - [ESPMQTTTopic]/meter/[name]/status
- 
-Example payloads: 
- - {"rssi":-78,"mode":"Press","state":"OFF","batt":94}
- - {"rssi":-66,"calib":true,"batt":55,"pos":50,"state":"open","light":1}
- - {"rssi":-66,"scale":"c","batt":55,"C":"21.5","F":"70.7","hum":"65"}
+ - [ESPMQTTTopic]/bot/[name]/attributes
+ - [ESPMQTTTopic]/curtain/[name]/attributes
+ - [ESPMQTTTopic]/meter/[name]/attributes
+	Example payloads: 
+	 - {"rssi":-78,"mode":"Press","state":"OFF","batt":94}
+	 - {"rssi":-66,"calib":true,"batt":55,"pos":50,"state":"open","light":1}
+	 - {"rssi":-66,"scale":"c","batt":55,"C":"21.5","F":"70.7","hum":"65"}
+	 
+ - [ESPMQTTTopic]/bot/[name]/state
+ - [ESPMQTTTopic]/curtain/[name]/state
+ - [ESPMQTTTopic]/meter/[name]/state
+	Example payloads: 
+	 - ON
+	 - OFF
+	 - OPEN
+	 - CLOSE
+	 - 50
 
 Errors that cannot be linked to a specific device will be published to
  - [ESPMQTTTopic]/ESP32
