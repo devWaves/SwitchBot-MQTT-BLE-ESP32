@@ -15,7 +15,7 @@ Created: on May 20 2021
   Author: devWaves
   
   Contributions from:
-          HardcoreWR
+  	HardcoreWR
 
 based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
