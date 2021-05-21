@@ -140,9 +140,10 @@
 
 /****************** CONFIGURATIONS TO CHANGE *******************/
 
-/* ESP32 Settings */
+/* ESP32 LED Settings */
 #define LED_PIN LED_BUILTIN                          // If your board doesn't have a defined LED_BUILTIN (You will get a compile error), comment this line out
 //#define LED_PIN 2                                  // If your board doesn't have a defined LED_BUILTIN, uncomment this line out and replace 2 with the LED pin value
+static bool ledHighEqualsON = true;                  // ESP32 board LED ON=HIGH (Default). If your ESP32 is turning OFF on scanning and turning ON while IDLE, then set this value to false 
 static bool ledOnBootScan = true;                    // Turn on LED during initial boot scan
 static bool ledOnScan = true;                        // Turn on LED while scanning (non-boot)
 static bool ledOnCommand = true;                     // Turn on LED while MQTT command is processing. If scanning, LED will blink after scan completes. You may not notice it, there is no delay after scan
@@ -328,6 +329,9 @@ static std::string botModel = "Bot";
 static std::string botName = "WoHand";
 static std::string meterModel = "Meter";
 static std::string meterName = "WoSensorTH";
+
+static int ledONValue = HIGH;
+static int ledOFFValue = LOW;
 
 void scanEndedCB(NimBLEScanResults results);
 void rescanEndedCB(NimBLEScanResults results);
@@ -760,7 +764,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
 void scanEndedCB(NimBLEScanResults results) {
   if ((ledOnScan && !firstScan) || (ledOnBootScan && firstScan)  || ledOnCommand) {
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(LED_PIN, ledOFFValue);
   }
   firstScan = false;
   Serial.println("Scan Ended");
@@ -769,7 +773,7 @@ void scanEndedCB(NimBLEScanResults results) {
 
 void rescanEndedCB(NimBLEScanResults results) {
   if (ledOnScan || ledOnCommand) {
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(LED_PIN, ledOFFValue);
   }
   isRescanning = false;
   lastRescan = millis();
@@ -801,6 +805,15 @@ uint32_t getPassCRC(std::string aDevice) {
 static ClientCallbacks clientCB;
 
 void setup () {
+  if (ledHighEqualsON) {
+    ledONValue = HIGH;
+    ledOFFValue = LOW;
+  }
+  else {
+    ledONValue = LOW;
+    ledOFFValue = HIGH;
+  }
+
   pinMode (LED_PIN, OUTPUT);
   // Connect to WiFi network
   WiFi.begin(ssid, password);
@@ -926,7 +939,7 @@ void rescan(int seconds) {
   client.publish(esp32Topic.c_str(), "{\"status\":\"scanning\"}");
   delay(50);
   if (ledOnScan) {
-    digitalWrite(LED_PIN, HIGH);
+    digitalWrite(LED_PIN, ledONValue);
   }
   pScan->start(seconds, rescanEndedCB);
 }
@@ -944,7 +957,7 @@ void rescanFind(std::string aMac) {
   client.publish(esp32Topic.c_str(), "{\"status\":\"scanning\"}");
   delay(50);
   if (ledOnScan) {
-    digitalWrite(LED_PIN, HIGH);
+    digitalWrite(LED_PIN, ledONValue);
   }
   pScan->start(infoScanTime, scanEndedCB, true);
 }
@@ -1044,7 +1057,7 @@ void processRequest(std::string macAdd, std::string aName, const char * command,
         }
       }
       if (ledOnScan) {
-        digitalWrite(LED_PIN, HIGH);
+        digitalWrite(LED_PIN, ledONValue);
       }
       pScan->start(10 * count, scanEndedCB, true);
       delay(500);
@@ -1090,22 +1103,22 @@ bool processQueue() {
       Serial.println(aCommand.device.c_str());
       if (aCommand.topic == ESPMQTTTopic + "/control") {
         if (ledOnCommand) {
-          digitalWrite(LED_PIN, HIGH);
+          digitalWrite(LED_PIN, ledONValue);
         }
         controlMQTT(aCommand.device, aCommand.payload);
         if (ledOnCommand) {
-          digitalWrite(LED_PIN, LOW);
+          digitalWrite(LED_PIN, ledOFFValue);
         }
       }
       else if (aCommand.topic == ESPMQTTTopic + "/requestInfo") {
         if (ledOnCommand) {
-          digitalWrite(LED_PIN, HIGH);
+          digitalWrite(LED_PIN, ledONValue);
         }
         requestInfoMQTT(aCommand.payload);
       }
       else if (aCommand.topic == ESPMQTTTopic + "/rescan") {
         if (ledOnCommand) {
-          digitalWrite(LED_PIN, HIGH);
+          digitalWrite(LED_PIN, ledONValue);
         }
         rescanMQTT(aCommand.payload);
       }
@@ -1412,7 +1425,7 @@ void onConnectionEstablished() {
 
   if (!initialScanComplete) {
     if (ledOnBootScan) {
-      digitalWrite(LED_PIN, HIGH);
+      digitalWrite(LED_PIN, ledONValue);
     }
     client.publish(esp32Topic.c_str(), "{\"status\":\"boot\"}");
     delay(100);
