@@ -9,7 +9,7 @@
      * I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v2.0
+  v2.1
   
     Created: on May 20 2021
         Author: devWaves
@@ -226,7 +226,7 @@ static std::map<std::string, int> botScanTime = {     // X seconds after a succe
    Login page
 */
 
-static const String versionNum = "v2.0";
+static const String versionNum = "v2.1";
 static const String loginIndex =
   "<form name='loginForm'>"
   "<table width='20%' bgcolor='A09F9F' align='center'>"
