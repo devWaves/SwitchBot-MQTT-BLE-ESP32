@@ -9,13 +9,13 @@
      * I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v2alpha
+  v2.1
   
     Created: on May 20 2021
         Author: devWaves
 
         Contributions from:
-          HardcoreWR
+		HardcoreWR
           
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
@@ -140,9 +140,10 @@
 
 /****************** CONFIGURATIONS TO CHANGE *******************/
 
-/* ESP32 Settings */
+/* ESP32 LED Settings */
 #define LED_PIN LED_BUILTIN                          // If your board doesn't have a defined LED_BUILTIN (You will get a compile error), comment this line out
 //#define LED_PIN 2                                  // If your board doesn't have a defined LED_BUILTIN, uncomment this line out and replace 2 with the LED pin value
+static bool ledHighEqualsON = true;                  // ESP32 board LED ON=HIGH (Default). If your ESP32 is turning OFF on scanning and turning ON while IDLE, then set this value to false 
 static bool ledOnBootScan = true;                    // Turn on LED during initial boot scan
 static bool ledOnScan = true;                        // Turn on LED while scanning (non-boot)
 static bool ledOnCommand = true;                     // Turn on LED while MQTT command is processing. If scanning, LED will blink after scan completes. You may not notice it, there is no delay after scan
@@ -225,7 +226,7 @@ static std::map<std::string, int> botScanTime = {     // X seconds after a succe
    Login page
 */
 
-static const String versionNum = "v2alpha";
+static const String versionNum = "v2.1";
 static const String loginIndex =
   "<form name='loginForm'>"
   "<table width='20%' bgcolor='A09F9F' align='center'>"
@@ -329,12 +330,16 @@ static std::string botName = "WoHand";
 static std::string meterModel = "Meter";
 static std::string meterName = "WoSensorTH";
 
+static int ledONValue = HIGH;
+static int ledOFFValue = LOW;
+
 void scanEndedCB(NimBLEScanResults results);
 void rescanEndedCB(NimBLEScanResults results);
 static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsDev = {};
 static std::map<std::string, long> rescanTimes = {};
 static std::map<std::string, std::string> allSwitchbotsOpp;
-static std::map<std::string, bool> discoveredDevices;
+static std::map<std::string, bool> discoveredDevices = {};
+static std::map<std::string, bool> botsInPressMode = {}; 
 static std::map<std::string, std::string> deviceTypes;
 static NimBLEScan* pScan;
 static bool isRescanning = false;
@@ -641,10 +646,18 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
         bool isSwitch = (byte1 & 0b10000000);
         std::string aMode = isSwitch ? "Switch" : "Press"; // Whether the light switch Add-on is used or not
-        if(isSwitch){
+        if (isSwitch) {
+          std::map<std::string, bool>::iterator itP = botsInPressMode.find(deviceMac);
+          if (itP != botsInPressMode.end())
+          {
+            botsInPressMode.erase(deviceMac);
+          }
           aState = (byte1 & 0b01000000) ? "OFF" : "ON"; // Mine is opposite, not sure why
         }
-        else {aState = "OFF";}
+        else {
+          botsInPressMode.insert (std::pair<std::string, bool>(deviceMac, true));
+          aState = "OFF";
+        }
         int battLevel = byte2 & 0b01111111; // %
 
         doc["mode"] = aMode;
@@ -694,13 +707,14 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           }
         }
 
-        std::map<std::string, int>::iterator itW = botScanTime.find(aDevice);
-        if (itW != botScanTime.end())
+        std::map<std::string, long>::iterator itW = rescanTimes.find(deviceMac);
+        if (itW != rescanTimes.end())
         {
-          Serial.printf("Adding %s to rescanTimes...\n", deviceMac.c_str());
           rescanTimes.erase(deviceMac);
-          rescanTimes.insert ( std::pair<std::string, long>(deviceMac, millis()));
         }
+        Serial.printf("Adding %s to rescanTimes...\n", deviceMac.c_str());
+        rescanTimes.insert ( std::pair<std::string, long>(deviceMac, millis()));
+		
       }
       else if (deviceName == curtainName) {
         if (aLength < 5) {
@@ -750,7 +764,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
 void scanEndedCB(NimBLEScanResults results) {
   if ((ledOnScan && !firstScan) || (ledOnBootScan && firstScan)  || ledOnCommand) {
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(LED_PIN, ledOFFValue);
   }
   firstScan = false;
   Serial.println("Scan Ended");
@@ -759,7 +773,7 @@ void scanEndedCB(NimBLEScanResults results) {
 
 void rescanEndedCB(NimBLEScanResults results) {
   if (ledOnScan || ledOnCommand) {
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(LED_PIN, ledOFFValue);
   }
   isRescanning = false;
   lastRescan = millis();
@@ -791,6 +805,15 @@ uint32_t getPassCRC(std::string aDevice) {
 static ClientCallbacks clientCB;
 
 void setup () {
+  if (ledHighEqualsON) {
+    ledONValue = HIGH;
+    ledOFFValue = LOW;
+  }
+  else {
+    ledONValue = LOW;
+    ledOFFValue = HIGH;
+  }
+
   pinMode (LED_PIN, OUTPUT);
   // Connect to WiFi network
   WiFi.begin(ssid, password);
@@ -916,7 +939,7 @@ void rescan(int seconds) {
   client.publish(esp32Topic.c_str(), "{\"status\":\"scanning\"}");
   delay(50);
   if (ledOnScan) {
-    digitalWrite(LED_PIN, HIGH);
+    digitalWrite(LED_PIN, ledONValue);
   }
   pScan->start(seconds, rescanEndedCB);
 }
@@ -934,7 +957,7 @@ void rescanFind(std::string aMac) {
   client.publish(esp32Topic.c_str(), "{\"status\":\"scanning\"}");
   delay(50);
   if (ledOnScan) {
-    digitalWrite(LED_PIN, HIGH);
+    digitalWrite(LED_PIN, ledONValue);
   }
   pScan->start(infoScanTime, scanEndedCB, true);
 }
@@ -1034,7 +1057,7 @@ void processRequest(std::string macAdd, std::string aName, const char * command,
         }
       }
       if (ledOnScan) {
-        digitalWrite(LED_PIN, HIGH);
+        digitalWrite(LED_PIN, ledONValue);
       }
       pScan->start(10 * count, scanEndedCB, true);
       delay(500);
@@ -1080,22 +1103,22 @@ bool processQueue() {
       Serial.println(aCommand.device.c_str());
       if (aCommand.topic == ESPMQTTTopic + "/control") {
         if (ledOnCommand) {
-          digitalWrite(LED_PIN, HIGH);
+          digitalWrite(LED_PIN, ledONValue);
         }
         controlMQTT(aCommand.device, aCommand.payload);
         if (ledOnCommand) {
-          digitalWrite(LED_PIN, LOW);
+          digitalWrite(LED_PIN, ledOFFValue);
         }
       }
       else if (aCommand.topic == ESPMQTTTopic + "/requestInfo") {
         if (ledOnCommand) {
-          digitalWrite(LED_PIN, HIGH);
+          digitalWrite(LED_PIN, ledONValue);
         }
         requestInfoMQTT(aCommand.payload);
       }
       else if (aCommand.topic == ESPMQTTTopic + "/rescan") {
         if (ledOnCommand) {
-          digitalWrite(LED_PIN, HIGH);
+          digitalWrite(LED_PIN, ledONValue);
         }
         rescanMQTT(aCommand.payload);
       }
@@ -1171,14 +1194,19 @@ void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const ch
           if(!is_number(command)) {
             client.publish(deviceStateTopic.c_str(), command);
           }
+          std::map<std::string, bool>::iterator itP = botsInPressMode.find(addr);
+          if (itP != botsInPressMode.end())
+          {
+            client.publish(deviceStateTopic.c_str(), "OFF");
+          }
           if (scanAfterControl) {
             std::map<std::string, std::string>::iterator itI = allSwitchbotsOpp.find(addr);
-            std::map<std::string, int>::iterator itW = botScanTime.find(itI->second);
-            if (itW != botScanTime.end())
+            std::map<std::string, long>::iterator itW = rescanTimes.find(addr);
+            if (itW != rescanTimes.end())
             {
               rescanTimes.erase(addr);
-              rescanTimes.insert ( std::pair<std::string, long>(addr, millis()));
             }
+            rescanTimes.insert ( std::pair<std::string, long>(addr, millis()));
           }
         }
         else {
@@ -1397,7 +1425,7 @@ void onConnectionEstablished() {
 
   if (!initialScanComplete) {
     if (ledOnBootScan) {
-      digitalWrite(LED_PIN, HIGH);
+      digitalWrite(LED_PIN, ledONValue);
     }
     client.publish(esp32Topic.c_str(), "{\"status\":\"boot\"}");
     delay(100);
