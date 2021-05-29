@@ -68,7 +68,7 @@ Example payload:
  - {"status":"commandSent"}
 
 **ESP32 will respond with MQTT on esp32Topic with ESP32 status**
- - [ESPMQTTTopic]/ESP32
+ - [ESPMQTTTopic]
 
 Example payload:
  - {status":"idle"}
@@ -110,7 +110,7 @@ Example reponses as device are detected:
 	 - 50
 
 Errors that cannot be linked to a specific device will be published to
- - [ESPMQTTTopic]/ESP32
+ - [ESPMQTTTopic]
 
 
 <strong>Steps to Install on ESP32</strong>
