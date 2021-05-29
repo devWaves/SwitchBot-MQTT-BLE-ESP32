@@ -9,9 +9,9 @@ Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP3
   ** I do not know where performance will be affected by number of devices
   ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-v2.1
+v2.2
 
-Created: on May 20 2021
+Created: on May 28 2021
   Author: devWaves
   
   Contributions from:
@@ -68,7 +68,7 @@ Example payload:
  - {"status":"commandSent"}
 
 **ESP32 will respond with MQTT on esp32Topic with ESP32 status**
- - [ESPMQTTTopic]/ESP32
+ - [ESPMQTTTopic]
 
 Example payload:
  - {status":"idle"}
@@ -110,7 +110,7 @@ Example reponses as device are detected:
 	 - 50
 
 Errors that cannot be linked to a specific device will be published to
- - [ESPMQTTTopic]/ESP32
+ - [ESPMQTTTopic]
 
 
 <strong>Steps to Install on ESP32</strong>
