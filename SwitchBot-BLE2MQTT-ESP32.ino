@@ -123,7 +123,7 @@
           - 50
 
   Errors that cannot be linked to a specific device will be published to
-      - <ESPMQTTTopic>/ESP32
+      - <ESPMQTTTopic>
 
 */
 
