@@ -80,14 +80,14 @@
       - {"status":"errorCommand"}
       - {"status":"commandSent"}
 
-  ESP32 will respond with MQTT on esp32Topic with ESP32 status
-    - <ESPMQTTTopic>/ESP32
+  ESP32 will respond with MQTT on ESPMQTTTopic with ESP32 status
+    - <ESPMQTTTopic>
 
     example payloads:
       {status":"idle"}
 
   ESP32 will Suscribe to MQTT topic to rescan for all device information
-      - switchbotMQTT/rescan
+      - <ESPMQTTTopic>/rescan
 
     send a JSON payload of how many seconds you want to rescan for
           example payloads =
@@ -213,7 +213,8 @@ static std::map<std::string, std::string> allPasswords = {     // Set all the bo
 };
 
 /* Switchbot Bot/Meter/Curtain scan interval */
-/* Meters don't support commands so will be scanned every <int> interval */
+/* Meters don't support commands so will be scanned every <int> interval automatically if scanAfterControl = true */
+/* Requires scanAfterControl = true */
 static std::map<std::string, int> botScanTime = {     // X seconds after a successful control command ESP32 will perform a requestInfo on the bot. If a "hold time" is set on the bot include that value + 5to10 secs. Default is 30 sec if not in list
   /*{ "switchbotone", 10 },
     { "switchbottwo", 10 },
@@ -382,7 +383,7 @@ static bool processing = false;
 static bool initialScanComplete = false;
 static bool firstScan = true;
 static std::string ESPMQTTTopic = mqtt_main_topic + "/" + std::string(host);
-static std::string esp32Topic = ESPMQTTTopic + "/ESP32";
+//static std::string esp32Topic = ESPMQTTTopic + "/ESP32";
 static std::string lastWillStr = ESPMQTTTopic + "/lastwill";
 static const char* lastWill = lastWillStr.c_str();
 static std::string botTopic = ESPMQTTTopic + "/bot/";
@@ -817,7 +818,7 @@ void scanEndedCB(NimBLEScanResults results) {
   }
   firstScan = false;
   Serial.println("Scan Ended");
-  client.publish(esp32Topic.c_str(), "{\"status\":\"idle\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
 }
 
 void rescanEndedCB(NimBLEScanResults results) {
@@ -827,7 +828,7 @@ void rescanEndedCB(NimBLEScanResults results) {
   isRescanning = false;
   lastRescan = millis();
   Serial.println("ReScan Ended");
-  client.publish(esp32Topic.c_str(), "{\"status\":\"idle\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
 }
 
 std::string getPass(std::string aDevice) {
@@ -989,7 +990,7 @@ void rescan(int seconds) {
   lastRescan = millis();
   isRescanning = true;
   delay(50);
-  client.publish(esp32Topic.c_str(), "{\"status\":\"scanning\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"scanning\"}");
   delay(50);
   if (ledOnScan) {
     digitalWrite(LED_PIN, ledONValue);
@@ -1007,7 +1008,7 @@ void rescanFind(std::string aMac) {
   allSwitchbotsDev.erase(aMac);
   pScan->erase(NimBLEAddress(aMac));
   delay(100);
-  client.publish(esp32Topic.c_str(), "{\"status\":\"scanning\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"scanning\"}");
   delay(50);
   if (ledOnScan) {
     digitalWrite(LED_PIN, ledONValue);
@@ -1028,7 +1029,7 @@ void loop () {
       if (autoRescan) {
         recurringRescan();
       }
-      if (scanAfterControl || !rescanTimes.empty()) {
+      if (scanAfterControl) {
         recurringScan();
       }
     }
@@ -1345,7 +1346,7 @@ void controlMQTT(std::string device, std::string payload) {
         docOut["status"] = "errorJSONValue";
         serializeJson(docOut, aBuffer);
         Serial.println("Parsing failed = value not a valid command");
-        client.publish(esp32Topic.c_str(), aBuffer);
+        client.publish(ESPMQTTTopic.c_str(), aBuffer);
       }
     }
   }
@@ -1355,11 +1356,11 @@ void controlMQTT(std::string device, std::string payload) {
     docOut["status"] = "errorJSONDevice";
     serializeJson(docOut, aBuffer);
     Serial.println("Parsing failed = device not from list");
-    client.publish(esp32Topic.c_str(), aBuffer);
+    client.publish(ESPMQTTTopic.c_str(), aBuffer);
   }
 
   delay(100);
-  client.publish(esp32Topic.c_str(), "{\"status\":\"idle\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
   processing = false;
 }
 
@@ -1376,7 +1377,7 @@ void rescanMQTT(std::string payload) {
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorParsingJSON";
     serializeJson(docOut, aBuffer);
-    client.publish(esp32Topic.c_str(), aBuffer);
+    client.publish(ESPMQTTTopic.c_str(), aBuffer);
   }
   else {
     const char * value = docIn["sec"];
@@ -1399,7 +1400,7 @@ void rescanMQTT(std::string payload) {
         docOut["status"] = "errorJSONValue";
         serializeJson(docOut, aBuffer);
         Serial.println("Parsing failed = device not from list");
-        client.publish(esp32Topic.c_str(), aBuffer);
+        client.publish(ESPMQTTTopic.c_str(), aBuffer);
       }
     }
   }
@@ -1418,7 +1419,7 @@ void requestInfoMQTT(std::string payload) {
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorParsingJSON";
     serializeJson(docOut, aBuffer);
-    client.publish(esp32Topic.c_str(), aBuffer);
+    client.publish(ESPMQTTTopic.c_str(), aBuffer);
   }
   else {
     const char * aName = docIn["id"]; //Get sensor type value
@@ -1465,7 +1466,7 @@ void requestInfoMQTT(std::string payload) {
       docOut["status"] = "errorJSONId";
       serializeJson(docOut, aBuffer);
       Serial.println("Parsing failed = device not from list");
-      client.publish(esp32Topic.c_str(), aBuffer);
+      client.publish(ESPMQTTTopic.c_str(), aBuffer);
     }
   }
   processing = false;
@@ -1480,7 +1481,7 @@ void onConnectionEstablished() {
     if (ledOnBootScan) {
       digitalWrite(LED_PIN, ledONValue);
     }
-    client.publish(esp32Topic.c_str(), "{\"status\":\"boot\"}");
+    client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"boot\"}");
     delay(100);
   }
 
@@ -1488,7 +1489,7 @@ void onConnectionEstablished() {
     initialScanComplete = true;
     firstScan = true;
     client.publish(lastWill, "online", true);
-    client.publish(esp32Topic.c_str(), "{\"status\":\"scanning\"}");
+    client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"scanning\"}");
     pScan->start(initialScan, scanEndedCB, true);
   }
 
@@ -1508,7 +1509,7 @@ void onConnectionEstablished() {
         commandQueue.enqueue(queueCommand);
       }
       else {
-        client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
       }
     });
 
@@ -1531,7 +1532,7 @@ void onConnectionEstablished() {
         commandQueue.enqueue(queueCommand);
       }
       else {
-        client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
       }
     });
 
@@ -1554,7 +1555,7 @@ void onConnectionEstablished() {
         commandQueue.enqueue(queueCommand);
       }
       else {
-        client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
       }
     });
 
@@ -1570,7 +1571,7 @@ void onConnectionEstablished() {
       commandQueue.enqueue(queueCommand);
     }
     else {
-      client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
+      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
     }
   });
 
@@ -1583,7 +1584,7 @@ void onConnectionEstablished() {
       commandQueue.enqueue(queueCommand);
     }
     else {
-      client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
+      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
     }
   });
 }
