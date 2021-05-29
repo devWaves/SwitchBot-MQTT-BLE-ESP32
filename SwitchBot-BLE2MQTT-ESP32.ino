@@ -15,7 +15,7 @@
         Author: devWaves
 
         Contributions from:
-		        HardcoreWR
+		HardcoreWR
           
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
@@ -149,20 +149,21 @@ static bool ledOnScan = true;                        // Turn on LED while scanni
 static bool ledOnCommand = true;                     // Turn on LED while MQTT command is processing. If scanning, LED will blink after scan completes. You may not notice it, there is no delay after scan
 
 /* Wifi Settings */
-static const char* host = "esp32";                   //  hostname defaults is esp32. If you are using more then 1 ESPs to control different switchbots be sure to use unique hostnames. Hostnames are used in MQTT topics
+static const char* host = "esp32";                   //  Unique name for ESP32. The name detected by your router and MQTT. If you are using more then 1 ESPs to control different switchbots be sure to use unique hostnames. Host is the MQTT Client name and is used in MQTT topics
 static const char* ssid = "SSID";                    //  WIFI SSID
 static const char* password = "Password";            //  WIFI Password
 
 /* Webserver Settings */
-static String otaUserId = "admin";                   //  user Id for OTA update
-static String otaPass = "admin";                     //  password for OTA update
+static bool useLoginScreen = false;                  //  use a basic login page to avoid unwanted access
+static String otaUserId = "admin";                   //  user Id for OTA update. Ignore if useLoginScreen = false
+static String otaPass = "admin";                     //  password for OTA update. Ignore if useLoginScreen = false
 static WebServer server(80);                         //  default port 80
 
 /* MQTT Settings */
+/* MQTT Client name is set to WIFI host from Wifi Settings*/
 static const char* mqtt_host = "192.168.0.1";                       //  MQTT Broker server ip
 static const char* mqtt_user = "switchbot";                         //  MQTT Broker username. If empty, no authentication will be used
-static const char* mqtt_pass = "switchbot";                         //  MQTT Broker password.
-static const char* mqtt_clientname = "switchbot";                   //  Client name that uniquely identify your device
+static const char* mqtt_pass = "switchbot";                         //  MQTT Broker password
 static const int mqtt_port = 1883;                                  //  MQTT Port
 static std::string mqtt_main_topic = "switchbot";                   //  MQTT main topic
 static const uint16_t mqtt_packet_size = 1024;
@@ -214,8 +215,12 @@ static std::map<std::string, std::string> allPasswords = {     // Set all the bo
 /* Switchbot Bot/Meter/Curtain scan interval */
 /* Meters don't support commands so will be scanned every <int> interval */
 static std::map<std::string, int> botScanTime = {     // X seconds after a successful control command ESP32 will perform a requestInfo on the bot. If a "hold time" is set on the bot include that value + 5to10 secs. Default is 30 sec if not in list
-  /*,{ "curtainone", 20 },
-    { "curtaintwo", 20 }*/
+  /*{ "switchbotone", 10 },
+    { "switchbottwo", 10 },
+    { "curtainone", 20 },
+    { "curtaintwo", 20 },
+    { "meterone", 60 },
+    { "metertwo", 60 }*/
 };
 
 /*************************************************************/
@@ -232,9 +237,9 @@ static const String loginIndex =
   "<table bgcolor='A09F9F' align='center' style='top: 250px;position: relative;width: 30%;'>"
   "<tr>"
   "<td colspan=2>"
-  "<center><font size=4><b>SwitchBot ESP32 MQTT version: " + versionNum + "</b></font></center>"
-  "<center><font size=3><b>Hostname: " + std::string(host).c_str() + "</b></font></center>"
-  "<center><font size=2><b>(Unofficial)</b></font></center>"
+  "<center><font size=5><b>SwitchBot ESP32 MQTT version: " + versionNum + "</b></font> <font size=1><b>(Unofficial)</b></font></center>"
+  "<center><font size=3>Hostname/MQTT Client Name: " + std::string(host).c_str() + "</font></center>"
+  "<center><font size=3>MQTT Main Topic: " + std::string(mqtt_main_topic).c_str() + "</font></center>"
   "<br>"
   "</td>"
   "<br>"
@@ -320,13 +325,16 @@ static const String serverIndex =
   "<table bgcolor='A09F9F' align='center' style='top: 250px;position: relative;width: 30%;'>"
   "<tr>"
   "<td colspan=2>"
-  "<center><font size=4><b>SwitchBot ESP32 MQTT version: " + versionNum + "</b></font></center>"
-  "<center><font size=3><b>Hostname: " + std::string(host).c_str() + "</b></font></center>"
-  "<center><font size=2><b>(Unofficial)</b></font></center>"
+  "<center><font size=5><b>SwitchBot ESP32 MQTT version: " + versionNum + "</b></font> <font size=1><b>(Unofficial)</b></font></center>"
+  "<center><font size=3>Hostname/MQTT Client Name: " + std::string(host).c_str() + "</font></center>"
+  "<center><font size=3>MQTT Main Topic: " + std::string(mqtt_main_topic).c_str() + "</font></center>"
+  "<br>"
   "</td>"
+  "<br>"
+  "<br>"
   "</tr>"
   "<tr>"
-  "<td>File:</td>"
+  "<td>Upload .bin file:</td>"
   "<td><input type='file' name='update'></td>"
   "</tr>"
   "<tr>"
@@ -344,7 +352,7 @@ static EspMQTTClient client(
   mqtt_host,                            //  MQTT Broker server ip
   mqtt_user,                            //  Can be omitted if not needed
   mqtt_pass,                            //  Can be omitted if not needed
-  mqtt_clientname,                      //  Client name that uniquely identify your device
+  host,                                 //  Client name that uniquely identify your device
   mqtt_port                             //  MQTT Port
 );
 
@@ -882,7 +890,12 @@ void setup () {
   /*return index page which is stored in serverIndex */
   server.on("/", HTTP_GET, []() {
     server.sendHeader("Connection", "close");
-    server.send(200, "text/html", serverIndex);
+    if (useLoginScreen) {
+      server.send(200, "text/html", loginIndex);
+    }
+    else {
+      server.send(200, "text/html", serverIndex);
+    }
   });
   server.on("/serverIndex", HTTP_GET, []() {
     server.sendHeader("Connection", "close");
@@ -1015,7 +1028,7 @@ void loop () {
       if (autoRescan) {
         recurringRescan();
       }
-      if (scanAfterControl) {
+      if (scanAfterControl || !rescanTimes.empty()) {
         recurringScan();
       }
     }
