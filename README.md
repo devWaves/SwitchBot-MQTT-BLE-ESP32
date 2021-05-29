@@ -33,9 +33,6 @@ Notes:
  - Automatically rescan every X seconds
  - Automatically requestInfo X seconds after successful control command
 
-**ESP32 will Subscribe to MQTT topic for control...**
- - [ESPMQTTTopic]/control
-
 **ESP32 will subscribe to MQTT 'set' topic for every configure device.**
  - [ESPMQTTTopic]/bot/[name]/set
  - [ESPMQTTTopic]/curtain/[name]/set
