@@ -121,7 +121,6 @@
 
   Errors that cannot be linked to a specific device will be published to
       - <ESPMQTTTopic>
-
 */
 
 #include <NimBLEDevice.h>
