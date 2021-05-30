@@ -9,9 +9,9 @@
      * I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v2.2
+  v2.3
   
-    Created: on May 28 2021
+    Created: on May 30 2021
         Author: devWaves
 
         Contributions from:
@@ -229,7 +229,7 @@ static std::map<std::string, int> botScanTime = {     // X seconds after a succe
    Login page
 */
 
-static const String versionNum = "v2.2";
+static const String versionNum = "v2.3";
 static const String loginIndex =
   "<form name='loginForm'>"
   "<table bgcolor='A09F9F' align='center' style='top: 250px;position: relative;width: 30%;'>"
@@ -421,8 +421,18 @@ struct QueueCommand {
 
 ArduinoQueue<QueueCommand> commandQueue(queueSize);
 
+long lastOnlinePublished = 0;
 long lastRescan = 0;
 long lastScanCheck = 0;
+
+void publishLastwillOnline() {
+  if ((millis() - lastOnlinePublished) > 30000) {
+    if (client.isConnected()) {
+      client.publish(lastWill, "online", true);
+      lastOnlinePublished = millis();
+    }
+  }
+}
 
 void publishHomeAssistantDiscoveryBotConfig(std::string deviceName, std::string deviceMac) {
   std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
@@ -621,6 +631,8 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(advStr);
 
       bool gotAllStatus = false;
+
+      publishLastwillOnline();
 
       if (itS != allSwitchbotsOpp.end())
       {
@@ -1015,8 +1027,9 @@ void rescanFind(std::string aMac) {
 
 void loop () {
   server.handleClient();
-//  client.setMaxPacketSize(mqtt_packet_size);
   client.loop();
+
+  publishLastwillOnline();
 
   if (isRescanning) {
     lastRescan = millis();
@@ -1482,10 +1495,11 @@ void onConnectionEstablished() {
     delay(100);
   }
 
+  client.publish(lastWill, "online", true);
+
   if (!initialScanComplete) {
     initialScanComplete = true;
     firstScan = true;
-    client.publish(lastWill, "online", true);
     client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"scanning\"}");
     pScan->start(initialScan, scanEndedCB, true);
   }
