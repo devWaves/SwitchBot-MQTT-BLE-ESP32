@@ -10,7 +10,7 @@
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
   v2.3
-  
+
     Created: on May 30 2021
         Author: devWaves
 
