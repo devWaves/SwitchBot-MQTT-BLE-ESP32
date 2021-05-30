@@ -33,9 +33,6 @@ Notes:
  - Automatically rescan every X seconds
  - Automatically requestInfo X seconds after successful control command
 
-**ESP32 will Subscribe to MQTT topic for control...**
- - [ESPMQTTTopic]/control
-
 **ESP32 will subscribe to MQTT 'set' topic for every configure device.**
  - [ESPMQTTTopic]/bot/[name]/set
  - [ESPMQTTTopic]/curtain/[name]/set
@@ -68,7 +65,7 @@ Example payload:
  - {"status":"commandSent"}
 
 **ESP32 will respond with MQTT on esp32Topic with ESP32 status**
- - [ESPMQTTTopic]/ESP32
+ - [ESPMQTTTopic]
 
 Example payload:
  - {status":"idle"}
@@ -110,7 +107,7 @@ Example reponses as device are detected:
 	 - 50
 
 Errors that cannot be linked to a specific device will be published to
- - [ESPMQTTTopic]/ESP32
+ - [ESPMQTTTopic]
 
 
 <strong>Steps to Install on ESP32</strong>

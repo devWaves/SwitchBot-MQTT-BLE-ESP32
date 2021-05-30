@@ -43,10 +43,7 @@
     - Automatically rescan every X seconds
 
     - Automatically requestInfo X seconds after successful control command
-
-
-    ESP32 will Suscribe to MQTT topic for control
-      -<ESPMQTTTopic>/control
+    
 
     ESP32 will subscribe to MQTT 'set' topic for every configure device.
       - <ESPMQTTTopic>/bot/<name>/set
@@ -80,14 +77,14 @@
       - {"status":"errorCommand"}
       - {"status":"commandSent"}
 
-  ESP32 will respond with MQTT on esp32Topic with ESP32 status
-    - <ESPMQTTTopic>/ESP32
+  ESP32 will respond with MQTT on ESPMQTTTopic with ESP32 status
+    - <ESPMQTTTopic>
 
     example payloads:
       {status":"idle"}
 
   ESP32 will Suscribe to MQTT topic to rescan for all device information
-      - switchbotMQTT/rescan
+      - <ESPMQTTTopic>/rescan
 
     send a JSON payload of how many seconds you want to rescan for
           example payloads =
@@ -123,7 +120,7 @@
           - 50
 
   Errors that cannot be linked to a specific device will be published to
-      - <ESPMQTTTopic>/ESP32
+      - <ESPMQTTTopic>
 
 */
 
@@ -149,20 +146,21 @@ static bool ledOnScan = true;                        // Turn on LED while scanni
 static bool ledOnCommand = true;                     // Turn on LED while MQTT command is processing. If scanning, LED will blink after scan completes. You may not notice it, there is no delay after scan
 
 /* Wifi Settings */
-static const char* host = "esp32";                   //  hostname defaults is esp32. If you are using more then 1 ESPs to control different switchbots be sure to use unique hostnames. Hostnames are used in MQTT topics
+static const char* host = "esp32";                   //  Unique name for ESP32. The name detected by your router and MQTT. If you are using more then 1 ESPs to control different switchbots be sure to use unique hostnames. Host is the MQTT Client name and is used in MQTT topics
 static const char* ssid = "SSID";                    //  WIFI SSID
 static const char* password = "Password";            //  WIFI Password
 
 /* Webserver Settings */
-static String otaUserId = "admin";                   //  user Id for OTA update
-static String otaPass = "admin";                     //  password for OTA update
+static bool useLoginScreen = false;                  //  use a basic login page to avoid unwanted access
+static String otaUserId = "admin";                   //  user Id for OTA update. Ignore if useLoginScreen = false
+static String otaPass = "admin";                     //  password for OTA update. Ignore if useLoginScreen = false
 static WebServer server(80);                         //  default port 80
 
 /* MQTT Settings */
+/* MQTT Client name is set to WIFI host from Wifi Settings*/
 static const char* mqtt_host = "192.168.0.1";                       //  MQTT Broker server ip
 static const char* mqtt_user = "switchbot";                         //  MQTT Broker username. If empty, no authentication will be used
-static const char* mqtt_pass = "switchbot";                         //  MQTT Broker password.
-static const char* mqtt_clientname = "switchbot";                   //  Client name that uniquely identify your device
+static const char* mqtt_pass = "switchbot";                         //  MQTT Broker password
 static const int mqtt_port = 1883;                                  //  MQTT Port
 static std::string mqtt_main_topic = "switchbot";                   //  MQTT main topic
 static const uint16_t mqtt_packet_size = 1024;
@@ -212,10 +210,15 @@ static std::map<std::string, std::string> allPasswords = {     // Set all the bo
 };
 
 /* Switchbot Bot/Meter/Curtain scan interval */
-/* Meters don't support commands so will be scanned every <int> interval */
+/* Meters don't support commands so will be scanned every <int> interval automatically if scanAfterControl = true */
+/* Requires scanAfterControl = true */
 static std::map<std::string, int> botScanTime = {     // X seconds after a successful control command ESP32 will perform a requestInfo on the bot. If a "hold time" is set on the bot include that value + 5to10 secs. Default is 30 sec if not in list
-  /*,{ "curtainone", 20 },
-    { "curtaintwo", 20 }*/
+  /*{ "switchbotone", 10 },
+    { "switchbottwo", 10 },
+    { "curtainone", 20 },
+    { "curtaintwo", 20 },
+    { "meterone", 60 },
+    { "metertwo", 60 }*/
 };
 
 /*************************************************************/
@@ -232,9 +235,9 @@ static const String loginIndex =
   "<table bgcolor='A09F9F' align='center' style='top: 250px;position: relative;width: 30%;'>"
   "<tr>"
   "<td colspan=2>"
-  "<center><font size=4><b>SwitchBot ESP32 MQTT version: " + versionNum + "</b></font></center>"
-  "<center><font size=3><b>Hostname: " + std::string(host).c_str() + "</b></font></center>"
-  "<center><font size=2><b>(Unofficial)</b></font></center>"
+  "<center><font size=5><b>SwitchBot ESP32 MQTT version: " + versionNum + "</b></font> <font size=1><b>(Unofficial)</b></font></center>"
+  "<center><font size=3>Hostname/MQTT Client Name: " + std::string(host).c_str() + "</font></center>"
+  "<center><font size=3>MQTT Main Topic: " + std::string(mqtt_main_topic).c_str() + "</font></center>"
   "<br>"
   "</td>"
   "<br>"
@@ -320,13 +323,16 @@ static const String serverIndex =
   "<table bgcolor='A09F9F' align='center' style='top: 250px;position: relative;width: 30%;'>"
   "<tr>"
   "<td colspan=2>"
-  "<center><font size=4><b>SwitchBot ESP32 MQTT version: " + versionNum + "</b></font></center>"
-  "<center><font size=3><b>Hostname: " + std::string(host).c_str() + "</b></font></center>"
-  "<center><font size=2><b>(Unofficial)</b></font></center>"
+  "<center><font size=5><b>SwitchBot ESP32 MQTT version: " + versionNum + "</b></font> <font size=1><b>(Unofficial)</b></font></center>"
+  "<center><font size=3>Hostname/MQTT Client Name: " + std::string(host).c_str() + "</font></center>"
+  "<center><font size=3>MQTT Main Topic: " + std::string(mqtt_main_topic).c_str() + "</font></center>"
+  "<br>"
   "</td>"
+  "<br>"
+  "<br>"
   "</tr>"
   "<tr>"
-  "<td>File:</td>"
+  "<td>Upload .bin file:</td>"
   "<td><input type='file' name='update'></td>"
   "</tr>"
   "<tr>"
@@ -344,7 +350,7 @@ static EspMQTTClient client(
   mqtt_host,                            //  MQTT Broker server ip
   mqtt_user,                            //  Can be omitted if not needed
   mqtt_pass,                            //  Can be omitted if not needed
-  mqtt_clientname,                      //  Client name that uniquely identify your device
+  host,                                 //  Client name that uniquely identify your device
   mqtt_port                             //  MQTT Port
 );
 
@@ -374,7 +380,7 @@ static bool processing = false;
 static bool initialScanComplete = false;
 static bool firstScan = true;
 static std::string ESPMQTTTopic = mqtt_main_topic + "/" + std::string(host);
-static std::string esp32Topic = ESPMQTTTopic + "/ESP32";
+//static std::string esp32Topic = ESPMQTTTopic + "/ESP32";
 static std::string lastWillStr = ESPMQTTTopic + "/lastwill";
 static const char* lastWill = lastWillStr.c_str();
 static std::string botTopic = ESPMQTTTopic + "/bot/";
@@ -415,6 +421,7 @@ struct QueueCommand {
 
 ArduinoQueue<QueueCommand> commandQueue(queueSize);
 
+long lastOnlinePublished = 0;
 long lastRescan = 0;
 long lastScanCheck = 0;
 
@@ -809,7 +816,7 @@ void scanEndedCB(NimBLEScanResults results) {
   }
   firstScan = false;
   Serial.println("Scan Ended");
-  client.publish(esp32Topic.c_str(), "{\"status\":\"idle\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
 }
 
 void rescanEndedCB(NimBLEScanResults results) {
@@ -819,7 +826,7 @@ void rescanEndedCB(NimBLEScanResults results) {
   isRescanning = false;
   lastRescan = millis();
   Serial.println("ReScan Ended");
-  client.publish(esp32Topic.c_str(), "{\"status\":\"idle\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
 }
 
 std::string getPass(std::string aDevice) {
@@ -882,7 +889,12 @@ void setup () {
   /*return index page which is stored in serverIndex */
   server.on("/", HTTP_GET, []() {
     server.sendHeader("Connection", "close");
-    server.send(200, "text/html", serverIndex);
+    if (useLoginScreen) {
+      server.send(200, "text/html", loginIndex);
+    }
+    else {
+      server.send(200, "text/html", serverIndex);
+    }
   });
   server.on("/serverIndex", HTTP_GET, []() {
     server.sendHeader("Connection", "close");
@@ -976,7 +988,7 @@ void rescan(int seconds) {
   lastRescan = millis();
   isRescanning = true;
   delay(50);
-  client.publish(esp32Topic.c_str(), "{\"status\":\"scanning\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"scanning\"}");
   delay(50);
   if (ledOnScan) {
     digitalWrite(LED_PIN, ledONValue);
@@ -994,7 +1006,7 @@ void rescanFind(std::string aMac) {
   allSwitchbotsDev.erase(aMac);
   pScan->erase(NimBLEAddress(aMac));
   delay(100);
-  client.publish(esp32Topic.c_str(), "{\"status\":\"scanning\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"scanning\"}");
   delay(50);
   if (ledOnScan) {
     digitalWrite(LED_PIN, ledONValue);
@@ -1006,6 +1018,11 @@ void loop () {
   server.handleClient();
 //  client.setMaxPacketSize(mqtt_packet_size);
   client.loop();
+
+  if ((millis()-lastOnlinePublished) > 10000) {
+    client.publish(lastWill, "online", true);
+    lastOnlinePublished = millis();
+  }
 
   if (isRescanning) {
     lastRescan = millis();
@@ -1332,7 +1349,7 @@ void controlMQTT(std::string device, std::string payload) {
         docOut["status"] = "errorJSONValue";
         serializeJson(docOut, aBuffer);
         Serial.println("Parsing failed = value not a valid command");
-        client.publish(esp32Topic.c_str(), aBuffer);
+        client.publish(ESPMQTTTopic.c_str(), aBuffer);
       }
     }
   }
@@ -1342,11 +1359,11 @@ void controlMQTT(std::string device, std::string payload) {
     docOut["status"] = "errorJSONDevice";
     serializeJson(docOut, aBuffer);
     Serial.println("Parsing failed = device not from list");
-    client.publish(esp32Topic.c_str(), aBuffer);
+    client.publish(ESPMQTTTopic.c_str(), aBuffer);
   }
 
   delay(100);
-  client.publish(esp32Topic.c_str(), "{\"status\":\"idle\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
   processing = false;
 }
 
@@ -1363,7 +1380,7 @@ void rescanMQTT(std::string payload) {
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorParsingJSON";
     serializeJson(docOut, aBuffer);
-    client.publish(esp32Topic.c_str(), aBuffer);
+    client.publish(ESPMQTTTopic.c_str(), aBuffer);
   }
   else {
     const char * value = docIn["sec"];
@@ -1386,7 +1403,7 @@ void rescanMQTT(std::string payload) {
         docOut["status"] = "errorJSONValue";
         serializeJson(docOut, aBuffer);
         Serial.println("Parsing failed = device not from list");
-        client.publish(esp32Topic.c_str(), aBuffer);
+        client.publish(ESPMQTTTopic.c_str(), aBuffer);
       }
     }
   }
@@ -1405,7 +1422,7 @@ void requestInfoMQTT(std::string payload) {
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorParsingJSON";
     serializeJson(docOut, aBuffer);
-    client.publish(esp32Topic.c_str(), aBuffer);
+    client.publish(ESPMQTTTopic.c_str(), aBuffer);
   }
   else {
     const char * aName = docIn["id"]; //Get sensor type value
@@ -1452,7 +1469,7 @@ void requestInfoMQTT(std::string payload) {
       docOut["status"] = "errorJSONId";
       serializeJson(docOut, aBuffer);
       Serial.println("Parsing failed = device not from list");
-      client.publish(esp32Topic.c_str(), aBuffer);
+      client.publish(ESPMQTTTopic.c_str(), aBuffer);
     }
   }
   processing = false;
@@ -1467,7 +1484,7 @@ void onConnectionEstablished() {
     if (ledOnBootScan) {
       digitalWrite(LED_PIN, ledONValue);
     }
-    client.publish(esp32Topic.c_str(), "{\"status\":\"boot\"}");
+    client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"boot\"}");
     delay(100);
   }
 
@@ -1475,7 +1492,7 @@ void onConnectionEstablished() {
     initialScanComplete = true;
     firstScan = true;
     client.publish(lastWill, "online", true);
-    client.publish(esp32Topic.c_str(), "{\"status\":\"scanning\"}");
+    client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"scanning\"}");
     pScan->start(initialScan, scanEndedCB, true);
   }
 
@@ -1495,7 +1512,7 @@ void onConnectionEstablished() {
         commandQueue.enqueue(queueCommand);
       }
       else {
-        client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
       }
     });
 
@@ -1518,7 +1535,7 @@ void onConnectionEstablished() {
         commandQueue.enqueue(queueCommand);
       }
       else {
-        client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
       }
     });
 
@@ -1541,7 +1558,7 @@ void onConnectionEstablished() {
         commandQueue.enqueue(queueCommand);
       }
       else {
-        client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
       }
     });
 
@@ -1557,7 +1574,7 @@ void onConnectionEstablished() {
       commandQueue.enqueue(queueCommand);
     }
     else {
-      client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
+      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
     }
   });
 
@@ -1570,7 +1587,7 @@ void onConnectionEstablished() {
       commandQueue.enqueue(queueCommand);
     }
     else {
-      client.publish(esp32Topic.c_str(), "{\"status\":\"errorQueueFull\"}");
+      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
     }
   });
 }
