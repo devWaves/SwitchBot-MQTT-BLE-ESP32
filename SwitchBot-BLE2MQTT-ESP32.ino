@@ -15,7 +15,7 @@
         Author: devWaves
 
         Contributions from:
-		HardcoreWR
+		        HardcoreWR
           
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
@@ -421,6 +421,7 @@ struct QueueCommand {
 
 ArduinoQueue<QueueCommand> commandQueue(queueSize);
 
+long lastOnlinePublished = 0;
 long lastRescan = 0;
 long lastScanCheck = 0;
 
@@ -1017,6 +1018,11 @@ void loop () {
   server.handleClient();
 //  client.setMaxPacketSize(mqtt_packet_size);
   client.loop();
+
+  if ((millis()-lastOnlinePublished) > 10000) {
+    client.publish(lastWill, "online", true);
+    lastOnlinePublished = millis();
+  }
 
   if (isRescanning) {
     lastRescan = millis();
