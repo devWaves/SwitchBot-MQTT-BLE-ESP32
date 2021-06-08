@@ -6,17 +6,17 @@
 
   Code can be installed using Arduino IDE for ESP32
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
-     * I do not know where performance will be affected by number of devices
+     *  I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v2.3
+  v3.0
 
-    Created: on May 30 2021
+    Created: on June 7 2021
         Author: devWaves
 
         Contributions from:
-		HardcoreWR
-          
+			HardcoreWR
+
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
   Notes:
@@ -24,7 +24,7 @@
 
     - Support bots and curtains and meters
 
-    - It works for button press/on/off
+    - It works for button press/on/off, set mode, set hold seconds
 
     - It works for curtain open/close/pause/position(%)
 
@@ -43,9 +43,17 @@
     - Automatically rescan every X seconds
 
     - Automatically requestInfo X seconds after successful control command
-    
+	
+	- Retry set/control command on busy response from bot/curtain until success
+	
+	- Get settings from bot (firmware, holdSecs, inverted, number of timers)
+	
+	- Add a defined delay between each set/control commands or per device
+	
+	- ESP32 will collect hold time from bots and automatically wait holdSecs+defaultBotWaitTime until next command is sent to bot
 
-    ESP32 will subscribe to MQTT 'set' topic for every configure device.
+
+  ESP32 will subscribe to MQTT 'set' topic for every configure device.
       - <ESPMQTTTopic>/bot/<name>/set
       - <ESPMQTTTopic>/curtain/<name>/set
       - <ESPMQTTTopic>/meter/<name>/set
@@ -58,66 +66,164 @@
         - "OPEN"
         - "CLOSE"
         - "PAUSE"
+
       Integer 0-100 (for curtain position) Example: 50
+      Integer 0-100 (for setting bot hold seconds) Example: 5           (for bot only) Does the same thing as <ESPMQTTTopic>/setHold
 
-  ESP32 will respond with MQTT on 'status' topic for every configured device
-      - <ESPMQTTTopic>/bot/<name>/status
-      - <ESPMQTTTopic>/curtain/<name>/status
-      - <ESPMQTTTopic>/meter/<name>/status
+      Strings:
+        - "REQUESTINFO" or "GETINFO"                                    (for bot and curtain) Does the same thing as calling <ESPMQTTTopic>/requestInfo
+        - "REQUESTSETTINGS" or "GETSETTINGS"                            (for bot only) Does the same thing as calling <ESPMQTTTopic>/requestSettings        requires getBotResponse = true
+        - "MODEPRESS", "MODESWITCH", "MODEPRESSINV", "MODESWITCHINV"    (for bot only) Does the same thing as <ESPMQTTTopic>/setMode
 
-    Example reponses:
-      - <ESPMQTTTopic>/bot/<name>/status
-      - <ESPMQTTTopic>/curtain/<name>/status
-      - <ESPMQTTTopic>/meter/<name>/status
+                      ESP32 will respond with MQTT on 'status' topic for every configured device
+                        - <ESPMQTTTopic>/bot/<name>/status
+                        - <ESPMQTTTopic>/curtain/<name>/status
+                        - <ESPMQTTTopic>/meter/<name>/status
 
-    Example payload:
-      - {"status":"connected"}
-      - {"status":"press"}
-      - {"status":"errorConnect"}
-      - {"status":"errorCommand"}
-      - {"status":"commandSent"}
+                        Example reponses:
+                          - <ESPMQTTTopic>/bot/<name>/status
+                          - <ESPMQTTTopic>/curtain/<name>/status
+                          - <ESPMQTTTopic>/meter/<name>/status
 
-  ESP32 will respond with MQTT on ESPMQTTTopic with ESP32 status
-    - <ESPMQTTTopic>
+                        Example payload:
+                          - {"status":"connected"}
+                          - {"status":"press"}
+                          - {"status":"errorConnect"}
+                          - {"status":"errorCommand"}
+                          - {"status":"commandSent"}
+                          - {"status":"busy"}
+                          - {"status":"failed"}
+                          - {"status":"success"}
+                          - {"status":"success", "value":1}
 
-    example payloads:
-      {status":"idle"}
 
-  ESP32 will Suscribe to MQTT topic to rescan for all device information
+  ESP32 will Subscribe to MQTT topic to rescan for all device information
       - <ESPMQTTTopic>/rescan
 
-    send a JSON payload of how many seconds you want to rescan for
+      send a JSON payload of how many seconds you want to rescan for
           example payloads =
+            {"sec":30}
             {"sec":"30"}
 
-  ESP32 will Suscribe to MQTT topic for device information
+  ESP32 will Subscribe to MQTT topic for device information
       - <ESPMQTTTopic>/requestInfo
+
+      send a JSON payload of the device you want to control
+          example payloads =
+            {"id":"switchbotone"}
+
+                      ESP32 will respond with MQTT on
+                        - <ESPMQTTTopic>/#
+
+                        Example attribute responses per device are detected:
+                          - <ESPMQTTTopic>/bot/<name>/attributes
+                          - <ESPMQTTTopic>/curtain/<name>/attributes
+                          - <ESPMQTTTopic>/meter/<name>/attributes
+
+                        Example payloads:
+                          - {"rssi":-78,"mode":"Press","state":"OFF","batt":94}
+                          - {"rssi":-66,"calib":true,"batt":55,"pos":50,"state":"open","light":1}
+                          - {"rssi":-66,"scale":"c","batt":55,"C":"21.5","F":"70.7","hum":"65"}
+
+                        Example attribute responses per device are detected:
+                          - <ESPMQTTTopic>/bot/<name>/state
+                          - <ESPMQTTTopic>/curtain/<name>/state
+                          - <ESPMQTTTopic>/meter/<name>/state
+
+                        Example payloads:
+                          - ON
+                          - OFF
+                          - OPEN
+                          - CLOSE
+                          - 50
+
+  // REQUESTSETTINGS WORKS FOR BOT ONLY - DOCUMENTATION NOT AVAILABLE ONLINE FOR CURTAIN
+  ESP32 will Subscribe to MQTT topic for device settings information (requires getBotResponse = true)
+      - <ESPMQTTTopic>/requestSettings
 
     send a JSON payload of the device you want to control
           example payloads =
             {"id":"switchbotone"}
 
+                      ESP32 will respond with MQTT on
+                        - <ESPMQTTTopic>/#
+
+                      Example responses per device are detected:
+                        - <ESPMQTTTopic>/bot/<name>/settings
+
+                      Example payloads:
+                         - {"firmware":4.9,"timers":0,"inverted":false,"hold":5}
+
+
+  // SET HOLD TIME ON BOT
+  ESP32 will Subscribe to MQTT topic setting hold time on bots
+      - <ESPMQTTTopic>/setHold
+
+    send a JSON payload of the device you want to control
+          example payloads =
+            {"id":"switchbotone", "hold":5}
+            {"id":"switchbotone", "hold":"5"}
+
     ESP32 will respond with MQTT on
     - <ESPMQTTTopic>/#
 
-    Example reponses as device are detected:
-      - <ESPMQTTTopic>/bot/<name>/attributes
-      - <ESPMQTTTopic>/curtain/<name>/attributes
-      - <ESPMQTTTopic>/meter/<name>/attributes
-        Example payloads:
-          - {"rssi":-78,"mode":"Press","state":"OFF","batt":94}
-          - {"rssi":-66,"calib":true,"batt":55,"pos":50,"state":"open","light":1}
-          - {"rssi":-66,"scale":"c","batt":55,"C":"21.5","F":"70.7","hum":"65"}
-          
-      - <ESPMQTTTopic>/bot/<name>/state
-      - <ESPMQTTTopic>/curtain/<name>/state
-      - <ESPMQTTTopic>/meter/<name>/state
-        Example payloads:
-          - ON
-          - OFF
-          - OPEN
-          - CLOSE
-          - 50
+                      ESP32 will respond with MQTT on 'status' topic for every configured device
+                        - <ESPMQTTTopic>/bot/<name>/status
+                        - <ESPMQTTTopic>/curtain/<name>/status
+                        - <ESPMQTTTopic>/meter/<name>/status
+
+                        Example reponses:
+                          - <ESPMQTTTopic>/bot/<name>/status
+                          - <ESPMQTTTopic>/curtain/<name>/status
+                          - <ESPMQTTTopic>/meter/<name>/status
+
+                        Example payload:
+                          - {"status":"connected"}
+                          - {"status":"errorConnect"}
+                          - {"status":"errorCommand"}
+                          - {"status":"commandSent"}
+                          - {"status":"busy"}
+                          - {"status":"failed"}
+                          - {"status":"success"}
+                          - {"status":"success", "value":1}
+
+  // SET MODE ON BOT
+  ESP32 will Subscribe to MQTT topic setting mode for bots
+      - <ESPMQTTTopic>/setMode
+
+    send a JSON payload of the device you want to control
+          example payloads =
+            {"id":"switchbotone", "mode":"MODEPRESS"}
+            {"id":"switchbotone", "mode":"MODESWITCH"}
+            {"id":"switchbotone", "mode":"MODEPRESSINV"}
+            {"id":"switchbotone", "mode":"MODESWITCHINV"}
+
+                      ESP32 will respond with MQTT on 'status' topic for every configured device
+                        - <ESPMQTTTopic>/bot/<name>/status
+                        - <ESPMQTTTopic>/curtain/<name>/status
+                        - <ESPMQTTTopic>/meter/<name>/status
+
+                        Example reponses:
+                          - <ESPMQTTTopic>/bot/<name>/status
+                          - <ESPMQTTTopic>/curtain/<name>/status
+                          - <ESPMQTTTopic>/meter/<name>/status
+
+                        Example payload:
+                          - {"status":"connected"}
+                          - {"status":"errorConnect"}
+                          - {"status":"errorCommand"}
+                          - {"status":"commandSent"}
+                          - {"status":"busy"}
+                          - {"status":"failed"}
+                          - {"status":"success", "value":1}
+
+  ESP32 will respond with MQTT on ESPMQTTTopic with ESP32 status
+      - <ESPMQTTTopic>
+
+      example payloads:
+        {status":"idle"}
+        {status":"scanning"}
+        {status":"boot"}
 
   Errors that cannot be linked to a specific device will be published to
       - <ESPMQTTTopic>
@@ -150,10 +256,10 @@ static const char* ssid = "SSID";                    //  WIFI SSID
 static const char* password = "Password";            //  WIFI Password
 
 /* Webserver Settings */
-static bool useLoginScreen = false;                  //  use a basic login page to avoid unwanted access
-static String otaUserId = "admin";                   //  user Id for OTA update. Ignore if useLoginScreen = false
-static String otaPass = "admin";                     //  password for OTA update. Ignore if useLoginScreen = false
-static WebServer server(80);                         //  default port 80
+static bool useLoginScreen = false;                   //  use a basic login page to avoid unwanted access
+static String otaUserId = "admin";                    //  user Id for OTA update. Ignore if useLoginScreen = false
+static String otaPass = "admin";                      //  password for OTA update. Ignore if useLoginScreen = false
+static WebServer server(80);                          //  default port 80
 
 /* MQTT Settings */
 /* MQTT Client name is set to WIFI host from Wifi Settings*/
@@ -167,35 +273,40 @@ static const uint16_t mqtt_packet_size = 1024;
 /* Home Assistant Settings */
 static bool home_assistant_mqtt_discovery = true;                    //  Enable to publish Home Assistant MQTT Discovery config
 static std::string home_assistant_mqtt_prefix = "homeassistant";     //  MQTT Home Assistant prefix
-static bool home_assistant_expose_seperate_curtain_position = true; // When enabled, a seperate sensor will be added that will expose the curtain position. This is useful when using the Prometheus integration to graph curtain positions. The cover entity doesn't expose the position for Prometheus
+static bool home_assistant_expose_seperate_curtain_position = true;  // When enabled, a seperate sensor will be added that will expose the curtain position. This is useful when using the Prometheus integration to graph curtain positions. The cover entity doesn't expose the position for Prometheus
 
 /* Switchbot General Settings */
 static int tryConnecting = 60;          // How many times to try connecting to bot
 static int trySending = 30;             // How many times to try sending command to bot
-static int initialScan = 120;           // How many seconds to scan for bots on ESP reboot and autoRescan
+static int initialScan = 120;           // How many seconds to scan for bots on ESP reboot and autoRescan. Once all devices are found scan stops, so you can set this to a big number
 static int infoScanTime = 60;           // How many seconds to scan for single device status updates
-
-static bool autoRescan = true;          // perform automatic rescan (uses rescanTime and initialScan)
-static bool scanAfterControl = true;    // perform requestInfo after successful control command (uses botScanTime)
 static int rescanTime = 600;            // Automatically rescan for device info every X seconds (default 10 min)
 static int queueSize = 50;              // Max number of control/requestInfo/rescan MQTT commands stored in the queue. If you send more then queueSize, they will be ignored
+static int defaultBotWaitTime = 2;      // wait at least X seconds between control command send to bots. ESP32 will detect if bot is in press mode with a hold time and will add hold time to this value per device
+static int defaultCurtainWaitTime = 0;  // wait at least X seconds between control command send to curtains
+
+static bool autoRescan = true;          // perform automatic rescan (uses rescanTime and initialScan). If (home_assistant_mqtt_discovery = true) the value set here is ignored. autoRescan is on for HA
+static bool scanAfterControl = true;    // perform requestInfo after successful control command (uses botScanTime). If (home_assistant_mqtt_discovery = true) the value set here is ignored. scanAfterControl is on for HA
+static bool waitBetweenControl = true;  // wait between commands sent to bot/curtain (avoids sending while bot is busy)
+static bool getSettingsOnBoot = true;   // Currently only works for bot (curtain documentation not available but can probably be reverse engineered easily). Get bot extra settings values like firmware, holdSecs, inverted, number of timers. ***If holdSecs is available it is used by waitBetweenControl
+static bool getBotResponse = true;      // get a response from the bot devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
+static bool getCurtainResponse = true;  // get a response from the curtain devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
+static bool retryBotOnBusy = true;      // Requires getBotResponse = true. if bot responds with busy, the last control command will retry until success
+static bool retryCurtainOnBusy = true;  // Requires getCurtainResponse = true. if curtain responds with busy, the last control command will retry until success
 
 /* Switchbot Bot Settings */
-/* Make sure to use a lower case mac address because some Bluetooth scan functions return a lower case mac address! */
 static std::map<std::string, std::string> allBots = {
-/*  { "switchbotone", "xX:xX:xX:xX:xX:xX" },
-  { "switchbottwo", "yY:yY:yY:yY:yY:yY" }*/
+  /*{ "switchbotone", "xX:xX:xX:xX:xX:xX" },
+    { "switchbottwo", "yY:yY:yY:yY:yY:yY" }*/
 };
 
 /* Switchbot Meter Settings */
-/* Make sure to use a lower case mac address because some Bluetooth scan functions return a lower case mac address! */
 static std::map<std::string, std::string> allMeters = {
   /*{ "meterone", "xX:xX:xX:xX:xX:xX" },
     { "metertwo", "yY:yY:yY:yY:yY:yY" }*/
 };
 
 /* Switchbot Curtain Settings */
-/* Make sure to use a lower case mac address because some Bluetooth scan functions return a lower case mac address! */
 static int curtainClosedPosition = 10;    // When 2 curtains are controlled (left -> right and right -> left) it's possible one of the curtains pushes one of the switchbots more open. Change this value to set a position where a curtain is still considered closed
 static std::map<std::string, std::string> allCurtains = {
   /*{ "curtainone", "xX:xX:xX:xX:xX:xX" },
@@ -220,6 +331,18 @@ static std::map<std::string, int> botScanTime = {     // X seconds after a succe
     { "metertwo", 60 }*/
 };
 
+/* Requires waitBetweenControl = true. Switchbot Bot/Curtain wait between control commands - overrides defaults */
+/* for Bots: if defaultBotWaitTime is greater, defaultBotWaitTime is used */
+/* for Curtains: if defaultCurtainWaitTime is greater, defaultBotWaitTime is used */
+/* The ESP32 will wait at least X seconds before sending the next command to each device. 2+ different Bots can still be controlled together */
+/* The ESP32 will automatically collect hold Secs for bots and will wait at least that long */
+static std::map<std::string, int> botWaitBetweenControlTimes = {
+  /*{ "switchbotone", 5 },
+    { "switchbottwo", 5 },
+    { "curtainone", 5 },
+    { "curtaintwo", 5 }*/
+};
+
 /*************************************************************/
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
@@ -228,7 +351,7 @@ static std::map<std::string, int> botScanTime = {     // X seconds after a succe
    Login page
 */
 
-static const String versionNum = "v2.3";
+static const String versionNum = "v3.0";
 static const String loginIndex =
   "<form name='loginForm'>"
   "<table bgcolor='A09F9F' align='center' style='top: 250px;position: relative;width: 30%;'>"
@@ -367,17 +490,25 @@ static int ledOFFValue = LOW;
 
 void scanEndedCB(NimBLEScanResults results);
 void rescanEndedCB(NimBLEScanResults results);
+void initialScanEndedCB(NimBLEScanResults results);
 static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsDev = {};
 static std::map<std::string, long> rescanTimes = {};
+static std::map<std::string, std::string> allSwitchbots;
 static std::map<std::string, std::string> allSwitchbotsOpp;
 static std::map<std::string, bool> discoveredDevices = {};
 static std::map<std::string, bool> botsInPressMode = {};
+static std::map<std::string, int> botHoldSecs = {};
+static std::map<std::string, long> lastCommandSent = {};
 static std::map<std::string, std::string> deviceTypes;
 static NimBLEScan* pScan;
 static bool isRescanning = false;
 static bool processing = false;
 static bool initialScanComplete = false;
-static bool firstScan = true;
+static bool lastCommandWasBusy = false;
+static bool deviceHasBooted = false;
+static bool gotSettings = false;
+static bool lastCommandSentPublished = false;
+
 static std::string ESPMQTTTopic = mqtt_main_topic + "/" + std::string(host);
 //static std::string esp32Topic = ESPMQTTTopic + "/ESP32";
 static std::string lastWillStr = ESPMQTTTopic + "/lastwill";
@@ -389,9 +520,15 @@ static std::string rescanStdStr = ESPMQTTTopic + "/rescan";
 //static std::string controlStdStr = ESPMQTTTopic + "/control";
 static std::string controlStdStr = ESPMQTTTopic + "/#/#/set";
 static std::string requestInfoStdStr = ESPMQTTTopic + "/requestInfo";
+static std::string requestSettingsStdStr = ESPMQTTTopic + "/requestSettings";
+static std::string setModeStdStr = ESPMQTTTopic + "/setMode";
+static std::string setHoldStdStr = ESPMQTTTopic + "/setHold";
 static const String rescanTopic = rescanStdStr.c_str();
 static const String controlTopic = controlStdStr.c_str();
 static const String requestInfoTopic = requestInfoStdStr.c_str();
+static const String requestSettingsTopic = requestSettingsStdStr.c_str();
+static const String setModeTopic = setModeStdStr.c_str();
+static const String setHoldTopic = setHoldStdStr.c_str();
 
 static byte bArrayPress[] = {0x57, 0x01};
 static byte bArrayOn[] = {0x57, 0x01, 0x01};
@@ -399,11 +536,18 @@ static byte bArrayOff[] = {0x57, 0x01, 0x02};
 static byte bArrayOpen[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, 0x00};
 static byte bArrayClose[] = {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, 0x64};
 static byte bArrayPause[] = {0x57, 0x0F, 0x45, 0x01, 0x00, 0xFF};
-//static byte bArrayPos[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, NULL};
+static byte bArrayPos[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, NULL};
+static byte bArrayGetSettings[] = {0x57, 0x02};
+static byte bArrayHoldSecs[] = {0x57, 0x0F, 0x08, NULL };
+static byte bArrayBotMode[] = {0x57, 0x03, 0x64, NULL, NULL};
 
 static byte bArrayPressPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL};
 static byte bArrayOnPass[] = {0x57, 0x11, NULL , NULL, NULL, NULL, 0x01};
 static byte bArrayOffPass[] = {0x57, 0x11, NULL, NULL, NULL, NULL, 0x02};
+static byte bArrayGetSettingsPass[] = {0x57, 0x12, NULL, NULL, NULL, NULL};
+static byte bArrayHoldSecsPass[] = {0x57, 0x1F, NULL, NULL, NULL, NULL, 0x08, NULL };
+//static byte bArrayBotModePass[] = {0x57, 0x13, 0x64, NULL, NULL, NULL, NULL, NULL};     // Other github documentation shows this to be the array for setting mode with password (firmware 4.5, 4.6)
+static byte bArrayBotModePass[] = {0x57, 0x13, NULL, NULL, NULL, NULL, 0x64, NULL};       // The proper array to use for setting mode with password (firmware 4.9)
 
 struct to_lower {
   int operator() ( int ch )
@@ -436,145 +580,180 @@ void publishLastwillOnline() {
 void publishHomeAssistantDiscoveryBotConfig(std::string deviceName, std::string deviceMac) {
   std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
   client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/battery/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
-                                                                                                    + "\"name\":\"" + deviceName + " Battery\"," +
-                                                                                                    + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
-                                                                                                    + "\"avty_t\": \"" + lastWill + "\"," +
-                                                                                                    + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
-                                                                                                    + "\"stat_t\":\"~/attributes\"," +
-                                                                                                    + "\"dev_cla\":\"battery\"," +
-                                                                                                    + "\"unit_of_meas\": \"%\", " +
-                                                                                                    + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
+                 + "\"name\":\"" + deviceName + " Battery\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"dev_cla\":\"battery\"," +
+                 + "\"unit_of_meas\": \"%\", " +
+                 + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
 
   client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
-                                                                                                    + "\"name\":\"" + deviceName + " Linkquality\"," +
-                                                                                                    + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
-                                                                                                    + "\"avty_t\": \"" + lastWill + "\"," +
-                                                                                                    + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
-                                                                                                    + "\"stat_t\":\"~/attributes\"," +
-                                                                                                    + "\"icon\":\"mdi:signal\"," +
-                                                                                                    + "\"unit_of_meas\": \"rssi\", " +
-                                                                                                    + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
+                 + "\"name\":\"" + deviceName + " Linkquality\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"icon\":\"mdi:signal\"," +
+                 + "\"unit_of_meas\": \"rssi\", " +
+                 + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/inverted/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Inverted\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "inverted\"," +
+                 + "\"stat_t\":\"~/settings\"," +
+                 + "\"pl_on\":true," +
+                 + "\"pl_off\":false," +
+                 + "\"value_template\":\"{{ value_json.inverted }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/firmware/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Firmware\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_firmware\"," +
+                 + "\"stat_t\":\"~/settings\"," +
+                 + "\"value_template\":\"{{ value_json.firmware }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/holdsecs/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " HoldSecs\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_holdsecs\"," +
+                 + "\"stat_t\":\"~/settings\"," +
+                 + "\"value_template\":\"{{ value_json.hold }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/timers/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Timers\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_timers\"," +
+                 + "\"stat_t\":\"~/settings\"," +
+                 + "\"value_template\":\"{{ value_json.timers }}\"}").c_str(), true);
 
   client.publish((home_assistant_mqtt_prefix + "/switch/" + deviceName + "/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\", " +
-                                                                                                    + "\"name\":\"" + deviceName + " Switch\"," +
-                                                                                                    + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
-                                                                                                    + "\"avty_t\": \"" + lastWill + "\"," +
-                                                                                                    + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
-                                                                                                    + "\"stat_t\":\"~/state\", " +
-                                                                                                    + "\"cmd_t\": \"~/set\" }").c_str(), true);
+                 + "\"name\":\"" + deviceName + " Switch\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
+                 + "\"stat_t\":\"~/state\", " +
+                 + "\"cmd_t\": \"~/set\" }").c_str(), true);
+
 }
 
 void publishHomeAssistantDiscoveryCurtainConfig(std::string deviceName, std::string deviceMac) {
   std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
   client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/battery/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
-                                                                                                    + "\"name\":\"" + deviceName + " Battery\"," +
-                                                                                                    + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
-                                                                                                    + "\"avty_t\": \"" + lastWill + "\"," +
-                                                                                                    + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
-                                                                                                    + "\"stat_t\":\"~/attributes\"," +
-                                                                                                    + "\"dev_cla\":\"battery\"," +
-                                                                                                    + "\"unit_of_meas\": \"%\", " +
-                                                                                                    + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
+                 + "\"name\":\"" + deviceName + " Battery\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"dev_cla\":\"battery\"," +
+                 + "\"unit_of_meas\": \"%\", " +
+                 + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
 
   client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
-                                                                                                    + "\"name\":\"" + deviceName + " Linkquality\"," +
-                                                                                                    + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
-                                                                                                    + "\"avty_t\": \"" + lastWill + "\"," +
-                                                                                                    + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
-                                                                                                    + "\"stat_t\":\"~/attributes\"," +
-                                                                                                    + "\"icon\":\"mdi:signal\"," +
-                                                                                                    + "\"unit_of_meas\": \"rssi\", " +
-                                                                                                    + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
+                 + "\"name\":\"" + deviceName + " Linkquality\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"icon\":\"mdi:signal\"," +
+                 + "\"unit_of_meas\": \"rssi\", " +
+                 + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
 
   client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/illuminance/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
-                                                                                                    + "\"name\":\"" + deviceName + " Illuminance\"," +
-                                                                                                    + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
-                                                                                                    + "\"avty_t\": \"" + lastWill + "\"," +
-                                                                                                    + "\"uniq_id\":\"switchbot_" + deviceMac + "_illuminance\"," +
-                                                                                                    + "\"stat_t\":\"~/attributes\"," +
-                                                                                                    + "\"dev_cla\":\"illuminance\"," +
-                                                                                                    + "\"value_template\":\"{{ value_json.light }}\"}").c_str(), true);
+                 + "\"name\":\"" + deviceName + " Illuminance\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_illuminance\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"dev_cla\":\"illuminance\"," +
+                 + "\"value_template\":\"{{ value_json.light }}\"}").c_str(), true);
 
   client.publish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/calibrated/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
-                                                                                                    + "\"name\":\"" + deviceName + " Calibrated\"," +
-                                                                                                    + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
-                                                                                                    + "\"avty_t\": \"" + lastWill + "\"," +
-                                                                                                    + "\"uniq_id\":\"switchbot_" + deviceMac + "_calibrated\"," +
-                                                                                                    + "\"stat_t\":\"~/attributes\"," +
-                                                                                                    + "\"pl_on\":true," +
-                                                                                                    + "\"pl_off\":false," +
-                                                                                                    + "\"value_template\":\"{{ value_json.calib }}\"}").c_str(), true);
+                 + "\"name\":\"" + deviceName + " Calibrated\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_calibrated\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"pl_on\":true," +
+                 + "\"pl_off\":false," +
+                 + "\"value_template\":\"{{ value_json.calib }}\"}").c_str(), true);
 
   client.publish((home_assistant_mqtt_prefix + "/cover/" + deviceName + "/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\", " +
-                                                                                                    + "\"name\":\"" + deviceName + " Curtain\"," +
-                                                                                                    + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
-                                                                                                    + "\"avty_t\": \"" + lastWill + "\"," +
-                                                                                                    + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
-                                                                                                    + "\"dev_cla\":\"curtain\", " +
-                                                                                                    + "\"stat_t\":\"~/state\", " +
-                                                                                                    + "\"stat_open\": \"OPEN\", "+
-                                                                                                    + "\"stat_clsd\": \"CLOSE\", "+
-                                                                                                    + "\"pl_stop\":\"PAUSE\", " +
-                                                                                                    + "\"pos_open\": 100, "+
-                                                                                                    + "\"pos_clsd\": 0, "+
-                                                                                                    + "\"cmd_t\": \"~/set\", "+
-                                                                                                    + "\"pos_t\":\"~/attributes\", " +
-                                                                                                    + "\"pos_tpl\":\"{{ value_json.pos }}\", " +
-                                                                                                    + "\"set_pos_t\": \"~/set\", "+
-                                                                                                    + "\"set_pos_tpl\": \"{{ position }}\" }").c_str(), true);
-  if(home_assistant_expose_seperate_curtain_position) {
+                 + "\"name\":\"" + deviceName + " Curtain\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
+                 + "\"dev_cla\":\"curtain\", " +
+                 + "\"stat_t\":\"~/state\", " +
+                 + "\"stat_open\": \"OPEN\", " +
+                 + "\"stat_clsd\": \"CLOSE\", " +
+                 + "\"pl_stop\":\"PAUSE\", " +
+                 + "\"pos_open\": 100, " +
+                 + "\"pos_clsd\": 0, " +
+                 + "\"cmd_t\": \"~/set\", " +
+                 + "\"pos_t\":\"~/attributes\", " +
+                 + "\"pos_tpl\":\"{{ value_json.pos }}\", " +
+                 + "\"set_pos_t\": \"~/set\", " +
+                 + "\"set_pos_tpl\": \"{{ position }}\" }").c_str(), true);
+  if (home_assistant_expose_seperate_curtain_position) {
     client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/position/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
-                                                                                                      + "\"name\":\"" + deviceName + " Position\"," +
-                                                                                                      + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
-                                                                                                      + "\"avty_t\": \"" + lastWill + "\"," +
-                                                                                                      + "\"uniq_id\":\"switchbot_" + deviceMac + "_position\"," +
-                                                                                                      + "\"stat_t\":\"~/attributes\"," +
-                                                                                                      + "\"unit_of_meas\": \"%\", " +
-                                                                                                      + "\"value_template\":\"{{ value_json.pos }}\"}").c_str(), true);
+                   + "\"name\":\"" + deviceName + " Position\"," +
+                   + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
+                   + "\"avty_t\": \"" + lastWill + "\"," +
+                   + "\"uniq_id\":\"switchbot_" + deviceMac + "_position\"," +
+                   + "\"stat_t\":\"~/attributes\"," +
+                   + "\"unit_of_meas\": \"%\", " +
+                   + "\"value_template\":\"{{ value_json.pos }}\"}").c_str(), true);
   }
 }
 
 void publishHomeAssistantDiscoveryMeterConfig(std::string deviceName, std::string deviceMac) {
   std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
   client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/battery/config").c_str(), ("{\"~\":\"" + (meterTopic + deviceName) + "\"," +
-                                                                                                    + "\"name\":\"" + deviceName + " Battery\"," +
-                                                                                                    + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + deviceName + "\" }," +
-                                                                                                    + "\"avty_t\": \"" + lastWill + "\"," +
-                                                                                                    + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
-                                                                                                    + "\"stat_t\":\"~/attributes\"," +
-                                                                                                    + "\"dev_cla\":\"battery\"," +
-                                                                                                    + "\"unit_of_meas\": \"%\", " +
-                                                                                                    + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
+                 + "\"name\":\"" + deviceName + " Battery\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"dev_cla\":\"battery\"," +
+                 + "\"unit_of_meas\": \"%\", " +
+                 + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
 
   client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (meterTopic + deviceName) + "\"," +
-                                                                                                    + "\"name\":\"" + deviceName + " Linkquality\"," +
-                                                                                                    + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + deviceName + "\" }," +
-                                                                                                    + "\"avty_t\": \"" + lastWill + "\"," +
-                                                                                                    + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
-                                                                                                    + "\"stat_t\":\"~/attributes\"," +
-                                                                                                    + "\"icon\":\"mdi:signal\"," +
-                                                                                                    + "\"unit_of_meas\": \"rssi\", " +
-                                                                                                    + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
+                 + "\"name\":\"" + deviceName + " Linkquality\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"icon\":\"mdi:signal\"," +
+                 + "\"unit_of_meas\": \"rssi\", " +
+                 + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
 
   client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/temperature/config").c_str(), ("{\"~\":\"" + (meterTopic + deviceName) + "\"," +
-                                                                                                    + "\"name\":\"" + deviceName + " Temperature\"," +
-                                                                                                    + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + deviceName + "\" }," +
-                                                                                                    + "\"avty_t\": \"" + lastWill + "\"," +
-                                                                                                    + "\"uniq_id\":\"switchbot_" + deviceMac + "_temperature\"," +
-                                                                                                    + "\"stat_t\":\"~/attributes\"," +
-                                                                                                    + "\"dev_cla\":\"temperature\", " +
-                                                                                                    + "\"unit_of_meas\": \"°C\", " +
-                                                                                                    + "\"value_template\":\"{{ value_json.C }}\"}").c_str(), true);
+                 + "\"name\":\"" + deviceName + " Temperature\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_temperature\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"dev_cla\":\"temperature\", " +
+                 + "\"unit_of_meas\": \"°C\", " +
+                 + "\"value_template\":\"{{ value_json.C }}\"}").c_str(), true);
 
   client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/humidity/config").c_str(), ("{\"~\":\"" + (meterTopic + deviceName) + "\"," +
-                                                                                                    + "\"name\":\"" + deviceName + " Humidity\"," +
-                                                                                                    + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + deviceName + "\" }," +
-                                                                                                    + "\"avty_t\": \"" + lastWill + "\"," +
-                                                                                                    + "\"uniq_id\":\"switchbot_" + deviceMac + "_humidity\"," +
-                                                                                                    + "\"stat_t\":\"~/attributes\"," +
-                                                                                                    + "\"dev_cla\":\"humidity\", " +
-                                                                                                    + "\"unit_of_meas\": \"%\", " +
-                                                                                                    + "\"value_template\":\"{{ value_json.hum }}\"}").c_str(), true);
+                 + "\"name\":\"" + deviceName + " Humidity\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_humidity\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"dev_cla\":\"humidity\", " +
+                 + "\"unit_of_meas\": \"%\", " +
+                 + "\"value_template\":\"{{ value_json.hum }}\"}").c_str(), true);
 }
 
 class ClientCallbacks : public NimBLEClientCallbacks {
@@ -621,11 +800,115 @@ class ClientCallbacks : public NimBLEClientCallbacks {
     };
 };
 
+bool unsubscribeToNotify(NimBLEClient* pClient) {
+  NimBLERemoteService* pSvc = nullptr;
+  NimBLERemoteCharacteristic* pChr = nullptr;
+
+  pSvc = pClient->getService("cba20d00-224d-11e6-9fb8-0002a5d5c51b"); // custom device service
+  if (pSvc) {    /** make sure it's not null */
+    pChr = pSvc->getCharacteristic("cba20003-224d-11e6-9fb8-0002a5d5c51b"); // custom characteristic to notify
+  }
+  if (pChr) {    /** make sure it's not null */
+    if (pChr->canNotify()) {
+      if (!pChr->unsubscribe()) {
+        return false;
+      }
+    }
+  }
+  else {
+    Serial.println("CUSTOM notify service not found.");
+    return false;
+  }
+  Serial.println("unsubscribed to notify");
+  return true;
+}
+
+bool subscribeToNotify(NimBLEAdvertisedDevice* advDeviceToUse) {
+  NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
+  NimBLERemoteService* pSvc = nullptr;
+  NimBLERemoteCharacteristic* pChr = nullptr;
+
+  pSvc = pClient->getService("cba20d00-224d-11e6-9fb8-0002a5d5c51b"); // custom device service
+  if (pSvc) {    /** make sure it's not null */
+    pChr = pSvc->getCharacteristic("cba20003-224d-11e6-9fb8-0002a5d5c51b"); // custom characteristic to notify
+  }
+  if (pChr) {    /** make sure it's not null */
+    if (pChr->canNotify()) {
+      if (!pChr->subscribe(true, notifyCB)) {
+        return false;
+      }
+    }
+  }
+  else {
+    Serial.println("CUSTOM notify service not found.");
+    return false;
+  }
+  Serial.println("subscribed to notify");
+  return true;
+}
+
+bool writeSettings(NimBLEAdvertisedDevice* advDeviceToUse) {
+  NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
+  NimBLERemoteService* pSvc = nullptr;
+  NimBLERemoteCharacteristic* pChr = nullptr;
+
+  pSvc = pClient->getService("cba20d00-224d-11e6-9fb8-0002a5d5c51b"); // custom device service
+  if (pSvc) {    /** make sure it's not null */
+    pChr = pSvc->getCharacteristic("cba20002-224d-11e6-9fb8-0002a5d5c51b"); // custom characteristic to write
+  }
+  if (pChr) {    /** make sure it's not null */
+    if (pChr->canWrite()) {
+      std::string aPass = "";
+      std::map<std::string, std::string>::iterator itU = allSwitchbotsOpp.find(advDeviceToUse->getAddress());
+      if (itU != allSwitchbotsOpp.end())
+      {
+        aPass = getPass(itU->second.c_str());
+      }
+      uint8_t aPassCRC[4];
+      if (aPass != "") {
+        uint32_t aCRC = getPassCRC(aPass);
+        for (int i = 0; i < 4; ++i)
+        {
+          aPassCRC[i] = ((uint8_t*)&aCRC)[3 - i];
+        }
+
+        byte bArray[] = {0x57, 0x12, aPassCRC[0] , aPassCRC[1] , aPassCRC[2]  , aPassCRC[3]}; // write to get settings of device
+        if (pChr->writeValue(bArray, 6)) {
+          Serial.print("Wrote new value to: ");
+          Serial.println(pChr->getUUID().toString().c_str());
+        }
+        else {
+          return false;
+        }
+      }
+      else {
+        byte bArray[] = {0x57, 0x02}; // write to get settings of device
+        if (pChr->writeValue(bArray, 2)) {
+          Serial.print("Wrote new value to: ");
+          Serial.println(pChr->getUUID().toString().c_str());
+        }
+        else {
+          return false;
+        }
+      }
+    }
+    else {
+      Serial.println("CUSTOM write service not found.");
+      return false;
+    }
+    Serial.println("Success! subscribed and got settings");
+    return true;
+  }
+}
+
 /** Define a class to handle the callbacks when advertisments are received */
 class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
     void onResult(NimBLEAdvertisedDevice* advertisedDevice) {
       Serial.print("Advertised Device found: ");
       Serial.println(advertisedDevice->toString().c_str());
+      if (ledOnScan) {
+        digitalWrite(LED_PIN, ledONValue);
+      }
       std::string advStr = advertisedDevice->getAddress().toString().c_str();
       std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(advStr);
 
@@ -722,13 +1005,14 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         doc["state"] = aState;
         doc["batt"] = battLevel;
 
-        if(home_assistant_mqtt_discovery) {
-          if(itM == discoveredDevices.end()) {
+        if (home_assistant_mqtt_discovery) {
+          if (itM == discoveredDevices.end()) {
             Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
             publishHomeAssistantDiscoveryBotConfig(aDevice, deviceMac);
             discoveredDevices.insert( std::pair<std::string, bool>(deviceMac, true) );
           }
         }
+
       }
       else if (deviceName == meterName) {
         if (aLength < 6) {
@@ -757,8 +1041,8 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         doc["hum"] = humidity;
         aState = String(tempC, 1).c_str();
 
-        if(home_assistant_mqtt_discovery) {
-          if(itM == discoveredDevices.end()) {
+        if (home_assistant_mqtt_discovery) {
+          if (itM == discoveredDevices.end()) {
             Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
             publishHomeAssistantDiscoveryMeterConfig(aDevice, deviceMac);
             discoveredDevices.insert( std::pair<std::string, bool>(deviceMac, true) );
@@ -788,20 +1072,20 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
         bool calibrated = byte1 & 0b01000000;;
         int battLevel = byte2 & 0b01111111;
-        int currentPosition = 100-(byte3 & 0b01111111);
+        int currentPosition = 100 - (byte3 & 0b01111111);
         int lightLevel = (byte4 >> 4) & 0b00001111;
         aState = "OPEN";
 
         doc["calib"] = calibrated;
         doc["batt"] = battLevel;
         doc["pos"] = currentPosition;
-        if(currentPosition <= curtainClosedPosition)
+        if (currentPosition <= curtainClosedPosition)
           aState = "CLOSE";
         doc["state"] = aState;
         doc["light"] = lightLevel;
 
-        if(home_assistant_mqtt_discovery) {
-          if(itM == discoveredDevices.end()) {
+        if (home_assistant_mqtt_discovery) {
+          if (itM == discoveredDevices.end()) {
             Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
             publishHomeAssistantDiscoveryCurtainConfig(aDevice, deviceMac);
             discoveredDevices.insert( std::pair<std::string, bool>(deviceMac, true) );
@@ -820,11 +1104,21 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
     };
 };
 
-void scanEndedCB(NimBLEScanResults results) {
-  if ((ledOnScan && !firstScan) || (ledOnBootScan && firstScan)  || ledOnCommand) {
+void initialScanEndedCB(NimBLEScanResults results) {
+  Serial.println("initialScanEndedCB");
+  if (ledOnBootScan) {
     digitalWrite(LED_PIN, ledOFFValue);
   }
-  firstScan = false;
+  initialScanComplete = true;
+
+  Serial.println("Scan Ended");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
+}
+
+void scanEndedCB(NimBLEScanResults results) {
+  if (ledOnScan || ledOnCommand) {
+    digitalWrite(LED_PIN, ledOFFValue);
+  }
   Serial.println("Scan Ended");
   client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
 }
@@ -942,6 +1236,10 @@ void setup () {
   client.setKeepAlive(60);
   client.setMaxPacketSize(mqtt_packet_size);
 
+  static std::map<std::string, std::string> allBotsTemp = {};
+  static std::map<std::string, std::string> allCurtainsTemp = {};
+  static std::map<std::string, std::string> allMetersTemp = {};
+
   std::map<std::string, std::string>::iterator it = allBots.begin();
   std::string anAddr;
 
@@ -950,9 +1248,12 @@ void setup () {
     anAddr = it->second;
     std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
     allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(anAddr.c_str(), it->first) );
+    allSwitchbots.insert ( std::pair<std::string, std::string>(it->first, anAddr.c_str()) );
     deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), botName) );
+    allBotsTemp.insert ( std::pair<std::string, std::string>(it->first, anAddr.c_str()) );
     it++;
   }
+  allBots = allBotsTemp;
 
   it = allCurtains.begin();
   while (it != allCurtains.end())
@@ -960,9 +1261,12 @@ void setup () {
     anAddr = it->second;
     std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
     allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(anAddr.c_str(), it->first) );
+    allSwitchbots.insert ( std::pair<std::string, std::string>(it->first, anAddr.c_str()) );
     deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), curtainName) );
+    allCurtainsTemp.insert ( std::pair<std::string, std::string>(it->first, anAddr.c_str()) );
     it++;
   }
+  allCurtains = allCurtainsTemp;
 
   it = allMeters.begin();
   while (it != allMeters.end())
@@ -970,9 +1274,12 @@ void setup () {
     anAddr = it->second;
     std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
     allSwitchbotsOpp.insert ( std::pair<std::string, std::string>(anAddr.c_str(), it->first) );
+    allSwitchbots.insert ( std::pair<std::string, std::string>(it->first, anAddr.c_str()) );
     deviceTypes.insert ( std::pair<std::string, std::string>(anAddr.c_str(), meterName) );
+    allMetersTemp.insert ( std::pair<std::string, std::string>(it->first, anAddr.c_str()) );
     it++;
   }
+  allMeters = allMetersTemp;
 
   Serial.begin(115200);
   Serial.println("Starting NimBLE Client");
@@ -1024,6 +1331,29 @@ void rescanFind(std::string aMac) {
   pScan->start(infoScanTime, scanEndedCB, true);
 }
 
+void getAllBotSettings() {
+  if (client.isConnected() && initialScanComplete) {
+    if (ledOnBootScan) {
+      digitalWrite(LED_PIN, ledONValue);
+    }
+
+    Serial.println("In all get bot settings...");
+    gotSettings = true;
+    std::map<std::string, std::string>::iterator itT = allBots.begin();
+    std::string aDevice;
+    while (itT != allBots.end())
+    {
+      aDevice = itT->first;
+      controlMQTT(aDevice, "REQUESTSETTINGS");
+      itT++;
+    }
+    if (ledOnBootScan) {
+      digitalWrite(LED_PIN, ledOFFValue);
+    }
+    Serial.println("Added all get bot settings...");
+  }
+}
+
 void loop () {
   server.handleClient();
   client.loop();
@@ -1034,6 +1364,9 @@ void loop () {
     lastRescan = millis();
   }
   if (!processing && !(pScan->isScanning()) && !isRescanning) {
+    if (getSettingsOnBoot && !gotSettings ) {
+      getAllBotSettings();
+    }
     if (processQueue()) {
       if (autoRescan) {
         recurringRescan();
@@ -1081,7 +1414,6 @@ void recurringScan() {
         {
           scanTime = itS->second;
         }
-
         if ((millis() - lastTime) >= (scanTime * 1000)) {
           if (!processing && !(pScan->isScanning()) && !isRescanning) {
             rescanFind(it->first);
@@ -1095,7 +1427,6 @@ void recurringScan() {
         }
       }
     }
-
     lastScanCheck = millis();
   }
 }
@@ -1150,10 +1481,77 @@ void processRequest(std::string macAdd, std::string aName, const char * command,
   }
 }
 
+bool waitToProcess(QueueCommand aCommand) {
+  bool wait = false;
+  long waitTimeLeft = 0;
+  if (waitBetweenControl) {
+    if (aCommand.payload != "REQUESTINFO" && aCommand.payload != "GETINFO" && (aCommand.topic != (ESPMQTTTopic + "/requestInfo"))) {
+      std::string anAddr;
+      std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aCommand.device.c_str());
+      if (itY != allSwitchbots.end())
+      {
+        anAddr = itY->second;
+        std::map<std::string, long>::iterator itZ = lastCommandSent.find(anAddr);
+        if (itZ != lastCommandSent.end())
+        {
+          wait = true;
+          long lastTime = itZ->second;
+          int waitForSecs = 0;
+          std::string deviceName;
+          std::map<std::string, std::string>::iterator itK = deviceTypes.find(anAddr);
+          if (itK != deviceTypes.end())
+          {
+            deviceName = itK->second.c_str();
+          }
+          if (deviceName == botName) {
+            waitForSecs = defaultBotWaitTime;
+          }
+          else if (deviceName == curtainName) {
+            waitForSecs = defaultCurtainWaitTime;
+          }
+          std::map<std::string, int>::iterator itP = botHoldSecs.find(anAddr);
+          if (itP != botHoldSecs.end())
+          {
+            int holdTimePlus = (itP->second) + defaultBotWaitTime;
+            if (holdTimePlus > waitForSecs) {
+              waitForSecs =  holdTimePlus;
+            }
+          }
+          std::map<std::string, int>::iterator itV = botWaitBetweenControlTimes.find(aCommand.device.c_str());
+          if (itV != botWaitBetweenControlTimes.end())
+          {
+            int waitTimePlus = (itV->second);
+            if (waitTimePlus > waitForSecs) {
+              waitForSecs =  waitTimePlus;
+            }
+          }
+          if ((millis() - lastTime) >= (waitForSecs * 1000)) {
+            wait = false;
+
+          }
+          else {
+            waitTimeLeft = (waitForSecs * 1000) - (millis() - lastTime);
+          }
+        }
+      }
+    }
+  }
+  if (wait) {
+    Serial.print("Control for device: ");
+    Serial.print(aCommand.device.c_str());
+    Serial.print(" will wait ");
+    Serial.print(waitTimeLeft);
+    Serial.println(" millisecondSeconds");
+  }
+  return wait;
+}
+
 bool processQueue() {
   struct QueueCommand aCommand;
   while (!commandQueue.isEmpty()) {
+    bool skip = false;
     aCommand = commandQueue.getHead();
+    bool getSettingsAfter = false;
     if ((aCommand.topic == ESPMQTTTopic + "/rescan") && isRescanning) {
       commandQueue.dequeue();
     }
@@ -1165,12 +1563,51 @@ bool processQueue() {
       Serial.println(aCommand.topic.c_str());
       Serial.println(aCommand.device.c_str());
       if (aCommand.topic == ESPMQTTTopic + "/control") {
-        if (ledOnCommand) {
-          digitalWrite(LED_PIN, ledONValue);
+        if (isBotDevice(aCommand.device.c_str()))
+        {
+          if (aCommand.payload == "OFF") {
+            std::map<std::string, std::string>::iterator itN = allBots.find(aCommand.device);
+            std::string anAddr = itN->second;
+            std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+            std::map<std::string, bool>::iterator itP = botsInPressMode.find(anAddr);
+            if (itP != botsInPressMode.end())
+            {
+              skip = true;
+            }
+          }
         }
-        controlMQTT(aCommand.device, aCommand.payload);
-        if (ledOnCommand) {
-          digitalWrite(LED_PIN, ledOFFValue);
+        if (!skip) {
+          if (waitToProcess(aCommand)) {
+            commandQueue.enqueue(aCommand);
+          }
+          else {
+            if (ledOnCommand) {
+              digitalWrite(LED_PIN, ledONValue);
+            }
+            controlMQTT(aCommand.device, aCommand.payload);
+            if (isBotDevice(aCommand.device.c_str()))
+            {
+              bool isNum = is_number(aCommand.payload.c_str());
+              if (isNum && !lastCommandWasBusy && getBotResponse) {
+                getSettingsAfter = true;
+              }
+
+              if (lastCommandWasBusy && retryBotOnBusy) {
+                commandQueue.enqueue(aCommand);
+                lastCommandWasBusy = false;
+              }
+            }
+            else if (isCurtainDevice(aCommand.device.c_str()))
+            {
+              if (lastCommandWasBusy && retryCurtainOnBusy) {
+                commandQueue.enqueue(aCommand);
+                lastCommandWasBusy = false;
+              }
+            }
+            if (ledOnCommand && !getSettingsAfter) {
+              digitalWrite(LED_PIN, ledOFFValue);
+            }
+          }
         }
       }
       else if (aCommand.topic == ESPMQTTTopic + "/requestInfo") {
@@ -1179,6 +1616,72 @@ bool processQueue() {
         }
         requestInfoMQTT(aCommand.payload);
       }
+      else if (aCommand.topic == ESPMQTTTopic + "/requestSettings") {
+        if (waitToProcess(aCommand)) {
+          commandQueue.enqueue(aCommand);
+        }
+        else {
+          if (ledOnCommand) {
+            digitalWrite(LED_PIN, ledONValue);
+          }
+          StaticJsonDocument<100> docIn;
+          deserializeJson(docIn, aCommand.payload);
+          const char * aDevice = docIn["id"];
+          controlMQTT(aDevice, "REQUESTSETTINGS");
+          if (lastCommandWasBusy && retryBotOnBusy) {
+            commandQueue.enqueue(aCommand);
+            lastCommandWasBusy = false;
+          }
+          if (ledOnCommand) {
+            digitalWrite(LED_PIN, ledOFFValue);
+          }
+        }
+      }
+      else if (aCommand.topic == ESPMQTTTopic + "/setMode") {
+        if (waitToProcess(aCommand)) {
+          commandQueue.enqueue(aCommand);
+        }
+        else {
+          if (ledOnCommand) {
+            digitalWrite(LED_PIN, ledONValue);
+          }
+          StaticJsonDocument<100> docIn;
+          deserializeJson(docIn, aCommand.payload);
+          const char * aDevice = docIn["id"];
+          const char * aMode = docIn["mode"];
+          controlMQTT(aDevice, aMode);
+          if (lastCommandWasBusy && retryBotOnBusy) {
+            commandQueue.enqueue(aCommand);
+            lastCommandWasBusy = false;
+          }
+          if (ledOnCommand) {
+            digitalWrite(LED_PIN, ledOFFValue);
+          }
+        }
+      }
+      else if (aCommand.topic == ESPMQTTTopic + "/setHold") {
+        if (waitToProcess(aCommand)) {
+          commandQueue.enqueue(aCommand);
+        }
+        else {
+          if (ledOnCommand) {
+            digitalWrite(LED_PIN, ledONValue);
+          }
+          StaticJsonDocument<100> docIn;
+          deserializeJson(docIn, aCommand.payload);
+          const char * aDevice = docIn["id"];
+          int aHold = docIn["hold"];
+          String holdString = String(aHold);
+          controlMQTT(aDevice, holdString.c_str());
+          if (lastCommandWasBusy && retryBotOnBusy) {
+            commandQueue.enqueue(aCommand);
+            lastCommandWasBusy = false;
+          }
+          if (ledOnCommand) {
+            digitalWrite(LED_PIN, ledOFFValue);
+          }
+        }
+      }
       else if (aCommand.topic == ESPMQTTTopic + "/rescan") {
         if (ledOnCommand) {
           digitalWrite(LED_PIN, ledONValue);
@@ -1186,12 +1689,18 @@ bool processQueue() {
         rescanMQTT(aCommand.payload);
       }
       commandQueue.dequeue();
+      if (getSettingsAfter && !skip) {
+        controlMQTT(aCommand.device, "REQUESTSETTINGS");
+        if (ledOnCommand) {
+          digitalWrite(LED_PIN, ledOFFValue);
+        }
+      }
     }
   }
   return true;
 }
 
-void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const char * command, std::string deviceTopic) {
+void sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const char * command, std::string deviceTopic) {
 
   NimBLEAdvertisedDevice* advDeviceToUse = advDevice;
   std::string addr = advDeviceToUse->getAddress().toString();
@@ -1204,8 +1713,8 @@ void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const ch
   {
     char aBuffer[100];
     StaticJsonDocument<100> doc;
-//    doc["id"] = aName.c_str();
-    if (strcmp(command, "requestInfo") == 0) {
+    //    doc["id"] = aName.c_str();
+    if (strcmp(command, "requestInfo") == 0 || strcmp(command, "REQUESTINFO") == 0 || strcmp(command, "GETINFO") == 0) {
       bool isSuccess = requestInfo(advDeviceToUse);
       if (!isSuccess) {
         doc["status"] = "errorRequestInfo";
@@ -1214,7 +1723,6 @@ void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const ch
       }
       return;
     }
-
     bool isConnected = false;
     int count = 0;
     bool shouldContinue = true;
@@ -1250,26 +1758,43 @@ void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const ch
         isSuccess = sendCommand(advDeviceToUse, command, count);
         count++;
         if (isSuccess) {
+          delay(100);
           shouldContinue = false;
-          doc["status"] = "commandSent";
-          serializeJson(doc, aBuffer);
-          client.publish(deviceTopic.c_str(), aBuffer);
-          if(!is_number(command)) {
-            client.publish(deviceStateTopic.c_str(), command);
+          if (!lastCommandSentPublished) {
+            StaticJsonDocument<100> doc;
+            char aBuffer[100];
+            doc["status"] = "commandSent";
+            serializeJson(doc, aBuffer);
+            client.publish(deviceTopic.c_str(), aBuffer);
           }
-          std::map<std::string, bool>::iterator itP = botsInPressMode.find(addr);
-          if (itP != botsInPressMode.end())
-          {
-            client.publish(deviceStateTopic.c_str(), "OFF");
-          }
-          if (scanAfterControl) {
+          lastCommandSentPublished = false;
+          if (strcmp(command, "REQUESTSETTINGS") != 0 && strcmp(command, "GETSETTINGS") != 0) {
+            bool isNum = is_number(command);
+            bool scanAfterNum = true;
+            std::string aDevice = "";
             std::map<std::string, std::string>::iterator itI = allSwitchbotsOpp.find(addr);
-            std::map<std::string, long>::iterator itW = rescanTimes.find(addr);
-            if (itW != rescanTimes.end())
-            {
-              rescanTimes.erase(addr);
+            aDevice = itI->second;
+            if (isNum && isBotDevice(aDevice)) {
+              scanAfterNum = false;
             }
-            rescanTimes.insert ( std::pair<std::string, long>(addr, millis()));
+            if (!isNum) {
+              std::map<std::string, bool>::iterator itP = botsInPressMode.find(addr);
+              if (itP != botsInPressMode.end())
+              {
+                client.publish(deviceStateTopic.c_str(), "OFF");
+              }
+              else {
+                client.publish(deviceStateTopic.c_str(), command);
+              }
+            }
+            if (scanAfterControl && scanAfterNum) {
+              std::map<std::string, long>::iterator itW = rescanTimes.find(addr);
+              if (itW != rescanTimes.end())
+              {
+                rescanTimes.erase(addr);
+              }
+              rescanTimes.insert ( std::pair<std::string, long>(addr, millis()));
+            }
           }
         }
         else {
@@ -1283,9 +1808,10 @@ void sendToDevice(NimBLEAdvertisedDevice* advDevice, std::string aName, const ch
       }
     }
   }
+  Serial.println("Done sendCommand...");
 }
 
-bool is_number(const std::string& s)
+bool is_number(const std::string & s)
 {
   std::string::const_iterator it = s.begin();
   while (it != s.end() && std::isdigit(*it)) ++it;
@@ -1342,11 +1868,12 @@ void controlMQTT(std::string device, std::string payload) {
       else if (aVal > 100) {
         payload = "100";
       }
-
       processRequest(deviceAddr, device, payload.c_str(), deviceTopic);
     }
     else {
-      if ((strcmp(payload.c_str(), "PRESS") == 0) || (strcmp(payload.c_str(), "ON") == 0) || (strcmp(payload.c_str(), "OFF") == 0) || (strcmp(payload.c_str(), "OPEN") == 0) || (strcmp(payload.c_str(), "CLOSE") == 0) || (strcmp(payload.c_str(), "PAUSE") == 0)) {
+      if ((strcmp(payload.c_str(), "PRESS") == 0) || (strcmp(payload.c_str(), "ON") == 0) || (strcmp(payload.c_str(), "OFF") == 0) || (strcmp(payload.c_str(), "OPEN") == 0) || (strcmp(payload.c_str(), "CLOSE") == 0) || (strcmp(payload.c_str(), "PAUSE") == 0)
+          || (strcmp(payload.c_str(), "REQUESTSETTINGS") == 0) || (strcmp(payload.c_str(), "REQUESTINFO") == 0) || (strcmp(payload.c_str(), "GETSETTINGS") == 0) || (strcmp(payload.c_str(), "GETINFO") == 0)
+          || (strcmp(payload.c_str(), "MODEPRESS") == 0) || (strcmp(payload.c_str(), "MODEPRESSINV") == 0) || (strcmp(payload.c_str(), "MODESWITCH") == 0) || (strcmp(payload.c_str(), "MODESWITCHINV") == 0)) {
         processRequest(deviceAddr, device, payload.c_str(), deviceTopic);
       }
       else {
@@ -1389,12 +1916,13 @@ void rescanMQTT(std::string payload) {
     client.publish(ESPMQTTTopic.c_str(), aBuffer);
   }
   else {
-    const char * value = docIn["sec"];
-    if (value != "") {
-      bool isNum = is_number(value);
+    int value = docIn["sec"];
+    String secString = String(value);
+    if (secString.c_str() != "") {
+      bool isNum = is_number(secString.c_str());
       if (isNum) {
         int aVal;
-        sscanf(value, "%d", &aVal);
+        sscanf(secString.c_str(), "%d", &aVal);
         if (aVal < 0) {
           return;
         }
@@ -1486,7 +2014,8 @@ void onConnectionEstablished() {
   std::string aDevice;
   std::map<std::string, std::string>::iterator it;
 
-  if (!initialScanComplete) {
+  if (!deviceHasBooted) {
+    deviceHasBooted = true;
     if (ledOnBootScan) {
       digitalWrite(LED_PIN, ledONValue);
     }
@@ -1497,10 +2026,8 @@ void onConnectionEstablished() {
   client.publish(lastWill, "online", true);
 
   if (!initialScanComplete) {
-    initialScanComplete = true;
-    firstScan = true;
     client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"scanning\"}");
-    pScan->start(initialScan, scanEndedCB, true);
+    pScan->start(initialScan, initialScanEndedCB, true);
   }
 
   it = allCurtains.begin();
@@ -1585,6 +2112,45 @@ void onConnectionEstablished() {
     }
   });
 
+  client.subscribe(requestSettingsTopic, [] (const String & payload)  {
+    Serial.println("Request Settings MQTT Received...");
+    if (!commandQueue.isFull()) {
+      struct QueueCommand queueCommand;
+      queueCommand.payload = payload.c_str();
+      queueCommand.topic = ESPMQTTTopic + "/requestSettings";
+      commandQueue.enqueue(queueCommand);
+    }
+    else {
+      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+    }
+  });
+
+  client.subscribe(setModeTopic, [] (const String & payload)  {
+    Serial.println("setMode  MQTT Received...");
+    if (!commandQueue.isFull()) {
+      struct QueueCommand queueCommand;
+      queueCommand.payload = payload.c_str();
+      queueCommand.topic = ESPMQTTTopic + "/setMode";
+      commandQueue.enqueue(queueCommand);
+    }
+    else {
+      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+    }
+  });
+
+  client.subscribe(setHoldTopic, [] (const String & payload)  {
+    Serial.println("setHold MQTT Received...");
+    if (!commandQueue.isFull()) {
+      struct QueueCommand queueCommand;
+      queueCommand.payload = payload.c_str();
+      queueCommand.topic = ESPMQTTTopic + "/setHold";
+      commandQueue.enqueue(queueCommand);
+    }
+    else {
+      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+    }
+  });
+
   client.subscribe(rescanTopic, [] (const String & payload)  {
     Serial.println("Rescan MQTT Received...");
     if (!commandQueue.isFull()) {
@@ -1599,7 +2165,7 @@ void onConnectionEstablished() {
   });
 }
 
-bool connectToServer(NimBLEAdvertisedDevice* advDeviceToUse) {
+bool connectToServer(NimBLEAdvertisedDevice * advDeviceToUse) {
   Serial.println("Try to connect. Try a reconnect first...");
   NimBLEClient* pClient = nullptr;
   if (NimBLEDevice::getClientListSize()) {
@@ -1643,14 +2209,64 @@ bool connectToServer(NimBLEAdvertisedDevice* advDeviceToUse) {
   return true;
 }
 
-bool sendCommandBytes(NimBLERemoteCharacteristic* pChr, byte* bArray, int aSize ) {
+
+bool sendCommandBytesNoResponse(NimBLERemoteCharacteristic * pChr, byte * bArray, int aSize ) {
   if (pChr == nullptr) {
     return false;
   }
   return pChr->writeValue(bArray, aSize, false);
 }
 
-bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int attempts) {
+bool sendCommandBytesWithResponse(NimBLERemoteCharacteristic * pChr, byte * bArray, int aSize ) {
+  if (pChr == nullptr) {
+    return false;
+  }
+  return pChr->writeValue(bArray, aSize, true);
+}
+
+bool sendCurtainCommandBytes(NimBLERemoteCharacteristic * pChr, byte * bArray, int aSize ) {
+  if (pChr == nullptr) {
+    return false;
+  }
+  if (getCurtainResponse) {
+    return sendCommandBytesWithResponse(pChr, bArray, aSize);
+  }
+  else {
+    return sendCommandBytesNoResponse(pChr, bArray, aSize);
+  }
+}
+
+bool sendBotCommandBytes(NimBLERemoteCharacteristic * pChr, byte * bArray, int aSize ) {
+  if (pChr == nullptr) {
+    return false;
+  }
+  if (getBotResponse) {
+    return sendCommandBytesWithResponse(pChr, bArray, aSize);
+  }
+  else {
+    return sendCommandBytesNoResponse(pChr, bArray, aSize);
+  }
+}
+
+bool isBotDevice (std::string aDevice) {
+  std::map<std::string, std::string>::iterator itS = allBots.find(aDevice);
+  if (itS != allBots.end())
+  {
+    return true;
+  }
+  return false;
+}
+
+bool isCurtainDevice (std::string aDevice) {
+  std::map<std::string, std::string>::iterator itS = allCurtains.find(aDevice);
+  if (itS != allCurtains.end())
+  {
+    return true;
+  }
+  return false;
+}
+
+bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int attempts) {
   if (advDeviceToUse == nullptr) {
     return false;
   }
@@ -1678,118 +2294,307 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
       pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
     }
   }
-
-  //getGeneric(advDeviceToUse);
-  NimBLERemoteService* pSvc = nullptr;
-  NimBLERemoteCharacteristic* pChr = nullptr;
   bool returnValue = true;
-  pSvc = pClient->getService("cba20d00-224d-11e6-9fb8-0002a5d5c51b");
-  if (pSvc) {
-    pChr = pSvc->getCharacteristic("cba20002-224d-11e6-9fb8-0002a5d5c51b");
+  std::string aPass = "";
+  std::string aDevice = "";
+  std::map<std::string, std::string>::iterator itU = allSwitchbotsOpp.find(anAddr);
+  if (itU != allSwitchbotsOpp.end())
+  {
+    aDevice = itU->second.c_str();
+    aPass = getPass(aDevice);
   }
-  if (pChr) {
-    if (pChr->canWrite()) {
-      bool wasSuccess = false;
-      bool isNum = is_number(type);
-      std::string aPass = "";
-      std::map<std::string, std::string>::iterator itU = allSwitchbotsOpp.find(anAddr);
-      if (itU != allSwitchbotsOpp.end())
-      {
-        aPass = getPass(itU->second.c_str());
-      }
-      uint8_t aPassCRC[4];
-      if (aPass != "") {
-        uint32_t aCRC = getPassCRC(aPass);
-        for (int i = 0; i < 4; ++i)
-        {
-          aPassCRC[i] = ((uint8_t*)&aCRC)[3 - i];
-        }
-      }
-      if (isNum) {
-        int aVal;
-        sscanf(type, "%d", &aVal);
-        byte bArrayPos[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, (100-aVal)};
-        wasSuccess = sendCommandBytes(pChr, bArrayPos, 7);
-      }
-      else {
-        if (strcmp(type, "PRESS") == 0) {
-          if (aPass == "") {
-            wasSuccess = sendCommandBytes(pChr, bArrayPress, 2);
+  if (isBotDevice(aDevice))
+  {
+    if (getBotResponse) {
+      returnValue = subscribeToNotify(advDeviceToUse);
+    }
+  }
+  else if (isCurtainDevice(aDevice))
+  {
+    if (getCurtainResponse) {
+      returnValue = subscribeToNotify(advDeviceToUse);
+    }
+  }
+  bool skipWaitAfter = false;
+  if (returnValue) {
+    NimBLERemoteService* pSvc = nullptr;
+    NimBLERemoteCharacteristic* pChr = nullptr;
+    pSvc = pClient->getService("cba20d00-224d-11e6-9fb8-0002a5d5c51b");
+    if (pSvc) {
+      pChr = pSvc->getCharacteristic("cba20002-224d-11e6-9fb8-0002a5d5c51b");
+    }
+    if (pChr) {
+      if (pChr->canWrite()) {
+        bool wasSuccess = false;
+        bool isNum = is_number(type);
+        uint8_t aPassCRC[4];
+        if (aPass != "") {
+          uint32_t aCRC = getPassCRC(aPass);
+          for (int i = 0; i < 4; ++i)
+          {
+            aPassCRC[i] = ((uint8_t*)&aCRC)[3 - i];
           }
-          else {
-            byte anArray[6];
-            for (int i = 0; i < 6; i++) {
-              if ((i >= 2) && (i <= 5)) {
-                anArray[i] = aPassCRC[i - 2];
+        }
+        if (isNum) {
+          int aVal;
+          sscanf(type, "%d", &aVal);
+          if (isBotDevice(aDevice)) {
+            skipWaitAfter = true;
+            if (aPass == "") {
+              Serial.println("Num is for a bot device - no pass");
+              byte anArray[4];
+              for (int i = 0; i < 4; i++) {
+                if (i == 3) {
+                  anArray[i] = aVal;
+                }
+                else {
+                  anArray[i] = bArrayHoldSecs[i];
+                }
               }
-              else {
-                anArray[i] = bArrayPressPass[i];
-              }
+              wasSuccess = sendBotCommandBytes(pChr, anArray, 4);
             }
-            wasSuccess = sendCommandBytes(pChr, anArray , 6);
+            else {
+              byte anArray[8];
+              for (int i = 0; i < 8; i++) {
+                if ((i >= 2) && (i <= 5)) {
+                  anArray[i] = aPassCRC[i - 2];
+                }
+                else if (i == 7) {
+                  anArray[i] = aVal;
+                }
+                else {
+                  anArray[i] = bArrayHoldSecsPass[i];
+                }
+              }
+              wasSuccess = sendBotCommandBytes(pChr, anArray , 8);
+            }
           }
-        }
-        else if (strcmp(type, "ON") == 0) {
-          if (aPass == "") {
-            wasSuccess = sendCommandBytes(pChr, bArrayOn, 3);
-          }
-          else {
+          else if (isCurtainDevice(aDevice)) {
             byte anArray[7];
             for (int i = 0; i < 7; i++) {
-              if (i >= 2 &&  i <= 5) {
-                anArray[i] = aPassCRC[i - 2];
+              if (i == 6) {
+                anArray[i] = (100 - aVal);
               }
               else {
-                anArray[i] = bArrayOnPass[i];
+                anArray[i] = bArrayPos[i];
               }
             }
-            wasSuccess = sendCommandBytes(pChr, anArray , 7);
+            wasSuccess = sendCurtainCommandBytes(pChr, anArray , 7);
           }
-        }
-        else if (strcmp(type, "OFF") == 0) {
-          if (aPass == "") {
-            wasSuccess = sendCommandBytes(pChr, bArrayOff, 3);
-          }
-          else {
-            byte anArray[7];
-            for (int i = 0; i < 7; i++) {
-              if (i >= 2 &&  i <= 5) {
-                anArray[i] = aPassCRC[i - 2];
-              }
-              else {
-                anArray[i] = bArrayOffPass[i];
-              }
-            }
-            wasSuccess = sendCommandBytes(pChr, anArray , 7);
-          }
-        }
-        else if (strcmp(type, "OPEN") == 0) {
-          wasSuccess = sendCommandBytes(pChr, bArrayOpen, 7);
-        }
-        else if (strcmp(type, "CLOSE") == 0) {
-          wasSuccess = sendCommandBytes(pChr, bArrayClose, 7);
-        }
-        else if (strcmp(type, "PAUSE") == 0) {
-          wasSuccess = sendCommandBytes(pChr, bArrayPause, 6);
-        }
-        if (wasSuccess) {
-          Serial.print("Wrote new value to: ");
-          Serial.println(pChr->getUUID().toString().c_str());
         }
         else {
-          returnValue = false;
+          if (strcmp(type, "PRESS") == 0) {
+            if (aPass == "") {
+              wasSuccess = sendBotCommandBytes(pChr, bArrayPress, 2);
+            }
+            else {
+              byte anArray[6];
+              for (int i = 0; i < 6; i++) {
+                if ((i >= 2) && (i <= 5)) {
+                  anArray[i] = aPassCRC[i - 2];
+                }
+                else {
+                  anArray[i] = bArrayPressPass[i];
+                }
+              }
+              wasSuccess = sendBotCommandBytes(pChr, anArray , 6);
+            }
+          }
+          else if (strcmp(type, "ON") == 0) {
+            if (aPass == "") {
+              wasSuccess = sendBotCommandBytes(pChr, bArrayOn, 3);
+            }
+            else {
+              byte anArray[7];
+              for (int i = 0; i < 7; i++) {
+                if (i >= 2 &&  i <= 5) {
+                  anArray[i] = aPassCRC[i - 2];
+                }
+                else {
+                  anArray[i] = bArrayOnPass[i];
+                }
+              }
+              wasSuccess = sendBotCommandBytes(pChr, anArray , 7);
+            }
+          }
+          else if (strcmp(type, "OFF") == 0) {
+            if (aPass == "") {
+              wasSuccess = sendBotCommandBytes(pChr, bArrayOff, 3);
+            }
+            else {
+              byte anArray[7];
+              for (int i = 0; i < 7; i++) {
+                if (i >= 2 &&  i <= 5) {
+                  anArray[i] = aPassCRC[i - 2];
+                }
+                else {
+                  anArray[i] = bArrayOffPass[i];
+                }
+              }
+              wasSuccess = sendBotCommandBytes(pChr, anArray , 7);
+            }
+          }
+          else if (strcmp(type, "OPEN") == 0) {
+            wasSuccess = sendCurtainCommandBytes(pChr, bArrayOpen, 7);
+          }
+          else if (strcmp(type, "CLOSE") == 0) {
+            wasSuccess = sendCurtainCommandBytes(pChr, bArrayClose, 7);
+          }
+          else if (strcmp(type, "PAUSE") == 0) {
+            wasSuccess = sendCurtainCommandBytes(pChr, bArrayPause, 6);
+          }
+          else if (strcmp(type, "GETSETTINGS") == 0 || strcmp(type, "REQUESTSETTINGS") == 0) {
+            skipWaitAfter = true;
+            if (aPass == "") {
+              wasSuccess = sendBotCommandBytes(pChr, bArrayGetSettings, 2);
+            }
+            else {
+              byte anArray[6];
+              for (int i = 0; i < 6; i++) {
+                if ((i >= 2) && (i <= 5)) {
+                  anArray[i] = aPassCRC[i - 2];
+                }
+                else {
+                  anArray[i] = bArrayGetSettingsPass[i];
+                }
+              }
+              wasSuccess = sendBotCommandBytes(pChr, anArray , 6);
+            }
+          }
+          else if (strcmp(type, "MODEPRESS") == 0) {
+            if (aPass == "") {
+              byte anArray[4];
+              for (int i = 0; i < 4; i++) {
+                if (i == 3) {
+                  anArray[i] = 0x00;
+                }
+                else {
+                  anArray[i] = bArrayBotMode[i];
+                }
+              }
+              wasSuccess = sendBotCommandBytes(pChr, anArray , 4);
+            }
+            else {
+              byte anArray[8];
+              for (int i = 0; i < 8; i++) {
+                if ((i >= 2) && (i <= 5)) {
+                  anArray[i] = aPassCRC[i - 2];
+                }
+                else if (i == 7) {
+                  anArray[i] = 0x00;
+                }
+                else {
+                  anArray[i] = bArrayBotModePass[i];
+                }
+              }
+              wasSuccess = sendBotCommandBytes(pChr, anArray , 8);
+            }
+          }
+          else if (strcmp(type, "MODEPRESSINV") == 0) {
+            if (aPass == "") {
+              byte anArray[4];
+              for (int i = 0; i < 4; i++) {
+                if (i == 3) {
+                  anArray[i] = 0x01;
+                }
+                else {
+                  anArray[i] = bArrayBotMode[i];
+                }
+              }
+              wasSuccess = sendBotCommandBytes(pChr, anArray , 4);
+            }
+            else {
+              byte anArray[8];
+              for (int i = 0; i < 8; i++) {
+                if ((i >= 2) && (i <= 5)) {
+                  anArray[i] = aPassCRC[i - 2];
+                }
+                else if (i == 7) {
+                  anArray[i] = 0x01;
+                }
+                else {
+                  anArray[i] = bArrayBotModePass[i];
+                }
+              }
+              wasSuccess = sendBotCommandBytes(pChr, anArray , 8);
+            }
+          }
+          else if (strcmp(type, "MODESWITCH") == 0) {
+            if (aPass == "") {
+              byte anArray[4];
+              for (int i = 0; i < 4; i++) {
+                if (i == 3) {
+                  anArray[i] = 0x10;
+                }
+                else {
+                  anArray[i] = bArrayBotMode[i];
+                }
+              }
+              wasSuccess = sendBotCommandBytes(pChr, anArray , 4);
+            }
+            else {
+              byte anArray[8];
+              for (int i = 0; i < 8; i++) {
+                if ((i >= 2) && (i <= 5)) {
+                  anArray[i] = aPassCRC[i - 2];
+                }
+                else if (i == 7) {
+                  anArray[i] = 0x10;
+                }
+                else {
+                  anArray[i] = bArrayBotModePass[i];
+                }
+              }
+              wasSuccess = sendBotCommandBytes(pChr, anArray , 8);
+            }
+          }
+          else if (strcmp(type, "MODESWITCHINV") == 0) {
+            if (aPass == "") {
+              byte anArray[4];
+              for (int i = 0; i < 4; i++) {
+                if (i == 3) {
+                  anArray[i] = 0x11;
+                }
+                else {
+                  anArray[i] = bArrayBotMode[i];
+                }
+              }
+              wasSuccess = sendBotCommandBytes(pChr, anArray , 4);
+            }
+            else {
+              byte anArray[8];
+              for (int i = 0; i < 8; i++) {
+                if ((i >= 2) && (i <= 5)) {
+                  anArray[i] = aPassCRC[i - 2];
+                }
+                else if (i == 7) {
+                  anArray[i] = 0x11;
+                }
+                else {
+                  anArray[i] = bArrayBotModePass[i];
+                }
+              }
+              wasSuccess = sendBotCommandBytes(pChr, anArray , 8);
+            }
+          }
+          if (wasSuccess) {
+            Serial.print("Wrote new value to: ");
+            Serial.println(pChr->getUUID().toString().c_str());
+          }
+          else {
+            returnValue = false;
+          }
         }
+      }
+      else {
+        returnValue = false;
       }
     }
     else {
+      Serial.println("CUSTOM write service not found.");
       returnValue = false;
     }
   }
-  else {
-    Serial.println("CUSTOM write service not found.");
-    returnValue = false;
-  }
-
   if (!returnValue) {
     if (attempts >= 10) {
       Serial.println("Sending failed. Disconnecting client");
@@ -1798,10 +2603,18 @@ bool sendCommand(NimBLEAdvertisedDevice* advDeviceToUse, const char * type, int 
   }
   pClient->disconnect();
   Serial.println("Success! Command sent/received to/from SwitchBot");
+  if (!skipWaitAfter) {
+    std::map<std::string, long>::iterator itZ = lastCommandSent.find(anAddr);
+    if (itZ != lastCommandSent.end())
+    {
+      lastCommandSent.erase(anAddr);
+    }
+    lastCommandSent.insert (std::pair<std::string, long>(anAddr, millis()));
+  }
   return true;
 }
 
-bool getGeneric(NimBLEAdvertisedDevice* advDeviceToUse) {
+bool getGeneric(NimBLEAdvertisedDevice * advDeviceToUse) {
   NimBLEClient* pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
   NimBLERemoteService* pSvc = nullptr;
   NimBLERemoteCharacteristic* pChr = nullptr;;
@@ -1823,11 +2636,223 @@ bool getGeneric(NimBLEAdvertisedDevice* advDeviceToUse) {
   return false;
 }
 
-bool requestInfo(NimBLEAdvertisedDevice* advDeviceToUse) {
+bool requestInfo(NimBLEAdvertisedDevice * advDeviceToUse) {
   if (advDeviceToUse == nullptr) {
     return false;
   }
   Serial.println("Requesting info...");
   rescanFind(advDeviceToUse->getAddress().toString().c_str());
   return true;
+}
+
+void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
+  Serial.println("notifyCB");
+  std::string aDevice;
+  std::string aState;
+  std::string deviceSettingsTopic;
+  std::string deviceAttrTopic;
+  std::string deviceStatusTopic;
+  std::string deviceMac = pRemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress();
+  std::map<std::string, bool>::iterator itM = discoveredDevices.find(deviceMac);
+  std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(deviceMac);
+
+  if (itS != allSwitchbotsOpp.end())
+  {
+    aDevice = itS->second.c_str();
+  }
+  else {
+    return;
+  }
+
+  if (home_assistant_mqtt_discovery) {
+    if (itM == discoveredDevices.end()) {
+      Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
+      publishHomeAssistantDiscoveryBotConfig(aDevice, deviceMac);
+      discoveredDevices.insert( std::pair<std::string, bool>(deviceMac, true) );
+    }
+  }
+
+  char aBuffer[200];
+  std::string deviceName;
+  itS = deviceTypes.find(deviceMac.c_str());
+  if (itS != deviceTypes.end())
+  {
+    deviceName = itS->second.c_str();
+  }
+
+  Serial.printf("deviceName: %s\n", deviceName.c_str());
+
+  if (deviceName == botName) {
+    deviceStatusTopic = botTopic + aDevice + "/status";
+    deviceSettingsTopic = botTopic + aDevice + "/settings";
+    deviceAttrTopic = botTopic + aDevice + "/attributes";
+
+    if (!lastCommandSentPublished) {
+      StaticJsonDocument<50> statDoc;
+      statDoc["status"] = "commandSent";
+      serializeJson(statDoc, aBuffer);
+      client.publish(deviceStatusTopic.c_str(), aBuffer);
+      lastCommandSentPublished = true;
+    }
+
+    if (length == 1) {
+      StaticJsonDocument<50> statDoc;
+      uint8_t byte1 = pData[0];
+      Serial.print("The response value from bot set mode or holdSecs: ");
+      Serial.println(byte1);
+      if (byte1 == 3) {
+        statDoc["status"] = "busy";
+        lastCommandWasBusy = true;
+      }
+      //SUCCESS == 1 when setting hold secs or mode
+      else if (byte1 == 1) {
+        statDoc["status"] = "success";
+        lastCommandWasBusy = false;
+      } else {
+        statDoc["status"] = "failed";
+        lastCommandWasBusy = false;
+      }
+      statDoc["value"] = byte1;
+      serializeJson(statDoc, aBuffer);
+      client.publish(deviceStatusTopic.c_str(), aBuffer);
+    }
+    if (length == 3) {
+      StaticJsonDocument<50> statDoc;
+      uint8_t byte1 = pData[0];
+      Serial.print("The response value from bot action: ");
+      Serial.println(byte1);
+      if (byte1 == 3) {
+        statDoc["status"] = "busy";
+        lastCommandWasBusy = true;
+      }
+      //SUCCESS == 1 (on/off) or == 5 (press) for bot
+      else if (byte1 == 1 || byte1 == 5) {
+        statDoc["status"] = "success";
+        lastCommandWasBusy = false;
+      } else {
+        statDoc["status"] = "failed";
+        lastCommandWasBusy = false;
+      }
+      statDoc["value"] = byte1;
+      serializeJson(statDoc, aBuffer);
+      client.publish(deviceStatusTopic.c_str(), aBuffer);
+    }
+    else if (length == 13) {
+      StaticJsonDocument<50> statDoc;
+      statDoc["status"] = "success";
+      lastCommandWasBusy = false;
+      serializeJson(statDoc, aBuffer);
+      client.publish(deviceStatusTopic.c_str(), aBuffer);
+
+      /**** THESE SETTINGS ARE ALSO COLLECTED BY A SCAN SO IT IS REDUNDANT. Commented out because of RSSI. The rest works****/
+      /*
+            StaticJsonDocument<100> attDoc;
+            std::map<std::string, NimBLEAdvertisedDevice*>::iterator itS = allSwitchbotsDev.find(deviceMac);
+            NimBLEAdvertisedDevice* advDevice = nullptr;
+            if (itS != allSwitchbotsDev.end())
+            {
+              advDevice =  itS->second;
+            }
+
+            //RSSI doesn't always work for some reason here. It can return 0
+            attDoc["rssi"] = advDevice->getRSSI();
+
+            uint8_t byte1 = pData[0];
+            uint8_t byte2 = pData[1];
+
+            bool isSwitch = bitRead(pData[9], 4);
+            std::string aMode = isSwitch ? "Switch" : "Press"; // Whether the light switch Add-on is used or not
+            if (isSwitch) {
+              std::map<std::string, bool>::iterator itP = botsInPressMode.find(deviceMac);
+              if (itP != botsInPressMode.end())
+              {
+                botsInPressMode.erase(deviceMac);
+              }
+              aState = (byte1 & 0b01000000) ? "OFF" : "ON"; // Mine is opposite, not sure why
+            }
+            else {
+              botsInPressMode.insert (std::pair<std::string, bool>(deviceMac, true));
+              aState = "OFF";
+            }
+            int battLevel = byte2 & 0b01111111; // %
+
+            attDoc["mode"] = aMode;
+            attDoc["state"] = aState;
+            attDoc["batt"] = battLevel;
+            serializeJson(attDoc, aBuffer);
+            client.publish(deviceAttrTopic.c_str(), aBuffer, true);
+            client.publish(deviceStateTopic.c_str(), aState.c_str(), true);*/
+      /***************************************/
+      StaticJsonDocument<100> settDoc;
+      float fwVersion = pData[2] / 10.0;
+      settDoc["firmware"] = serialized(String(fwVersion, 1));
+      int timersNumber = pData[8];
+      settDoc["timers"] = timersNumber;
+      bool inverted = bitRead(pData[9], 0) ;
+      settDoc["inverted"] = inverted;
+      int holdSecs = pData[10];
+      settDoc["hold"] = holdSecs;
+
+      serializeJson(settDoc, aBuffer);
+      client.publish(deviceSettingsTopic.c_str(), aBuffer, true);
+
+      std::map<std::string, int>::iterator itZ = botHoldSecs.find(deviceMac);
+      if (itZ != botHoldSecs.end())
+      {
+        botHoldSecs.erase(deviceMac);
+      }
+      botHoldSecs.insert (std::pair<std::string, int>(deviceMac, holdSecs));
+    }
+  }
+
+  /*UNTESTED FOR CURTAIN*/
+  else if (deviceName == curtainName) {
+    deviceStatusTopic = curtainTopic + aDevice + "/status";
+    deviceSettingsTopic = curtainTopic + aDevice + "/settings";
+    deviceAttrTopic = curtainTopic + aDevice + "/attributes";
+
+    if (!lastCommandSentPublished) {
+      StaticJsonDocument<50> statDoc;
+      statDoc["status"] = "commandSent";
+      serializeJson(statDoc, aBuffer);
+      client.publish(deviceStatusTopic.c_str(), aBuffer);
+      lastCommandSentPublished = true;
+    }
+    if (length < 3) {
+      return;
+    }
+    else if (length == 3) {
+      StaticJsonDocument<50> statDoc;
+      uint8_t byte1 = pData[0];
+
+      Serial.print("The response value from curtain: ");
+      Serial.println(byte1);
+      if (byte1 == 3) {
+        statDoc["status"] = "busy";
+        lastCommandWasBusy = true;
+      }
+      //SUCCESS == 1 or == 5 for curtain ????? just assuming based on bot
+      else if (byte1 == 1 || byte1 == 5) {
+        statDoc["status"] = "success";
+        lastCommandWasBusy = false;
+      } else {
+        statDoc["status"] = "failed";
+        lastCommandWasBusy = false;
+      }
+      statDoc["value"] = byte1;
+      serializeJson(statDoc, aBuffer);
+      client.publish(deviceStatusTopic.c_str(), aBuffer);
+    }
+  }
+
+  NimBLEClient* pClient = nullptr;
+  if (NimBLEDevice::getClientListSize()) {
+    pClient = NimBLEDevice::getClientByPeerAddress(deviceMac);
+    if (pClient) {
+      if (!pClient->isConnected()) {
+        unsubscribeToNotify(pClient);
+        pClient->disconnect();
+      }
+    }
+  }
 }
