@@ -9,9 +9,9 @@ Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP3
   ** I do not know where performance will be affected by number of devices
   ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-v3.0
+v3.1
 
-Created: on June 7 2021
+Created: on June 13 2021
   Author: devWaves
   
   Contributions from:
@@ -64,22 +64,36 @@ Notes:
                         - <ESPMQTTTopic>/bot/<name>/status
                         - <ESPMQTTTopic>/curtain/<name>/status
                         - <ESPMQTTTopic>/meter/<name>/status
-
-                        Example reponses:
-                          - <ESPMQTTTopic>/bot/<name>/status
-                          - <ESPMQTTTopic>/curtain/<name>/status
-                          - <ESPMQTTTopic>/meter/<name>/status
-
+			
                         Example payload:
                           - {"status":"connected"}
                           - {"status":"press"}
                           - {"status":"errorConnect"}
                           - {"status":"errorCommand"}
                           - {"status":"commandSent"}
-                          - {"status":"busy"}
-                          - {"status":"failed"}
-                          - {"status":"success"}
+                          - {"status":"busy", "value":3}
+                          - {"status":"failed", "value":9}
                           - {"status":"success", "value":1}
+                          - {"status":"success", "value":5}
+                          - {"status":"success"}
+			  
+                       ESP32 will respond with MQTT on 'state' topic for every configured device
+                        - <ESPMQTTTopic>/bot/<name>/state
+                        - <ESPMQTTTopic>/curtain/<name>/state
+			
+                        Example payload:
+                          - "ON"
+                          - "OFF"
+                          - "OPEN"
+                          - "CLOSE"
+			  
+                        ESP32 will respond with MQTT on 'position' topic for every configured device
+                        - <ESPMQTTTopic>/curtain/<name>/position
+			
+                        Example payload:
+                          - {"pos":500}
+                          - {"pos":100}
+                          - {"pos":50}
 
 
   **ESP32 will Subscribe to MQTT topic to rescan for all device information**
@@ -101,28 +115,35 @@ Notes:
 
                       ESP32 will respond with MQTT on
                         - <ESPMQTTTopic>/#
-
+			
                         Example attribute responses per device are detected:
                           - <ESPMQTTTopic>/bot/<name>/attributes
                           - <ESPMQTTTopic>/curtain/<name>/attributes
                           - <ESPMQTTTopic>/meter/<name>/attributes
-
+			  
                         Example payloads:
                           - {"rssi":-78,"mode":"Press","state":"OFF","batt":94}
                           - {"rssi":-66,"calib":true,"batt":55,"pos":50,"state":"open","light":1}
                           - {"rssi":-66,"scale":"c","batt":55,"C":"21.5","F":"70.7","hum":"65"}
-
+			  
                         Example attribute responses per device are detected:
                           - <ESPMQTTTopic>/bot/<name>/state
                           - <ESPMQTTTopic>/curtain/<name>/state
                           - <ESPMQTTTopic>/meter/<name>/state
-
-                        Example payloads:
-                          - ON
-                          - OFF
-                          - OPEN
-                          - CLOSE
-                          - 50
+			  
+                        Example payload:
+                          - "ON"
+                          - "OFF"
+                          - "OPEN"
+                          - "CLOSE"
+			  
+                        ESP32 will respond with MQTT on 'position' topic for every configured device
+                        - <ESPMQTTTopic>/curtain/<name>/position
+			
+                        Example payload:
+                          - {"pos":500}
+                          - {"pos":100}
+                          - {"pos":50}
 
   **ESP32 will Subscribe to MQTT topic for device settings information (requires getBotResponse = true) - BOT ONLY**
   
@@ -156,23 +177,20 @@ Notes:
 
                       ESP32 will respond with MQTT on 'status' topic for every configured device
                         - <ESPMQTTTopic>/bot/<name>/status
-                        - <ESPMQTTTopic>/curtain/<name>/status
-                        - <ESPMQTTTopic>/meter/<name>/status
 
                         Example reponses:
                           - <ESPMQTTTopic>/bot/<name>/status
-                          - <ESPMQTTTopic>/curtain/<name>/status
-                          - <ESPMQTTTopic>/meter/<name>/status
 
                         Example payload:
                           - {"status":"connected"}
                           - {"status":"errorConnect"}
                           - {"status":"errorCommand"}
                           - {"status":"commandSent"}
-                          - {"status":"busy"}
-                          - {"status":"failed"}
-                          - {"status":"success"}
+                          - {"status":"busy", "value":3}
+                          - {"status":"failed", "value":9}
                           - {"status":"success", "value":1}
+                          - {"status":"success", "value":5}
+                          - {"status":"success"}
 
   **ESP32 will Subscribe to MQTT topic setting mode for bots**
   
@@ -187,22 +205,19 @@ Notes:
 
                       ESP32 will respond with MQTT on 'status' topic for every configured device
                         - <ESPMQTTTopic>/bot/<name>/status
-                        - <ESPMQTTTopic>/curtain/<name>/status
-                        - <ESPMQTTTopic>/meter/<name>/status
 
                         Example reponses:
                           - <ESPMQTTTopic>/bot/<name>/status
-                          - <ESPMQTTTopic>/curtain/<name>/status
-                          - <ESPMQTTTopic>/meter/<name>/status
 
                         Example payload:
                           - {"status":"connected"}
                           - {"status":"errorConnect"}
                           - {"status":"errorCommand"}
                           - {"status":"commandSent"}
-                          - {"status":"busy"}
-                          - {"status":"failed"}
+                          - {"status":"busy", "value":3}
+                          - {"status":"failed", "value":9}
                           - {"status":"success", "value":1}
+                          - {"status":"success", "value":5}
 
   **ESP32 will respond with MQTT on ESPMQTTTopic with ESP32 status**
   
