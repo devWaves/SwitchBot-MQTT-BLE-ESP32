@@ -9,9 +9,9 @@
      *  I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v3.0
+  v3.1
 
-    Created: on June 7 2021
+    Created: on June 13 2021
         Author: devWaves
 
         Contributions from:
@@ -43,13 +43,13 @@
     - Automatically rescan every X seconds
 
     - Automatically requestInfo X seconds after successful control command
-	
+
 	- Retry set/control command on busy response from bot/curtain until success
-	
+
 	- Get settings from bot (firmware, holdSecs, inverted, number of timers)
-	
+
 	- Add a defined delay between each set/control commands or per device
-	
+
 	- ESP32 will collect hold time from bots and automatically wait holdSecs+defaultBotWaitTime until next command is sent to bot
 
 
@@ -80,21 +80,35 @@
                         - <ESPMQTTTopic>/curtain/<name>/status
                         - <ESPMQTTTopic>/meter/<name>/status
 
-                        Example reponses:
-                          - <ESPMQTTTopic>/bot/<name>/status
-                          - <ESPMQTTTopic>/curtain/<name>/status
-                          - <ESPMQTTTopic>/meter/<name>/status
-
                         Example payload:
                           - {"status":"connected"}
                           - {"status":"press"}
                           - {"status":"errorConnect"}
                           - {"status":"errorCommand"}
                           - {"status":"commandSent"}
-                          - {"status":"busy"}
-                          - {"status":"failed"}
-                          - {"status":"success"}
+                          - {"status":"busy", "value":3}
+                          - {"status":"failed", "value":9}
                           - {"status":"success", "value":1}
+                          - {"status":"success", "value":5}
+                          - {"status":"success"}
+
+                       ESP32 will respond with MQTT on 'state' topic for every configured device
+                        - <ESPMQTTTopic>/bot/<name>/state
+                        - <ESPMQTTTopic>/curtain/<name>/state
+
+                        Example payload:
+                          - "ON"
+                          - "OFF"
+                          - "OPEN"
+                          - "CLOSE"
+
+                        ESP32 will respond with MQTT on 'position' topic for every configured device
+                        - <ESPMQTTTopic>/curtain/<name>/position
+
+                        Example payload:
+                          - {"pos":500}
+                          - {"pos":100}
+                          - {"pos":50}
 
 
   ESP32 will Subscribe to MQTT topic to rescan for all device information
@@ -130,12 +144,19 @@
                           - <ESPMQTTTopic>/curtain/<name>/state
                           - <ESPMQTTTopic>/meter/<name>/state
 
-                        Example payloads:
-                          - ON
-                          - OFF
-                          - OPEN
-                          - CLOSE
-                          - 50
+                        Example payload:
+                          - "ON"
+                          - "OFF"
+                          - "OPEN"
+                          - "CLOSE"
+
+                        ESP32 will respond with MQTT on 'position' topic for every configured device
+                        - <ESPMQTTTopic>/curtain/<name>/position
+
+                        Example payload:
+                          - {"pos":500}
+                          - {"pos":100}
+                          - {"pos":50}
 
   // REQUESTSETTINGS WORKS FOR BOT ONLY - DOCUMENTATION NOT AVAILABLE ONLINE FOR CURTAIN
   ESP32 will Subscribe to MQTT topic for device settings information (requires getBotResponse = true)
@@ -182,10 +203,12 @@
                           - {"status":"errorConnect"}
                           - {"status":"errorCommand"}
                           - {"status":"commandSent"}
-                          - {"status":"busy"}
-                          - {"status":"failed"}
-                          - {"status":"success"}
+                          - {"status":"busy", "value":3}
+                          - {"status":"failed", "value":9}
                           - {"status":"success", "value":1}
+                          - {"status":"success", "value":5}                          
+                          - {"status":"success"}
+
 
   // SET MODE ON BOT
   ESP32 will Subscribe to MQTT topic setting mode for bots
@@ -213,9 +236,10 @@
                           - {"status":"errorConnect"}
                           - {"status":"errorCommand"}
                           - {"status":"commandSent"}
-                          - {"status":"busy"}
-                          - {"status":"failed"}
+                          - {"status":"busy", "value":3}
+                          - {"status":"failed", "value":9}
                           - {"status":"success", "value":1}
+                          - {"status":"success", "value":5} 
 
   ESP32 will respond with MQTT on ESPMQTTTopic with ESP32 status
       - <ESPMQTTTopic>
@@ -274,6 +298,7 @@ static const uint16_t mqtt_packet_size = 1024;
 static bool home_assistant_mqtt_discovery = true;                    //  Enable to publish Home Assistant MQTT Discovery config
 static std::string home_assistant_mqtt_prefix = "homeassistant";     //  MQTT Home Assistant prefix
 static bool home_assistant_expose_seperate_curtain_position = true;  // When enabled, a seperate sensor will be added that will expose the curtain position. This is useful when using the Prometheus integration to graph curtain positions. The cover entity doesn't expose the position for Prometheus
+static bool home_assistant_use_opt_mode = false;                      // For bots in switch mode assume on/off right away. Optimistic mode. (Icon will change in HA). If devices were already configured in HA, you need to delete them and reboot esp32
 
 /* Switchbot General Settings */
 static int tryConnecting = 60;          // How many times to try connecting to bot
@@ -284,15 +309,21 @@ static int rescanTime = 600;            // Automatically rescan for device info 
 static int queueSize = 50;              // Max number of control/requestInfo/rescan MQTT commands stored in the queue. If you send more then queueSize, they will be ignored
 static int defaultBotWaitTime = 2;      // wait at least X seconds between control command send to bots. ESP32 will detect if bot is in press mode with a hold time and will add hold time to this value per device
 static int defaultCurtainWaitTime = 0;  // wait at least X seconds between control command send to curtains
+static int waitForResponseSec = 3;      // How many seconds to wait for a bot/curtain response
+static int noResponseRetryAmount = 3;   // How many times to retry if no response received. Required 
 
-static bool autoRescan = true;          // perform automatic rescan (uses rescanTime and initialScan). If (home_assistant_mqtt_discovery = true) the value set here is ignored. autoRescan is on for HA
-static bool scanAfterControl = true;    // perform requestInfo after successful control command (uses botScanTime). If (home_assistant_mqtt_discovery = true) the value set here is ignored. scanAfterControl is on for HA
-static bool waitBetweenControl = true;  // wait between commands sent to bot/curtain (avoids sending while bot is busy)
-static bool getSettingsOnBoot = true;   // Currently only works for bot (curtain documentation not available but can probably be reverse engineered easily). Get bot extra settings values like firmware, holdSecs, inverted, number of timers. ***If holdSecs is available it is used by waitBetweenControl
-static bool getBotResponse = true;      // get a response from the bot devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
-static bool getCurtainResponse = true;  // get a response from the curtain devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
-static bool retryBotOnBusy = true;      // Requires getBotResponse = true. if bot responds with busy, the last control command will retry until success
-static bool retryCurtainOnBusy = true;  // Requires getCurtainResponse = true. if curtain responds with busy, the last control command will retry until success
+static bool autoRescan = true;                   // perform automatic rescan (uses rescanTime and initialScan). If (home_assistant_mqtt_discovery = true) the value set here is ignored. autoRescan is on for HA
+static bool scanAfterControl = true;             // perform requestInfo after successful control command (uses botScanTime). If (home_assistant_mqtt_discovery = true) the value set here is ignored. scanAfterControl is on for HA
+static bool waitBetweenControl = true;           // wait between commands sent to bot/curtain (avoids sending while bot is busy)
+static bool getSettingsOnBoot = true;            // Currently only works for bot (curtain documentation not available but can probably be reverse engineered easily). Get bot extra settings values like firmware, holdSecs, inverted, number of timers. ***If holdSecs is available it is used by waitBetweenControl
+static bool getBotResponse = true;               // get a response from the bot devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
+static bool getCurtainResponse = true;           // get a response from the curtain devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
+static bool retryBotOnBusy = true;               // Requires getBotResponse = true. if bot responds with busy, the last control command will retry until success
+static bool retryCurtainOnBusy = true;           // Requires getCurtainResponse = true. if curtain responds with busy, the last control command will retry until success
+static bool retryBotNoResponse = false;          // Retry if bot doesn't send a response. Bot default is false because no response can still mean the bot triggered. It is possible this trigger the bot twice
+static bool retryCurtainNoResponse = true;       // Retry if curtain doesn't send a response. Default is true. It shouldn't matter if curtain receives the same command twice (or multiple times)
+static bool immediateBotStateUpdate = true;      // ESP32 will send ON/OFF state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
+static bool immediateCurtainStateUpdate = true;  // ESP32 will send OPEN/CLOSE and Position state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
 
 /* Switchbot Bot Settings */
 static std::map<std::string, std::string> allBots = {
@@ -322,7 +353,7 @@ static std::map<std::string, std::string> allPasswords = {     // Set all the bo
 /* Switchbot Bot/Meter/Curtain scan interval */
 /* Meters don't support commands so will be scanned every <int> interval automatically if scanAfterControl = true */
 /* Requires scanAfterControl = true */
-static std::map<std::string, int> botScanTime = {     // X seconds after a successful control command ESP32 will perform a requestInfo on the bot. If a "hold time" is set on the bot include that value + 5to10 secs. Default is 30 sec if not in list
+static std::map<std::string, int> botScanTime = {     // X seconds after a successful control command ESP32 will perform a requestInfo on the bot. If a "hold time" is set on the bot include that value + 5to10 secs. Hold time is auto added to default value. Default is 10+Hold sec if not in list
   /*{ "switchbotone", 10 },
     { "switchbottwo", 10 },
     { "curtainone", 20 },
@@ -351,7 +382,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
    Login page
 */
 
-static const String versionNum = "v3.0";
+static const String versionNum = "v3.1";
 static const String loginIndex =
   "<form name='loginForm'>"
   "<table bgcolor='A09F9F' align='center' style='top: 250px;position: relative;width: 30%;'>"
@@ -577,7 +608,7 @@ void publishLastwillOnline() {
   }
 }
 
-void publishHomeAssistantDiscoveryBotConfig(std::string deviceName, std::string deviceMac) {
+void publishHomeAssistantDiscoveryBotConfig(std::string deviceName, std::string deviceMac, bool optimistic) {
   std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
   client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/battery/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
                  + "\"name\":\"" + deviceName + " Battery\"," +
@@ -609,6 +640,14 @@ void publishHomeAssistantDiscoveryBotConfig(std::string deviceName, std::string 
                  + "\"pl_off\":false," +
                  + "\"value_template\":\"{{ value_json.inverted }}\"}").c_str(), true);
 
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/mode/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Mode\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_mode\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"value_template\":\"{{ value_json.mode }}\"}").c_str(), true);
+
   client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/firmware/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
                  + "\"name\":\"" + deviceName + " Firmware\"," +
                  + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
@@ -633,12 +672,21 @@ void publishHomeAssistantDiscoveryBotConfig(std::string deviceName, std::string 
                  + "\"stat_t\":\"~/settings\"," +
                  + "\"value_template\":\"{{ value_json.timers }}\"}").c_str(), true);
 
+  std::string optiString;
+  if (optimistic) {
+    optiString = "true";
+  }
+  else {
+    optiString = "false";
+  }
+
   client.publish((home_assistant_mqtt_prefix + "/switch/" + deviceName + "/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\", " +
                  + "\"name\":\"" + deviceName + " Switch\"," +
                  + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                  + "\"avty_t\": \"" + lastWill + "\"," +
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
                  + "\"stat_t\":\"~/state\", " +
+                 + "\"opt\":" + optiString + ", " +
                  + "\"cmd_t\": \"~/set\" }").c_str(), true);
 
 }
@@ -697,7 +745,7 @@ void publishHomeAssistantDiscoveryCurtainConfig(std::string deviceName, std::str
                  + "\"pos_open\": 100, " +
                  + "\"pos_clsd\": 0, " +
                  + "\"cmd_t\": \"~/set\", " +
-                 + "\"pos_t\":\"~/attributes\", " +
+                 + "\"pos_t\":\"~/position\", " +
                  + "\"pos_tpl\":\"{{ value_json.pos }}\", " +
                  + "\"set_pos_t\": \"~/set\", " +
                  + "\"set_pos_tpl\": \"{{ position }}\" }").c_str(), true);
@@ -707,7 +755,7 @@ void publishHomeAssistantDiscoveryCurtainConfig(std::string deviceName, std::str
                    + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
                    + "\"avty_t\": \"" + lastWill + "\"," +
                    + "\"uniq_id\":\"switchbot_" + deviceMac + "_position\"," +
-                   + "\"stat_t\":\"~/attributes\"," +
+                   + "\"stat_t\":\"~/position\"," +
                    + "\"unit_of_meas\": \"%\", " +
                    + "\"value_template\":\"{{ value_json.pos }}\"}").c_str(), true);
   }
@@ -996,6 +1044,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           aState = (byte1 & 0b01000000) ? "OFF" : "ON"; // Mine is opposite, not sure why
         }
         else {
+
           botsInPressMode.insert (std::pair<std::string, bool>(deviceMac, true));
           aState = "OFF";
         }
@@ -1008,7 +1057,12 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         if (home_assistant_mqtt_discovery) {
           if (itM == discoveredDevices.end()) {
             Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
-            publishHomeAssistantDiscoveryBotConfig(aDevice, deviceMac);
+            if (home_assistant_use_opt_mode) {
+              publishHomeAssistantDiscoveryBotConfig(aDevice, deviceMac, isSwitch);
+            }
+            else {
+              publishHomeAssistantDiscoveryBotConfig(aDevice, deviceMac, false);
+            }
             discoveredDevices.insert( std::pair<std::string, bool>(deviceMac, true) );
           }
         }
@@ -1062,6 +1116,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         if (aLength < 5) {
           return false;
         }
+        std::string devicePosTopic = curtainTopic + aDevice + "/position";
         deviceStateTopic = curtainTopic + aDevice + "/state";
         deviceAttrTopic = curtainTopic + aDevice + "/attributes";
 
@@ -1091,6 +1146,10 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
             discoveredDevices.insert( std::pair<std::string, bool>(deviceMac, true) );
           }
         }
+        StaticJsonDocument<50> docPos;
+        docPos["pos"] = currentPosition;
+        serializeJson(docPos, aBuffer);
+        client.publish(devicePosTopic.c_str(), aBuffer, true);
       }
       else {
         return false;
@@ -1344,7 +1403,9 @@ void getAllBotSettings() {
     while (itT != allBots.end())
     {
       aDevice = itT->first;
+      processing = true;
       controlMQTT(aDevice, "REQUESTSETTINGS");
+      processing = false;
       itT++;
     }
     if (ledOnBootScan) {
@@ -1404,15 +1465,30 @@ void recurringScan() {
       std::map<std::string, long>::iterator it = rescanTimes.begin();
       std::map<std::string, std::string>::iterator itB;
       std::map<std::string, int>::iterator itS;
+
+      std::string anAddr = it->first;
       while (it != rescanTimes.end())
       {
-        itB = allSwitchbotsOpp.find(it->first);
+        itB = allSwitchbotsOpp.find(anAddr);
         itS = botScanTime.find(itB->second);
         long lastTime = it->second;
-        long scanTime = 30; //default if not in list
+        int aDefault = 10;
+        long scanTime = aDefault; //default if not in list
         if (itS != botScanTime.end())
         {
           scanTime = itS->second;
+        }
+        std::map<std::string, bool>::iterator itP = botsInPressMode.find(anAddr);
+        if (itP != botsInPressMode.end())
+        {
+          std::map<std::string, int>::iterator itH = botHoldSecs.find(anAddr);
+          if (itH != botHoldSecs.end())
+          {
+            int holdTimePlus = (itH->second) + aDefault;
+            if (holdTimePlus > scanTime) {
+              scanTime =  holdTimePlus;
+            }
+          }
         }
         if ((millis() - lastTime) >= (scanTime * 1000)) {
           if (!processing && !(pScan->isScanning()) && !isRescanning) {
@@ -1430,6 +1506,8 @@ void recurringScan() {
     lastScanCheck = millis();
   }
 }
+
+static bool currentRetry = 0;
 
 void processRequest(std::string macAdd, std::string aName, const char * command, std::string deviceTopic) {
   int count = 1;
@@ -1509,12 +1587,17 @@ bool waitToProcess(QueueCommand aCommand) {
           else if (deviceName == curtainName) {
             waitForSecs = defaultCurtainWaitTime;
           }
-          std::map<std::string, int>::iterator itP = botHoldSecs.find(anAddr);
-          if (itP != botHoldSecs.end())
+
+          std::map<std::string, bool>::iterator itP = botsInPressMode.find(anAddr);
+          if (itP != botsInPressMode.end())
           {
-            int holdTimePlus = (itP->second) + defaultBotWaitTime;
-            if (holdTimePlus > waitForSecs) {
-              waitForSecs =  holdTimePlus;
+            std::map<std::string, int>::iterator itH = botHoldSecs.find(anAddr);
+            if (itH != botHoldSecs.end())
+            {
+              int holdTimePlus = (itH->second) + defaultBotWaitTime;
+              if (holdTimePlus > waitForSecs) {
+                waitForSecs =  holdTimePlus;
+              }
             }
           }
           std::map<std::string, int>::iterator itV = botWaitBetweenControlTimes.find(aCommand.device.c_str());
@@ -1546,9 +1629,13 @@ bool waitToProcess(QueueCommand aCommand) {
   return wait;
 }
 
+bool noResponse = false;
+bool waitForResponse = false;
 bool processQueue() {
   struct QueueCommand aCommand;
   while (!commandQueue.isEmpty()) {
+    bool skipDequeue = false;
+    bool requeue = false;
     bool skip = false;
     aCommand = commandQueue.getHead();
     bool getSettingsAfter = false;
@@ -1556,16 +1643,18 @@ bool processQueue() {
       commandQueue.dequeue();
     }
     else {
-      if ( processing || pScan->isScanning() || isRescanning ) {
+      if ( processing || pScan->isScanning() || isRescanning || waitForResponse) {
         return false;
       }
+      processing = true;
       Serial.print("Received something on ");
       Serial.println(aCommand.topic.c_str());
       Serial.println(aCommand.device.c_str());
       if (aCommand.topic == ESPMQTTTopic + "/control") {
+        processing = true;
         if (isBotDevice(aCommand.device.c_str()))
         {
-          if (aCommand.payload == "OFF") {
+          if ((strcmp(aCommand.payload.c_str(), "OFF") == 0)) {
             std::map<std::string, std::string>::iterator itN = allBots.find(aCommand.device);
             std::string anAddr = itN->second;
             std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
@@ -1584,31 +1673,72 @@ bool processQueue() {
             if (ledOnCommand) {
               digitalWrite(LED_PIN, ledONValue);
             }
+            noResponse = true;
+            bool shouldContinue = true;
+            long timeSent = millis();
             controlMQTT(aCommand.device, aCommand.payload);
             if (isBotDevice(aCommand.device.c_str()))
             {
+              if (getBotResponse) {
+                while (noResponse && shouldContinue )
+                {
+                  waitForResponse = true;
+                  Serial.println("waiting for response...");
+                  if ((millis() - timeSent) > waitForResponseSec * 1000) {
+                    shouldContinue = false;
+                  }
+                }
+              }
+              waitForResponse = false;
               bool isNum = is_number(aCommand.payload.c_str());
               if (isNum && !lastCommandWasBusy && getBotResponse) {
                 getSettingsAfter = true;
               }
 
               if (lastCommandWasBusy && retryBotOnBusy) {
-                commandQueue.enqueue(aCommand);
+                requeue = true;
+                lastCommandWasBusy = false;
+              }
+              else if (retryBotNoResponse && noResponse && (currentRetry <= noResponseRetryAmount)) {
+                currentRetry++;
+                Serial.print("current retry...");
+                Serial.println(currentRetry);
+                skipDequeue = true;
                 lastCommandWasBusy = false;
               }
             }
             else if (isCurtainDevice(aCommand.device.c_str()))
             {
+              if (getCurtainResponse) {
+                while (noResponse && shouldContinue )
+                {
+                  waitForResponse = true;
+                  Serial.println("waiting for response...");
+                  if ((millis() - timeSent) > waitForResponseSec * 1000) {
+                    shouldContinue = false;
+                  }
+                }
+              }
+              waitForResponse = false;
               if (lastCommandWasBusy && retryCurtainOnBusy) {
-                commandQueue.enqueue(aCommand);
+                requeue = true;
+                lastCommandWasBusy = false;
+              }
+              else if (retryCurtainNoResponse && noResponse && (currentRetry <= noResponseRetryAmount)) {
+                currentRetry++;
+                Serial.print("current retry...");
+                Serial.println(currentRetry);
+                skipDequeue = true;
                 lastCommandWasBusy = false;
               }
             }
             if (ledOnCommand && !getSettingsAfter) {
               digitalWrite(LED_PIN, ledOFFValue);
             }
+            noResponse = false;
           }
         }
+        processing = false;
       }
       else if (aCommand.topic == ESPMQTTTopic + "/requestInfo") {
         if (ledOnCommand) {
@@ -1624,17 +1754,19 @@ bool processQueue() {
           if (ledOnCommand) {
             digitalWrite(LED_PIN, ledONValue);
           }
+          processing = true;
           StaticJsonDocument<100> docIn;
           deserializeJson(docIn, aCommand.payload);
           const char * aDevice = docIn["id"];
           controlMQTT(aDevice, "REQUESTSETTINGS");
           if (lastCommandWasBusy && retryBotOnBusy) {
-            commandQueue.enqueue(aCommand);
+            requeue = true;
             lastCommandWasBusy = false;
           }
           if (ledOnCommand) {
             digitalWrite(LED_PIN, ledOFFValue);
           }
+          processing = false;
         }
       }
       else if (aCommand.topic == ESPMQTTTopic + "/setMode") {
@@ -1642,6 +1774,7 @@ bool processQueue() {
           commandQueue.enqueue(aCommand);
         }
         else {
+          processing = true;
           if (ledOnCommand) {
             digitalWrite(LED_PIN, ledONValue);
           }
@@ -1651,12 +1784,13 @@ bool processQueue() {
           const char * aMode = docIn["mode"];
           controlMQTT(aDevice, aMode);
           if (lastCommandWasBusy && retryBotOnBusy) {
-            commandQueue.enqueue(aCommand);
+            requeue = true;
             lastCommandWasBusy = false;
           }
           if (ledOnCommand) {
             digitalWrite(LED_PIN, ledOFFValue);
           }
+          processing = false;
         }
       }
       else if (aCommand.topic == ESPMQTTTopic + "/setHold") {
@@ -1664,6 +1798,7 @@ bool processQueue() {
           commandQueue.enqueue(aCommand);
         }
         else {
+          processing = true;
           if (ledOnCommand) {
             digitalWrite(LED_PIN, ledONValue);
           }
@@ -1674,12 +1809,13 @@ bool processQueue() {
           String holdString = String(aHold);
           controlMQTT(aDevice, holdString.c_str());
           if (lastCommandWasBusy && retryBotOnBusy) {
-            commandQueue.enqueue(aCommand);
+            requeue = true;
             lastCommandWasBusy = false;
           }
           if (ledOnCommand) {
             digitalWrite(LED_PIN, ledOFFValue);
           }
+          processing = false;
         }
       }
       else if (aCommand.topic == ESPMQTTTopic + "/rescan") {
@@ -1688,13 +1824,23 @@ bool processQueue() {
         }
         rescanMQTT(aCommand.payload);
       }
-      commandQueue.dequeue();
+      if (requeue) {
+        currentRetry = 0;
+        commandQueue.enqueue(aCommand);
+      }
+      if (!skipDequeue) {
+        currentRetry = 0;
+        commandQueue.dequeue();
+      }
       if (getSettingsAfter && !skip) {
+        processing = true;
         controlMQTT(aCommand.device, "REQUESTSETTINGS");
         if (ledOnCommand) {
           digitalWrite(LED_PIN, ledOFFValue);
         }
+        processing = false;
       }
+      processing = false;
     }
   }
   return true;
@@ -1777,7 +1923,25 @@ void sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const c
             if (isNum && isBotDevice(aDevice)) {
               scanAfterNum = false;
             }
-            if (!isNum) {
+            if (isNum) {
+              int aVal;
+              sscanf(command, "%d", &aVal);
+              if (aVal < 0) {
+                aVal = 0;
+              }
+              else if (aVal > 100) {
+                aVal = 100;
+              }
+              if (isCurtainDevice(aDevice)) {
+                std::string devicePosTopic = deviceTopic + aDevice + "/position";
+                StaticJsonDocument<50> docPos;
+                char aBuffer[100];
+                docPos["pos"] = aVal;
+                serializeJson(docPos, aBuffer);
+                client.publish(devicePosTopic.c_str(), aBuffer);
+              }
+            }
+            else {
               std::map<std::string, bool>::iterator itP = botsInPressMode.find(addr);
               if (itP != botsInPressMode.end())
               {
@@ -1926,8 +2090,8 @@ void rescanMQTT(std::string payload) {
         if (aVal < 0) {
           return;
         }
-        else if (aVal > 120) {
-          aVal = 120;
+        else if (aVal > 300) {
+          aVal = 300;
         }
         rescan(aVal);
       }
@@ -2039,6 +2203,7 @@ void onConnectionEstablished() {
     client.subscribe((curtainTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
       Serial.println("Control MQTT Received...");
       if (!commandQueue.isFull()) {
+
         struct QueueCommand queueCommand;
         queueCommand.payload = payload.c_str();
         queueCommand.topic = ESPMQTTTopic + "/control";
@@ -2062,6 +2227,60 @@ void onConnectionEstablished() {
     client.subscribe((botTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
       Serial.println("Control MQTT Received...");
       if (!commandQueue.isFull()) {
+        if (immediateBotStateUpdate && isBotDevice(aDevice)) {
+          std::string deviceStateTopic = botTopic + aDevice + "/state";
+          std::map<std::string, std::string>::iterator itP = allBots.find(aDevice);
+          if (itP != allBots.end())
+          {
+            std::string aMac = itP->second.c_str();
+            std::map<std::string, bool>::iterator itZ = botsInPressMode.find(aMac);
+            if (itZ != botsInPressMode.end())
+            {
+              client.publish(deviceStateTopic.c_str(), "OFF");
+            }
+            else {
+              if ((strcmp(payload.c_str(), "OFF") == 0)) {
+                client.publish(deviceStateTopic.c_str(), "OFF");
+              } else if ((strcmp(payload.c_str(), "ON") == 0)) {
+                client.publish(deviceStateTopic.c_str(), "ON");
+              }
+            }
+          }
+        }
+
+        else if (immediateCurtainStateUpdate && isCurtainDevice(aDevice)) {
+          std::string deviceStateTopic = curtainTopic + aDevice + "/state";
+          std::string devicePosTopic = curtainTopic + aDevice + "/position";
+          std::map<std::string, std::string>::iterator itP = allCurtains.find(aDevice);
+          if (itP != allCurtains.end())
+          {
+            std::string aMac = itP->second.c_str();
+            bool isNum = is_number(payload.c_str());
+            if (isNum) {
+              int aVal;
+              sscanf(payload.c_str(), "%d", &aVal);
+              if (aVal < 0) {
+                aVal = 0;
+              }
+              else if (aVal > 100) {
+                aVal = 100;
+              }
+              StaticJsonDocument<50> docPos;
+              char aBuffer[100];
+              docPos["pos"] = aVal;
+              serializeJson(docPos, aBuffer);
+              client.publish(devicePosTopic.c_str(), aBuffer);
+            }
+            else if ((strcmp(payload.c_str(), "OPEN") == 0))  {
+              client.publish(deviceStateTopic.c_str(), "OPEN");
+            } else if ((strcmp(payload.c_str(), "CLOSE") == 0))  {
+              client.publish(deviceStateTopic.c_str(), "CLOSE");
+            } else if ((strcmp(payload.c_str(), "PAUSE") == 0)) {
+              client.publish(deviceStateTopic.c_str(), "PAUSE");
+            }
+          }
+        }
+
         struct QueueCommand queueCommand;
         queueCommand.payload = payload.c_str();
         queueCommand.topic = ESPMQTTTopic + "/control";
@@ -2647,6 +2866,7 @@ bool requestInfo(NimBLEAdvertisedDevice * advDeviceToUse) {
 
 void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
   Serial.println("notifyCB");
+  noResponse = false;
   std::string aDevice;
   std::string aState;
   std::string deviceSettingsTopic;
@@ -2662,14 +2882,6 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
   }
   else {
     return;
-  }
-
-  if (home_assistant_mqtt_discovery) {
-    if (itM == discoveredDevices.end()) {
-      Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
-      publishHomeAssistantDiscoveryBotConfig(aDevice, deviceMac);
-      discoveredDevices.insert( std::pair<std::string, bool>(deviceMac, true) );
-    }
   }
 
   char aBuffer[200];
@@ -2805,7 +3017,6 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
     }
   }
 
-  /*UNTESTED FOR CURTAIN*/
   else if (deviceName == curtainName) {
     deviceStatusTopic = curtainTopic + aDevice + "/status";
     deviceSettingsTopic = curtainTopic + aDevice + "/settings";
