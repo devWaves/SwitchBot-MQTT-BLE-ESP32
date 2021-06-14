@@ -9,7 +9,7 @@
      *  I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v3.1
+  v3.2
 
     Created: on June 13 2021
         Author: devWaves
@@ -44,13 +44,15 @@
 
     - Automatically requestInfo X seconds after successful control command
 
-	- Retry set/control command on busy response from bot/curtain until success
+    - Retry set/control command on busy response from bot/curtain until success
 
-	- Get settings from bot (firmware, holdSecs, inverted, number of timers)
+    - Get settings from bot (firmware, holdSecs, inverted, number of timers)
 
-	- Add a defined delay between each set/control commands or per device
+    - Add a defined delay between each set/control commands or per device
 
-	- ESP32 will collect hold time from bots and automatically wait holdSecs+defaultBotWaitTime until next command is sent to bot
+    - ESP32 will collect hold time from bots and automatically wait holdSecs+defaultBotWaitTime until next command is sent to bot
+
+    - Retry on no response curtain or bot
 
 
   ESP32 will subscribe to MQTT 'set' topic for every configure device.
@@ -206,7 +208,7 @@
                           - {"status":"busy", "value":3}
                           - {"status":"failed", "value":9}
                           - {"status":"success", "value":1}
-                          - {"status":"success", "value":5}                          
+                          - {"status":"success", "value":5}
                           - {"status":"success"}
 
 
@@ -239,7 +241,7 @@
                           - {"status":"busy", "value":3}
                           - {"status":"failed", "value":9}
                           - {"status":"success", "value":1}
-                          - {"status":"success", "value":5} 
+                          - {"status":"success", "value":5}
 
   ESP32 will respond with MQTT on ESPMQTTTopic with ESP32 status
       - <ESPMQTTTopic>
@@ -266,24 +268,12 @@
 
 /****************** CONFIGURATIONS TO CHANGE *******************/
 
-/* ESP32 LED Settings */
-#define LED_PIN LED_BUILTIN                          // If your board doesn't have a defined LED_BUILTIN (You will get a compile error), comment this line out
-//#define LED_PIN 2                                  // If your board doesn't have a defined LED_BUILTIN, uncomment this line out and replace 2 with the LED pin value
-static bool ledHighEqualsON = true;                  // ESP32 board LED ON=HIGH (Default). If your ESP32 is turning OFF on scanning and turning ON while IDLE, then set this value to false
-static bool ledOnBootScan = true;                    // Turn on LED during initial boot scan
-static bool ledOnScan = true;                        // Turn on LED while scanning (non-boot)
-static bool ledOnCommand = true;                     // Turn on LED while MQTT command is processing. If scanning, LED will blink after scan completes. You may not notice it, there is no delay after scan
+/********** REQUIRED SETTINGS TO CHANGE **********/
 
 /* Wifi Settings */
 static const char* host = "esp32";                   //  Unique name for ESP32. The name detected by your router and MQTT. If you are using more then 1 ESPs to control different switchbots be sure to use unique hostnames. Host is the MQTT Client name and is used in MQTT topics
 static const char* ssid = "SSID";                    //  WIFI SSID
 static const char* password = "Password";            //  WIFI Password
-
-/* Webserver Settings */
-static bool useLoginScreen = false;                   //  use a basic login page to avoid unwanted access
-static String otaUserId = "admin";                    //  user Id for OTA update. Ignore if useLoginScreen = false
-static String otaPass = "admin";                      //  password for OTA update. Ignore if useLoginScreen = false
-static WebServer server(80);                          //  default port 80
 
 /* MQTT Settings */
 /* MQTT Client name is set to WIFI host from Wifi Settings*/
@@ -293,37 +283,6 @@ static const char* mqtt_pass = "switchbot";                         //  MQTT Bro
 static const int mqtt_port = 1883;                                  //  MQTT Port
 static std::string mqtt_main_topic = "switchbot";                   //  MQTT main topic
 static const uint16_t mqtt_packet_size = 1024;
-
-/* Home Assistant Settings */
-static bool home_assistant_mqtt_discovery = true;                    //  Enable to publish Home Assistant MQTT Discovery config
-static std::string home_assistant_mqtt_prefix = "homeassistant";     //  MQTT Home Assistant prefix
-static bool home_assistant_expose_seperate_curtain_position = true;  // When enabled, a seperate sensor will be added that will expose the curtain position. This is useful when using the Prometheus integration to graph curtain positions. The cover entity doesn't expose the position for Prometheus
-static bool home_assistant_use_opt_mode = false;                      // For bots in switch mode assume on/off right away. Optimistic mode. (Icon will change in HA). If devices were already configured in HA, you need to delete them and reboot esp32
-
-/* Switchbot General Settings */
-static int tryConnecting = 60;          // How many times to try connecting to bot
-static int trySending = 30;             // How many times to try sending command to bot
-static int initialScan = 120;           // How many seconds to scan for bots on ESP reboot and autoRescan. Once all devices are found scan stops, so you can set this to a big number
-static int infoScanTime = 60;           // How many seconds to scan for single device status updates
-static int rescanTime = 600;            // Automatically rescan for device info every X seconds (default 10 min)
-static int queueSize = 50;              // Max number of control/requestInfo/rescan MQTT commands stored in the queue. If you send more then queueSize, they will be ignored
-static int defaultBotWaitTime = 2;      // wait at least X seconds between control command send to bots. ESP32 will detect if bot is in press mode with a hold time and will add hold time to this value per device
-static int defaultCurtainWaitTime = 0;  // wait at least X seconds between control command send to curtains
-static int waitForResponseSec = 3;      // How many seconds to wait for a bot/curtain response
-static int noResponseRetryAmount = 3;   // How many times to retry if no response received. Required 
-
-static bool autoRescan = true;                   // perform automatic rescan (uses rescanTime and initialScan). If (home_assistant_mqtt_discovery = true) the value set here is ignored. autoRescan is on for HA
-static bool scanAfterControl = true;             // perform requestInfo after successful control command (uses botScanTime). If (home_assistant_mqtt_discovery = true) the value set here is ignored. scanAfterControl is on for HA
-static bool waitBetweenControl = true;           // wait between commands sent to bot/curtain (avoids sending while bot is busy)
-static bool getSettingsOnBoot = true;            // Currently only works for bot (curtain documentation not available but can probably be reverse engineered easily). Get bot extra settings values like firmware, holdSecs, inverted, number of timers. ***If holdSecs is available it is used by waitBetweenControl
-static bool getBotResponse = true;               // get a response from the bot devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
-static bool getCurtainResponse = true;           // get a response from the curtain devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
-static bool retryBotOnBusy = true;               // Requires getBotResponse = true. if bot responds with busy, the last control command will retry until success
-static bool retryCurtainOnBusy = true;           // Requires getCurtainResponse = true. if curtain responds with busy, the last control command will retry until success
-static bool retryBotNoResponse = false;          // Retry if bot doesn't send a response. Bot default is false because no response can still mean the bot triggered. It is possible this trigger the bot twice
-static bool retryCurtainNoResponse = true;       // Retry if curtain doesn't send a response. Default is true. It shouldn't matter if curtain receives the same command twice (or multiple times)
-static bool immediateBotStateUpdate = true;      // ESP32 will send ON/OFF state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
-static bool immediateCurtainStateUpdate = true;  // ESP32 will send OPEN/CLOSE and Position state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
 
 /* Switchbot Bot Settings */
 static std::map<std::string, std::string> allBots = {
@@ -349,6 +308,55 @@ static std::map<std::string, std::string> allPasswords = {     // Set all the bo
   /*{ "switchbotone", "switchbotonePassword" },
     { "switchbottwo", "switchbottwoPassword" }*/
 };
+
+
+/********** ADVANCED SETTINGS - ONLY NEED TO CHANGE IF YOU WANT TO TWEAK SETTINGS **********/
+
+/* ESP32 LED Settings */
+#define LED_PIN LED_BUILTIN                          // If your board doesn't have a defined LED_BUILTIN (You will get a compile error), comment this line out
+//#define LED_PIN 2                                  // If your board doesn't have a defined LED_BUILTIN, uncomment this line out and replace 2 with the LED pin value
+static bool ledHighEqualsON = true;                  // ESP32 board LED ON=HIGH (Default). If your ESP32 is turning OFF on scanning and turning ON while IDLE, then set this value to false
+static bool ledOnBootScan = true;                    // Turn on LED during initial boot scan
+static bool ledOnScan = true;                        // Turn on LED while scanning (non-boot)
+static bool ledOnCommand = true;                     // Turn on LED while MQTT command is processing. If scanning, LED will blink after scan completes. You may not notice it, there is no delay after scan
+
+/* Webserver Settings */
+static bool useLoginScreen = false;                   //  use a basic login page to avoid unwanted access
+static String otaUserId = "admin";                    //  user Id for OTA update. Ignore if useLoginScreen = false
+static String otaPass = "admin";                      //  password for OTA update. Ignore if useLoginScreen = false
+static WebServer server(80);                          //  default port 80
+
+/* Home Assistant Settings */
+static bool home_assistant_mqtt_discovery = true;                    // Enable to publish Home Assistant MQTT Discovery config
+static std::string home_assistant_mqtt_prefix = "homeassistant";     // MQTT Home Assistant prefix
+static bool home_assistant_expose_seperate_curtain_position = true;  // When enabled, a seperate sensor will be added that will expose the curtain position. This is useful when using the Prometheus integration to graph curtain positions. The cover entity doesn't expose the position for Prometheus
+static bool home_assistant_use_opt_mode = false;                     // For bots in switch mode assume on/off right away. Optimistic mode. (Icon will change in HA). If devices were already configured in HA, you need to delete them and reboot esp32
+
+/* Switchbot General Settings */
+static int tryConnecting = 60;          // How many times to try connecting to bot
+static int trySending = 30;             // How many times to try sending command to bot
+static int initialScan = 120;           // How many seconds to scan for bots on ESP reboot and autoRescan. Once all devices are found scan stops, so you can set this to a big number
+static int infoScanTime = 60;           // How many seconds to scan for single device status updates
+static int rescanTime = 600;            // Automatically rescan for device info every X seconds (default 10 min)
+static int queueSize = 50;              // Max number of control/requestInfo/rescan MQTT commands stored in the queue. If you send more then queueSize, they will be ignored
+static int defaultBotWaitTime = 2;      // wait at least X seconds between control command send to bots. ESP32 will detect if bot is in press mode with a hold time and will add hold time to this value per device
+static int defaultCurtainWaitTime = 0;  // wait at least X seconds between control command send to curtains
+static int waitForResponseSec = 5;      // How many seconds to wait for a bot/curtain response
+static int noResponseRetryAmount = 5;   // How many times to retry if no response received
+
+static bool autoRescan = true;                   // perform automatic rescan (uses rescanTime and initialScan). If (home_assistant_mqtt_discovery = true) the value set here is ignored. autoRescan is on for HA
+static bool scanAfterControl = true;             // perform requestInfo after successful control command (uses botScanTime). If (home_assistant_mqtt_discovery = true) the value set here is ignored. scanAfterControl is on for HA
+static bool waitBetweenControl = true;           // wait between commands sent to bot/curtain (avoids sending while bot is busy)
+static bool getSettingsOnBoot = true;            // Currently only works for bot (curtain documentation not available but can probably be reverse engineered easily). Get bot extra settings values like firmware, holdSecs, inverted, number of timers. ***If holdSecs is available it is used by waitBetweenControl
+static bool getBotResponse = true;               // get a response from the bot devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
+static bool getCurtainResponse = true;           // get a response from the curtain devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
+static bool retryBotOnBusy = true;               // Requires getBotResponse = true. if bot responds with busy, the last control command will retry until success
+static bool retryCurtainOnBusy = true;           // Requires getCurtainResponse = true. if curtain responds with busy, the last control command will retry until success
+static bool retryBotActionNoResponse = false;    // Retry if bot doesn't send a response. Bot default is false because no response can still mean the bot triggered.
+static bool retryBotSetNoResponse = true;        // Retry if bot doesn't send a response when requesting settings (hold, firwmare etc) or settings hold/mode
+static bool retryCurtainNoResponse = true;       // Retry if curtain doesn't send a response. Default is true. It shouldn't matter if curtain receives the same command twice (or multiple times)
+static bool immediateBotStateUpdate = true;      // ESP32 will send ON/OFF state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
+static bool immediateCurtainStateUpdate = true;  // ESP32 will send OPEN/CLOSE and Position state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
 
 /* Switchbot Bot/Meter/Curtain scan interval */
 /* Meters don't support commands so will be scanned every <int> interval automatically if scanAfterControl = true */
@@ -382,7 +390,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
    Login page
 */
 
-static const String versionNum = "v3.1";
+static const String versionNum = "v3.2";
 static const String loginIndex =
   "<form name='loginForm'>"
   "<table bgcolor='A09F9F' align='center' style='top: 250px;position: relative;width: 30%;'>"
@@ -595,9 +603,12 @@ struct QueueCommand {
 
 ArduinoQueue<QueueCommand> commandQueue(queueSize);
 
-long lastOnlinePublished = 0;
-long lastRescan = 0;
-long lastScanCheck = 0;
+static long lastOnlinePublished = 0;
+static long lastRescan = 0;
+static long lastScanCheck = 0;
+static int currentRetry = 0;
+static bool noResponse = false;
+static bool waitForResponse = false;
 
 void publishLastwillOnline() {
   if ((millis() - lastOnlinePublished) > 30000) {
@@ -1507,7 +1518,6 @@ void recurringScan() {
   }
 }
 
-static bool currentRetry = 0;
 
 void processRequest(std::string macAdd, std::string aName, const char * command, std::string deviceTopic) {
   int count = 1;
@@ -1629,220 +1639,172 @@ bool waitToProcess(QueueCommand aCommand) {
   return wait;
 }
 
-bool noResponse = false;
-bool waitForResponse = false;
 bool processQueue() {
+  processing = true;
   struct QueueCommand aCommand;
   while (!commandQueue.isEmpty()) {
-    bool skipDequeue = false;
-    bool requeue = false;
-    bool skip = false;
-    aCommand = commandQueue.getHead();
-    bool getSettingsAfter = false;
-    if ((aCommand.topic == ESPMQTTTopic + "/rescan") && isRescanning) {
-      commandQueue.dequeue();
+    if (ledOnCommand) {
+      digitalWrite(LED_PIN, ledONValue);
     }
-    else {
-      if ( processing || pScan->isScanning() || isRescanning || waitForResponse) {
-        return false;
-      }
-      processing = true;
-      Serial.print("Received something on ");
-      Serial.println(aCommand.topic.c_str());
-      Serial.println(aCommand.device.c_str());
-      if (aCommand.topic == ESPMQTTTopic + "/control") {
-        processing = true;
-        if (isBotDevice(aCommand.device.c_str()))
-        {
-          if ((strcmp(aCommand.payload.c_str(), "OFF") == 0)) {
-            std::map<std::string, std::string>::iterator itN = allBots.find(aCommand.device);
-            std::string anAddr = itN->second;
-            std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
-            std::map<std::string, bool>::iterator itP = botsInPressMode.find(anAddr);
-            if (itP != botsInPressMode.end())
-            {
-              skip = true;
-            }
-          }
-        }
-        if (!skip) {
-          if (waitToProcess(aCommand)) {
-            commandQueue.enqueue(aCommand);
-          }
-          else {
-            if (ledOnCommand) {
-              digitalWrite(LED_PIN, ledONValue);
-            }
-            noResponse = true;
-            bool shouldContinue = true;
-            long timeSent = millis();
-            controlMQTT(aCommand.device, aCommand.payload);
-            if (isBotDevice(aCommand.device.c_str()))
-            {
-              if (getBotResponse) {
-                while (noResponse && shouldContinue )
-                {
-                  waitForResponse = true;
-                  Serial.println("waiting for response...");
-                  if ((millis() - timeSent) > waitForResponseSec * 1000) {
-                    shouldContinue = false;
-                  }
-                }
-              }
-              waitForResponse = false;
-              bool isNum = is_number(aCommand.payload.c_str());
-              if (isNum && !lastCommandWasBusy && getBotResponse) {
-                getSettingsAfter = true;
-              }
-
-              if (lastCommandWasBusy && retryBotOnBusy) {
-                requeue = true;
-                lastCommandWasBusy = false;
-              }
-              else if (retryBotNoResponse && noResponse && (currentRetry <= noResponseRetryAmount)) {
-                currentRetry++;
-                Serial.print("current retry...");
-                Serial.println(currentRetry);
-                skipDequeue = true;
-                lastCommandWasBusy = false;
-              }
-            }
-            else if (isCurtainDevice(aCommand.device.c_str()))
-            {
-              if (getCurtainResponse) {
-                while (noResponse && shouldContinue )
-                {
-                  waitForResponse = true;
-                  Serial.println("waiting for response...");
-                  if ((millis() - timeSent) > waitForResponseSec * 1000) {
-                    shouldContinue = false;
-                  }
-                }
-              }
-              waitForResponse = false;
-              if (lastCommandWasBusy && retryCurtainOnBusy) {
-                requeue = true;
-                lastCommandWasBusy = false;
-              }
-              else if (retryCurtainNoResponse && noResponse && (currentRetry <= noResponseRetryAmount)) {
-                currentRetry++;
-                Serial.print("current retry...");
-                Serial.println(currentRetry);
-                skipDequeue = true;
-                lastCommandWasBusy = false;
-              }
-            }
-            if (ledOnCommand && !getSettingsAfter) {
-              digitalWrite(LED_PIN, ledOFFValue);
-            }
-            noResponse = false;
-          }
-        }
-        processing = false;
-      }
-      else if (aCommand.topic == ESPMQTTTopic + "/requestInfo") {
-        if (ledOnCommand) {
-          digitalWrite(LED_PIN, ledONValue);
-        }
-        requestInfoMQTT(aCommand.payload);
-      }
-      else if (aCommand.topic == ESPMQTTTopic + "/requestSettings") {
-        if (waitToProcess(aCommand)) {
-          commandQueue.enqueue(aCommand);
-        }
-        else {
-          if (ledOnCommand) {
-            digitalWrite(LED_PIN, ledONValue);
-          }
-          processing = true;
-          StaticJsonDocument<100> docIn;
-          deserializeJson(docIn, aCommand.payload);
-          const char * aDevice = docIn["id"];
-          controlMQTT(aDevice, "REQUESTSETTINGS");
-          if (lastCommandWasBusy && retryBotOnBusy) {
-            requeue = true;
-            lastCommandWasBusy = false;
-          }
-          if (ledOnCommand) {
-            digitalWrite(LED_PIN, ledOFFValue);
-          }
-          processing = false;
-        }
-      }
-      else if (aCommand.topic == ESPMQTTTopic + "/setMode") {
-        if (waitToProcess(aCommand)) {
-          commandQueue.enqueue(aCommand);
-        }
-        else {
-          processing = true;
-          if (ledOnCommand) {
-            digitalWrite(LED_PIN, ledONValue);
-          }
-          StaticJsonDocument<100> docIn;
-          deserializeJson(docIn, aCommand.payload);
-          const char * aDevice = docIn["id"];
-          const char * aMode = docIn["mode"];
-          controlMQTT(aDevice, aMode);
-          if (lastCommandWasBusy && retryBotOnBusy) {
-            requeue = true;
-            lastCommandWasBusy = false;
-          }
-          if (ledOnCommand) {
-            digitalWrite(LED_PIN, ledOFFValue);
-          }
-          processing = false;
-        }
-      }
-      else if (aCommand.topic == ESPMQTTTopic + "/setHold") {
-        if (waitToProcess(aCommand)) {
-          commandQueue.enqueue(aCommand);
-        }
-        else {
-          processing = true;
-          if (ledOnCommand) {
-            digitalWrite(LED_PIN, ledONValue);
-          }
-          StaticJsonDocument<100> docIn;
-          deserializeJson(docIn, aCommand.payload);
-          const char * aDevice = docIn["id"];
-          int aHold = docIn["hold"];
-          String holdString = String(aHold);
-          controlMQTT(aDevice, holdString.c_str());
-          if (lastCommandWasBusy && retryBotOnBusy) {
-            requeue = true;
-            lastCommandWasBusy = false;
-          }
-          if (ledOnCommand) {
-            digitalWrite(LED_PIN, ledOFFValue);
-          }
-          processing = false;
-        }
-      }
-      else if (aCommand.topic == ESPMQTTTopic + "/rescan") {
-        if (ledOnCommand) {
-          digitalWrite(LED_PIN, ledONValue);
-        }
-        rescanMQTT(aCommand.payload);
-      }
-      if (requeue) {
-        currentRetry = 0;
-        commandQueue.enqueue(aCommand);
-      }
-      if (!skipDequeue) {
-        currentRetry = 0;
+    if (!waitForResponse) {
+      currentRetry++;
+      bool skipDequeue = false;
+      bool requeue = false;
+      bool skip = false;
+      aCommand = commandQueue.getHead();
+      bool getSettingsAfter = false;
+      std::string requestDevice = aCommand.device.c_str();
+      if ((aCommand.topic == ESPMQTTTopic + "/rescan") && isRescanning) {
         commandQueue.dequeue();
       }
-      if (getSettingsAfter && !skip) {
-        processing = true;
-        controlMQTT(aCommand.device, "REQUESTSETTINGS");
-        if (ledOnCommand) {
-          digitalWrite(LED_PIN, ledOFFValue);
+      else {
+        if ( pScan->isScanning() || isRescanning ) {
+          return false;
         }
-        processing = false;
+
+        processing = true;
+        Serial.print("Received something on ");
+        Serial.println(aCommand.topic.c_str());
+        Serial.println(aCommand.device.c_str());
+        if (aCommand.topic == ESPMQTTTopic + "/control") {
+          processing = true;
+          if (isBotDevice(aCommand.device.c_str()))
+          {
+            if ((strcmp(aCommand.payload.c_str(), "OFF") == 0)) {
+              std::map<std::string, std::string>::iterator itN = allBots.find(aCommand.device);
+              std::string anAddr = itN->second;
+              std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+              std::map<std::string, bool>::iterator itP = botsInPressMode.find(anAddr);
+              if (itP != botsInPressMode.end())
+              {
+                skip = true;
+              }
+            }
+          }
+          if (!skip) {
+            if (waitToProcess(aCommand)) {
+              commandQueue.enqueue(aCommand);
+            }
+            else {
+              if (ledOnCommand) {
+                digitalWrite(LED_PIN, ledONValue);
+              }
+              noResponse = true;
+              bool shouldContinue = true;
+              long timeSent = millis();
+              controlMQTT(aCommand.device, aCommand.payload);
+              if (isBotDevice(aCommand.device.c_str()))
+              {
+                if (getBotResponse) {
+                  while (noResponse && shouldContinue )
+                  {
+                    waitForResponse = true;
+                    //Serial.println("waiting for response...");
+                    if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
+                      shouldContinue = false;
+                    }
+                  }
+                }
+                waitForResponse = false;
+                bool isNum = is_number(aCommand.payload.c_str());
+                if (isNum && !lastCommandWasBusy && getBotResponse) {
+                  getSettingsAfter = true;
+                }
+                if (lastCommandWasBusy && retryBotOnBusy) {
+                  requeue = true;
+                  lastCommandWasBusy = false;
+                  getSettingsAfter = false;
+                }
+
+                else if ((retryBotActionNoResponse && noResponse && (currentRetry <= noResponseRetryAmount)) || (retryBotSetNoResponse && noResponse && (currentRetry <= noResponseRetryAmount) && ((strcmp(aCommand.payload.c_str(), "REQUESTSETTINGS") == 0) || (strcmp(aCommand.payload.c_str(), "GETSETTINGS") == 0)
+                         || (strcmp(aCommand.payload.c_str(), "MODEPRESS") == 0) || (strcmp(aCommand.payload.c_str(), "MODEPRESSINV") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCH") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCHINV") == 0) || isNum ))) {
+                  Serial.print("current retry...");
+                  Serial.println(currentRetry);
+                  skipDequeue = true;
+                  lastCommandWasBusy = false;
+                  getSettingsAfter = false;
+                }
+              }
+              else if (isCurtainDevice(aCommand.device.c_str()))
+              {
+                if (getCurtainResponse) {
+                  while (noResponse && shouldContinue )
+                  {
+                    waitForResponse = true;
+                    Serial.println("waiting for response...");
+                    if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
+                      shouldContinue = false;
+                    }
+                  }
+                }
+                waitForResponse = false;
+                if (lastCommandWasBusy && retryCurtainOnBusy) {
+                  requeue = true;
+                  lastCommandWasBusy = false;
+                }
+                else if (retryCurtainNoResponse && noResponse && (currentRetry <= noResponseRetryAmount)) {
+                  Serial.print("current retry...");
+                  Serial.println(currentRetry);
+                  skipDequeue = true;
+                  lastCommandWasBusy = false;
+                }
+              }
+              noResponse = false;
+            }
+          }
+        }
+        else if (aCommand.topic == ESPMQTTTopic + "/requestInfo") {
+          if (ledOnCommand) {
+            digitalWrite(LED_PIN, ledONValue);
+          }
+          requestInfoMQTT(aCommand.payload);
+        }
+        else if (aCommand.topic == ESPMQTTTopic + "/rescan") {
+          if (ledOnCommand) {
+            digitalWrite(LED_PIN, ledONValue);
+          }
+          rescanMQTT(aCommand.payload);
+        }
+        if (requeue) {
+          currentRetry = 0;
+          commandQueue.enqueue(aCommand);
+        }
+        if (!skipDequeue) {
+          currentRetry = 0;
+          commandQueue.dequeue();
+        }
+        lastCommandWasBusy = false;
+        if (getSettingsAfter && !skip) {
+          processing = true;
+          noResponse = true;
+          bool shouldContinue = true;
+          int count = 0;
+          bool sendInitial = true;
+          while (sendInitial || (lastCommandWasBusy && retryBotOnBusy) || retryBotSetNoResponse && noResponse && (count <= noResponseRetryAmount)) {
+            sendInitial = false;
+            count++;
+            shouldContinue = true;
+            long timeSent = millis();
+            controlMQTT(requestDevice, "REQUESTSETTINGS");
+
+            while (noResponse && shouldContinue )
+            {
+              waitForResponse = true;
+              //Serial.println("waiting for response...");
+              if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
+                shouldContinue = false;
+              }
+            }
+            waitForResponse = false;
+          }
+        }
       }
-      processing = false;
     }
   }
+  if (ledOnCommand) {
+    digitalWrite(LED_PIN, ledOFFValue);
+  }
+  processing = false;
   return true;
 }
 
@@ -2061,7 +2023,6 @@ void controlMQTT(std::string device, std::string payload) {
 
   delay(100);
   client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
-  processing = false;
 }
 
 void rescanMQTT(std::string payload) {
@@ -2334,9 +2295,13 @@ void onConnectionEstablished() {
   client.subscribe(requestSettingsTopic, [] (const String & payload)  {
     Serial.println("Request Settings MQTT Received...");
     if (!commandQueue.isFull()) {
+      StaticJsonDocument<100> docIn;
+      deserializeJson(docIn, payload.c_str());
+      const char * aDevice = docIn["id"];
       struct QueueCommand queueCommand;
-      queueCommand.payload = payload.c_str();
-      queueCommand.topic = ESPMQTTTopic + "/requestSettings";
+      queueCommand.payload = "REQUESTSETTINGS";
+      queueCommand.topic = ESPMQTTTopic + "/control";
+      queueCommand.device = aDevice;
       commandQueue.enqueue(queueCommand);
     }
     else {
@@ -2347,9 +2312,14 @@ void onConnectionEstablished() {
   client.subscribe(setModeTopic, [] (const String & payload)  {
     Serial.println("setMode  MQTT Received...");
     if (!commandQueue.isFull()) {
+      StaticJsonDocument<100> docIn;
+      deserializeJson(docIn, payload.c_str());
+      const char * aDevice = docIn["id"];
+      const char * aMode = docIn["mode"];
       struct QueueCommand queueCommand;
-      queueCommand.payload = payload.c_str();
-      queueCommand.topic = ESPMQTTTopic + "/setMode";
+      queueCommand.payload = aMode;
+      queueCommand.topic = ESPMQTTTopic + "/control";
+      queueCommand.device = aDevice;
       commandQueue.enqueue(queueCommand);
     }
     else {
@@ -2360,9 +2330,15 @@ void onConnectionEstablished() {
   client.subscribe(setHoldTopic, [] (const String & payload)  {
     Serial.println("setHold MQTT Received...");
     if (!commandQueue.isFull()) {
+      StaticJsonDocument<100> docIn;
+      deserializeJson(docIn, payload.c_str());
+      const char * aDevice = docIn["id"];
+      int aHold = docIn["hold"];
+      String holdString = String(aHold);
       struct QueueCommand queueCommand;
-      queueCommand.payload = payload.c_str();
-      queueCommand.topic = ESPMQTTTopic + "/setHold";
+      queueCommand.payload = holdString.c_str();
+      queueCommand.topic = ESPMQTTTopic + "/control";
+      queueCommand.device = aDevice;
       commandQueue.enqueue(queueCommand);
     }
     else {
