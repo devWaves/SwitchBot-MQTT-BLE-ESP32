@@ -9,9 +9,9 @@ Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP3
   ** I do not know where performance will be affected by number of devices
   ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-v3.2
+v4.0
 
-Created: on June 13 2021
+Created: on June 24 2021
   Author: devWaves
   
   Contributions from:
@@ -36,6 +36,13 @@ Notes:
  - Get settings from bot (firmware, holdSecs, inverted, number of timers)
  - Add a defined delay between each set/control commands or per device
  - ESP32 will collect hold time from bots and automatically wait holdSecs+defaultBotWaitTime until next command is sent to bot
+ - Retry on no response curtain or bot
+ - holdPress = set bot hold value, then call press (without disconnecting in between)
+ - Set/Control is prioritized over scanning. While scanning, if a set/control command is received scanning is stopped and resumed later
+
+\<ESPMQTTTopic\> = \<mqtt_main_topic\>/\<host\>
+	
+      - Default = switchbot/esp32
 
 **ESP32 will subscribe to MQTT 'set' topic for every configure device**
 
@@ -91,7 +98,7 @@ Notes:
                         - <ESPMQTTTopic>/curtain/<name>/position
 			
                         Example payload:
-                          - {"pos":500}
+                          - {"pos":0}
                           - {"pos":100}
                           - {"pos":50}
 
@@ -141,7 +148,7 @@ Notes:
                         - <ESPMQTTTopic>/curtain/<name>/position
 			
                         Example payload:
-                          - {"pos":500}
+                          - {"pos":0}
                           - {"pos":100}
                           - {"pos":50}
 
@@ -192,6 +199,35 @@ Notes:
                           - {"status":"success", "value":5}
                           - {"status":"success"}
 
+ **ESP32 will Subscribe to MQTT topic to holdPress on bots. holdPress = set bot hold value, then call press on bot (without disconnecting in between) **
+  
+      - <ESPMQTTTopic>/holdPress
+
+    send a JSON payload of the device you want to control
+          example payloads =
+            {"id":"switchbotone", "hold":5}
+            {"id":"switchbotone", "hold":"5"}
+
+    ESP32 will respond with MQTT on
+    - <ESPMQTTTopic>/#
+
+                      ESP32 will respond with MQTT on 'status' topic for every configured device
+                        - <ESPMQTTTopic>/bot/<name>/status
+
+                        Example reponses:
+                          - <ESPMQTTTopic>/bot/<name>/status
+
+                        Example payload:
+                          - {"status":"connected"}
+                          - {"status":"errorConnect"}
+                          - {"status":"errorCommand"}
+                          - {"status":"commandSent"}
+                          - {"status":"busy", "value":3}
+                          - {"status":"failed", "value":9}
+                          - {"status":"success", "value":1}
+                          - {"status":"success", "value":5}
+                          - {"status":"success"}
+	
   **ESP32 will Subscribe to MQTT topic setting mode for bots**
   
       - <ESPMQTTTopic>/setMode
