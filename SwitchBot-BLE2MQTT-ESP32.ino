@@ -9,9 +9,9 @@
      *  I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v3.2
+  v4.0
 
-    Created: on June 13 2021
+    Created: on June 24 2021
         Author: devWaves
 
         Contributions from:
@@ -53,7 +53,14 @@
     - ESP32 will collect hold time from bots and automatically wait holdSecs+defaultBotWaitTime until next command is sent to bot
 
     - Retry on no response curtain or bot
+	
+    - holdPress = set bot hold value, then call press (without disconnecting in between)
+	
+    - Set/Control is prioritized over scanning. While scanning, if a set/control command is received scanning is stopped and resumed later
 
+
+  <ESPMQTTTopic> = <mqtt_main_topic>/<host>
+      - Default = switchbot/esp32
 
   ESP32 will subscribe to MQTT 'set' topic for every configure device.
       - <ESPMQTTTopic>/bot/<name>/set
@@ -108,7 +115,7 @@
                         - <ESPMQTTTopic>/curtain/<name>/position
 
                         Example payload:
-                          - {"pos":500}
+                          - {"pos":0}
                           - {"pos":100}
                           - {"pos":50}
 
@@ -156,7 +163,7 @@
                         - <ESPMQTTTopic>/curtain/<name>/position
 
                         Example payload:
-                          - {"pos":500}
+                          - {"pos":0}
                           - {"pos":100}
                           - {"pos":50}
 
@@ -192,13 +199,9 @@
 
                       ESP32 will respond with MQTT on 'status' topic for every configured device
                         - <ESPMQTTTopic>/bot/<name>/status
-                        - <ESPMQTTTopic>/curtain/<name>/status
-                        - <ESPMQTTTopic>/meter/<name>/status
 
                         Example reponses:
                           - <ESPMQTTTopic>/bot/<name>/status
-                          - <ESPMQTTTopic>/curtain/<name>/status
-                          - <ESPMQTTTopic>/meter/<name>/status
 
                         Example payload:
                           - {"status":"connected"}
@@ -210,6 +213,35 @@
                           - {"status":"success", "value":1}
                           - {"status":"success", "value":5}
                           - {"status":"success"}
+						  
+  // holdPress = set bot hold value, then call press on bot (without disconnecting in between)   
+  ESP32 will Subscribe to MQTT topic setting hold time on bots
+      - <ESPMQTTTopic>/holdPress
+
+    send a JSON payload of the device you want to control
+          example payloads =
+            {"id":"switchbotone", "hold":5}
+            {"id":"switchbotone", "hold":"5"}
+
+    ESP32 will respond with MQTT on
+    - <ESPMQTTTopic>/#
+
+                      ESP32 will respond with MQTT on 'status' topic for every configured device
+                        - <ESPMQTTTopic>/bot/<name>/status
+
+                        Example reponses:
+                          - <ESPMQTTTopic>/bot/<name>/status
+
+                        Example payload:
+                          - {"status":"connected"}
+                          - {"status":"errorConnect"}
+                          - {"status":"errorCommand"}
+                          - {"status":"commandSent"}
+                          - {"status":"busy", "value":3}
+                          - {"status":"failed", "value":9}
+                          - {"status":"success", "value":1}
+                          - {"status":"success", "value":5}
+                          - {"status":"success"}					  
 
 
   // SET MODE ON BOT
@@ -225,13 +257,9 @@
 
                       ESP32 will respond with MQTT on 'status' topic for every configured device
                         - <ESPMQTTTopic>/bot/<name>/status
-                        - <ESPMQTTTopic>/curtain/<name>/status
-                        - <ESPMQTTTopic>/meter/<name>/status
 
                         Example reponses:
                           - <ESPMQTTTopic>/bot/<name>/status
-                          - <ESPMQTTTopic>/curtain/<name>/status
-                          - <ESPMQTTTopic>/meter/<name>/status
 
                         Example payload:
                           - {"status":"connected"}
@@ -333,30 +361,34 @@ static bool home_assistant_expose_seperate_curtain_position = true;  // When ena
 static bool home_assistant_use_opt_mode = false;                     // For bots in switch mode assume on/off right away. Optimistic mode. (Icon will change in HA). If devices were already configured in HA, you need to delete them and reboot esp32
 
 /* Switchbot General Settings */
-static int tryConnecting = 60;          // How many times to try connecting to bot
-static int trySending = 30;             // How many times to try sending command to bot
-static int initialScan = 120;           // How many seconds to scan for bots on ESP reboot and autoRescan. Once all devices are found scan stops, so you can set this to a big number
-static int infoScanTime = 60;           // How many seconds to scan for single device status updates
-static int rescanTime = 600;            // Automatically rescan for device info every X seconds (default 10 min)
-static int queueSize = 50;              // Max number of control/requestInfo/rescan MQTT commands stored in the queue. If you send more then queueSize, they will be ignored
-static int defaultBotWaitTime = 2;      // wait at least X seconds between control command send to bots. ESP32 will detect if bot is in press mode with a hold time and will add hold time to this value per device
-static int defaultCurtainWaitTime = 0;  // wait at least X seconds between control command send to curtains
-static int waitForResponseSec = 5;      // How many seconds to wait for a bot/curtain response
-static int noResponseRetryAmount = 5;   // How many times to retry if no response received
+static int tryConnecting = 60;                  // How many times to try connecting to bot
+static int trySending = 30;                     // How many times to try sending command to bot
+static int initialScan = 120;                   // How many seconds to scan for bots on ESP reboot and autoRescan. Once all devices are found scan stops, so you can set this to a big number
+static int infoScanTime = 60;                   // How many seconds to scan for single device status updates
+static int rescanTime = 600;                    // Automatically rescan for device info of all devices every X seconds (default 10 min)
+static int queueSize = 50;                      // Max number of control/requestInfo/rescan MQTT commands stored in the queue. If you send more then queueSize, they will be ignored
+static int defaultBotWaitTime = 2;              // wait at least X seconds between control command send to bots. ESP32 will detect if bot is in press mode with a hold time and will add hold time to this value per device
+static int defaultCurtainWaitTime = 0;          // wait at least X seconds between control command send to curtains
+static int waitForResponseSec = 20;             // How many seconds to wait for a bot/curtain response
+static int noResponseRetryAmount = 5;           // How many times to retry if no response received
+static int defaultScanAfterControlSecs = 10;    // Default How many seconds to wait for state/status update call after set/control command. *override with botScanTime list
+static int defaultMeterScanSecs = 60;           // Default Scan for meter temp sensors every X seconds. *override with botScanTime list
 
-static bool autoRescan = true;                   // perform automatic rescan (uses rescanTime and initialScan). If (home_assistant_mqtt_discovery = true) the value set here is ignored. autoRescan is on for HA
-static bool scanAfterControl = true;             // perform requestInfo after successful control command (uses botScanTime). If (home_assistant_mqtt_discovery = true) the value set here is ignored. scanAfterControl is on for HA
-static bool waitBetweenControl = true;           // wait between commands sent to bot/curtain (avoids sending while bot is busy)
-static bool getSettingsOnBoot = true;            // Currently only works for bot (curtain documentation not available but can probably be reverse engineered easily). Get bot extra settings values like firmware, holdSecs, inverted, number of timers. ***If holdSecs is available it is used by waitBetweenControl
-static bool getBotResponse = true;               // get a response from the bot devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
-static bool getCurtainResponse = true;           // get a response from the curtain devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
-static bool retryBotOnBusy = true;               // Requires getBotResponse = true. if bot responds with busy, the last control command will retry until success
-static bool retryCurtainOnBusy = true;           // Requires getCurtainResponse = true. if curtain responds with busy, the last control command will retry until success
-static bool retryBotActionNoResponse = false;    // Retry if bot doesn't send a response. Bot default is false because no response can still mean the bot triggered.
-static bool retryBotSetNoResponse = true;        // Retry if bot doesn't send a response when requesting settings (hold, firwmare etc) or settings hold/mode
-static bool retryCurtainNoResponse = true;       // Retry if curtain doesn't send a response. Default is true. It shouldn't matter if curtain receives the same command twice (or multiple times)
-static bool immediateBotStateUpdate = true;      // ESP32 will send ON/OFF state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
-static bool immediateCurtainStateUpdate = true;  // ESP32 will send OPEN/CLOSE and Position state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
+static bool autoRescan = true;                      // perform automatic rescan (uses rescanTime and initialScan).
+static bool scanAfterControl = true;                // perform requestInfo after successful control command (uses botScanTime).
+static bool waitBetweenControl = true;              // wait between commands sent to bot/curtain (avoids sending while bot is busy)
+static bool getSettingsOnBoot = true;               // Currently only works for bot (curtain documentation not available but can probably be reverse engineered easily). Get bot extra settings values like firmware, holdSecs, inverted, number of timers. ***If holdSecs is available it is used by waitBetweenControl
+static bool getBotResponse = true;                  // get a response from the bot devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
+static bool getCurtainResponse = true;              // get a response from the curtain devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
+static bool retryBotOnBusy = true;                  // Requires getBotResponse = true. if bot responds with busy, the last control command will retry until success
+static bool retryCurtainOnBusy = true;              // Requires getCurtainResponse = true. if curtain responds with busy, the last control command will retry until success
+static bool retryBotActionNoResponse = false;       // Retry if bot doesn't send a response. Bot default is false because no response can still mean the bot triggered.
+static bool retryBotSetNoResponse = true;           // Retry if bot doesn't send a response when requesting settings (hold, firwmare etc) or settings hold/mode
+static bool retryCurtainNoResponse = true;          // Retry if curtain doesn't send a response. Default is true. It shouldn't matter if curtain receives the same command twice (or multiple times)
+static bool immediateBotStateUpdate = true;         // ESP32 will send ON/OFF state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
+static bool immediateCurtainStateUpdate = true;     // ESP32 will send OPEN/CLOSE and Position state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
+
+static bool printSerialOutputForDebugging = false;  // Only set to true when you want to debug an issue from Arduino IDE. Lots of Serial output from scanning can crash the ESP32
 
 /* Switchbot Bot/Meter/Curtain scan interval */
 /* Meters don't support commands so will be scanned every <int> interval automatically if scanAfterControl = true */
@@ -390,7 +422,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
    Login page
 */
 
-static const String versionNum = "v3.2";
+static const String versionNum = "v4.0";
 static const String loginIndex =
   "<form name='loginForm'>"
   "<table bgcolor='A09F9F' align='center' style='top: 250px;position: relative;width: 30%;'>"
@@ -531,11 +563,13 @@ void scanEndedCB(NimBLEScanResults results);
 void rescanEndedCB(NimBLEScanResults results);
 void initialScanEndedCB(NimBLEScanResults results);
 static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsDev = {};
+static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsScanned = {};
 static std::map<std::string, long> rescanTimes = {};
 static std::map<std::string, std::string> allSwitchbots;
 static std::map<std::string, std::string> allSwitchbotsOpp;
 static std::map<std::string, bool> discoveredDevices = {};
 static std::map<std::string, bool> botsInPressMode = {};
+static std::map<std::string, bool> botsToWaitFor = {};
 static std::map<std::string, int> botHoldSecs = {};
 static std::map<std::string, long> lastCommandSent = {};
 static std::map<std::string, std::string> deviceTypes;
@@ -547,6 +581,8 @@ static bool lastCommandWasBusy = false;
 static bool deviceHasBooted = false;
 static bool gotSettings = false;
 static bool lastCommandSentPublished = false;
+static bool forceRescan = false;
+static bool waitForDeviceCreation = false;
 
 static std::string ESPMQTTTopic = mqtt_main_topic + "/" + std::string(host);
 //static std::string esp32Topic = ESPMQTTTopic + "/ESP32";
@@ -562,12 +598,14 @@ static std::string requestInfoStdStr = ESPMQTTTopic + "/requestInfo";
 static std::string requestSettingsStdStr = ESPMQTTTopic + "/requestSettings";
 static std::string setModeStdStr = ESPMQTTTopic + "/setMode";
 static std::string setHoldStdStr = ESPMQTTTopic + "/setHold";
+static std::string holdPressStdStr = ESPMQTTTopic + "/holdPress";
 static const String rescanTopic = rescanStdStr.c_str();
 static const String controlTopic = controlStdStr.c_str();
 static const String requestInfoTopic = requestInfoStdStr.c_str();
 static const String requestSettingsTopic = requestSettingsStdStr.c_str();
 static const String setModeTopic = setModeStdStr.c_str();
 static const String setHoldTopic = setHoldStdStr.c_str();
+static const String holdPressTopic = holdPressStdStr.c_str();
 
 static byte bArrayPress[] = {0x57, 0x01};
 static byte bArrayOn[] = {0x57, 0x01, 0x01};
@@ -599,6 +637,9 @@ struct QueueCommand {
   std::string payload;
   std::string topic;
   std::string device;
+  bool disconnectAfter;
+  bool priority;
+  int currentTry;
 };
 
 ArduinoQueue<QueueCommand> commandQueue(queueSize);
@@ -606,9 +647,9 @@ ArduinoQueue<QueueCommand> commandQueue(queueSize);
 static long lastOnlinePublished = 0;
 static long lastRescan = 0;
 static long lastScanCheck = 0;
-static int currentRetry = 0;
 static bool noResponse = false;
 static bool waitForResponse = false;
+static std::string lastDeviceControlled = "";
 
 void publishLastwillOnline() {
   if ((millis() - lastOnlinePublished) > 30000) {
@@ -818,7 +859,9 @@ void publishHomeAssistantDiscoveryMeterConfig(std::string deviceName, std::strin
 class ClientCallbacks : public NimBLEClientCallbacks {
 
     void onConnect(NimBLEClient* pClient) {
-      Serial.println("Connected");
+      if (printSerialOutputForDebugging) {
+        Serial.println("Connected");
+      }
       pClient->updateConnParams(120, 120, 0, 60);
     };
 
@@ -840,19 +883,25 @@ class ClientCallbacks : public NimBLEClientCallbacks {
     };
 
     uint32_t onPassKeyRequest() {
-      Serial.println("Client Passkey Request");
+      if (printSerialOutputForDebugging) {
+        Serial.println("Client Passkey Request");
+      }
       return 123456;
     };
 
     bool onConfirmPIN(uint32_t pass_key) {
-      Serial.print("The passkey YES/NO number: ");
-      Serial.println(pass_key);
+      if (printSerialOutputForDebugging) {
+        Serial.print("The passkey YES/NO number: ");
+        Serial.println(pass_key);
+      }
       return true;
     };
 
     void onAuthenticationComplete(ble_gap_conn_desc* desc) {
       if (!desc->sec_state.encrypted) {
-        Serial.println("Encrypt connection failed - disconnecting");
+        if (printSerialOutputForDebugging) {
+          Serial.println("Encrypt connection failed - disconnecting");
+        }
         NimBLEDevice::getClientByID(desc->conn_handle)->disconnect();
         return;
       }
@@ -875,10 +924,14 @@ bool unsubscribeToNotify(NimBLEClient* pClient) {
     }
   }
   else {
-    Serial.println("CUSTOM notify service not found.");
+    if (printSerialOutputForDebugging) {
+      Serial.println("CUSTOM notify service not found.");
+    }
     return false;
   }
-  Serial.println("unsubscribed to notify");
+  if (printSerialOutputForDebugging) {
+    Serial.println("unsubscribed to notify");
+  }
   return true;
 }
 
@@ -899,10 +952,14 @@ bool subscribeToNotify(NimBLEAdvertisedDevice* advDeviceToUse) {
     }
   }
   else {
-    Serial.println("CUSTOM notify service not found.");
+    if (printSerialOutputForDebugging) {
+      Serial.println("CUSTOM notify service not found.");
+    }
     return false;
   }
-  Serial.println("subscribed to notify");
+  if (printSerialOutputForDebugging) {
+    Serial.println("subscribed to notify");
+  }
   return true;
 }
 
@@ -933,8 +990,10 @@ bool writeSettings(NimBLEAdvertisedDevice* advDeviceToUse) {
 
         byte bArray[] = {0x57, 0x12, aPassCRC[0] , aPassCRC[1] , aPassCRC[2]  , aPassCRC[3]}; // write to get settings of device
         if (pChr->writeValue(bArray, 6)) {
-          Serial.print("Wrote new value to: ");
-          Serial.println(pChr->getUUID().toString().c_str());
+          if (printSerialOutputForDebugging) {
+            Serial.print("Wrote new value to: ");
+            Serial.println(pChr->getUUID().toString().c_str());
+          }
         }
         else {
           return false;
@@ -943,8 +1002,10 @@ bool writeSettings(NimBLEAdvertisedDevice* advDeviceToUse) {
       else {
         byte bArray[] = {0x57, 0x02}; // write to get settings of device
         if (pChr->writeValue(bArray, 2)) {
-          Serial.print("Wrote new value to: ");
-          Serial.println(pChr->getUUID().toString().c_str());
+          if (printSerialOutputForDebugging) {
+            Serial.print("Wrote new value to: ");
+            Serial.println(pChr->getUUID().toString().c_str());
+          }
         }
         else {
           return false;
@@ -952,10 +1013,14 @@ bool writeSettings(NimBLEAdvertisedDevice* advDeviceToUse) {
       }
     }
     else {
-      Serial.println("CUSTOM write service not found.");
+      if (printSerialOutputForDebugging) {
+        Serial.println("CUSTOM write service not found.");
+      }
       return false;
     }
-    Serial.println("Success! subscribed and got settings");
+    if (printSerialOutputForDebugging) {
+      Serial.println("Success! subscribed and got settings");
+    }
     return true;
   }
 }
@@ -963,48 +1028,69 @@ bool writeSettings(NimBLEAdvertisedDevice* advDeviceToUse) {
 /** Define a class to handle the callbacks when advertisments are received */
 class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
     void onResult(NimBLEAdvertisedDevice* advertisedDevice) {
-      Serial.print("Advertised Device found: ");
-      Serial.println(advertisedDevice->toString().c_str());
+      waitForDeviceCreation = true;
+      
+      if (printSerialOutputForDebugging) {
+        Serial.print("Advertised Device found: ");
+        Serial.println(advertisedDevice->toString().c_str());
+      }
       if (ledOnScan) {
         digitalWrite(LED_PIN, ledONValue);
       }
+      publishLastwillOnline();
+      client.loop();
       std::string advStr = advertisedDevice->getAddress().toString().c_str();
       std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(advStr);
-
       bool gotAllStatus = false;
-
-      publishLastwillOnline();
-
       if (itS != allSwitchbotsOpp.end())
       {
         if (advertisedDevice->isAdvertisingService(NimBLEUUID("cba20d00-224d-11e6-9fb8-0002a5d5c51b")))
         {
-          std::map<std::string, NimBLEAdvertisedDevice*>::iterator itY = allSwitchbotsDev.find(advStr);
-          if (itY == allSwitchbotsDev.end())
+          std::map<std::string, NimBLEAdvertisedDevice*>::iterator itY = allSwitchbotsScanned.find(advStr);
+          if (itY == allSwitchbotsScanned.end())
           {
-            Serial.println("Adding Our Service ... ");
-            Serial.println(itS->second.c_str());
+            if (printSerialOutputForDebugging) {
+              Serial.println("Adding Our Service ... ");
+              Serial.println(itS->second.c_str());
+            }
             std::string aValueString = advertisedDevice->getServiceData(0);
             gotAllStatus = callForInfoAdvDev(advertisedDevice, aValueString);
             if (gotAllStatus) {
+              allSwitchbotsScanned.insert ( std::pair<std::string, NimBLEAdvertisedDevice*>(advStr, advertisedDevice) );
               allSwitchbotsDev.insert ( std::pair<std::string, NimBLEAdvertisedDevice*>(advStr, advertisedDevice) );
             }
-            Serial.println("Assigned advDevService");
-
+            if (printSerialOutputForDebugging) {
+              Serial.println("Assigned advDevService");
+            }
           }
         }
       }
-      else {
-        NimBLEDevice::addIgnored(advStr);
+      waitForDeviceCreation = false;
+      
+      bool stopScan = false;
+
+      if ((allSwitchbotsDev.size() == allBots.size() + allCurtains.size() + allMeters.size()) && (allSwitchbotsScanned.size() == allBots.size() + allCurtains.size() + allMeters.size()))  {
+        stopScan = true;
+        forceRescan = false;
       }
-      if (allSwitchbotsDev.size() == allBots.size() + allCurtains.size() + allMeters.size()) {
-        Serial.println("Stopping Scan found devices ... ");
+      else if (!(commandQueue.isEmpty()) && initialScanComplete) {
+        forceRescan = true;
+        stopScan = true;
+      }
+
+      if (stopScan) {
+        allSwitchbotsScanned = {};
+        if (printSerialOutputForDebugging) {
+          Serial.println("Stopping Scan found devices ... ");
+        }
         NimBLEDevice::getScan()->stop();
       }
     };
 
     bool callForInfoAdvDev(NimBLEAdvertisedDevice* advDev,  std::string aValueString) {
-      Serial.println("callForInfoAdvDev");
+      if (printSerialOutputForDebugging) {
+        Serial.println("callForInfoAdvDev");
+      }
       std::string aDevice;
       std::string aState;
       std::string deviceStateTopic;
@@ -1030,7 +1116,9 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         deviceName = itS->second.c_str();
       }
 
-      Serial.printf("deviceName: %s\n", deviceName.c_str());
+      if (printSerialOutputForDebugging) {
+        Serial.printf("deviceName: %s\n", deviceName.c_str());
+      }
 
       doc["rssi"] = advDev->getRSSI();
 
@@ -1055,7 +1143,6 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           aState = (byte1 & 0b01000000) ? "OFF" : "ON"; // Mine is opposite, not sure why
         }
         else {
-
           botsInPressMode.insert (std::pair<std::string, bool>(deviceMac, true));
           aState = "OFF";
         }
@@ -1067,7 +1154,9 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
         if (home_assistant_mqtt_discovery) {
           if (itM == discoveredDevices.end()) {
-            Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
+            if (printSerialOutputForDebugging) {
+              Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
+            }
             if (home_assistant_use_opt_mode) {
               publishHomeAssistantDiscoveryBotConfig(aDevice, deviceMac, isSwitch);
             }
@@ -1108,7 +1197,9 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
         if (home_assistant_mqtt_discovery) {
           if (itM == discoveredDevices.end()) {
-            Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
+            if (printSerialOutputForDebugging) {
+              Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
+            }
             publishHomeAssistantDiscoveryMeterConfig(aDevice, deviceMac);
             discoveredDevices.insert( std::pair<std::string, bool>(deviceMac, true) );
           }
@@ -1119,7 +1210,9 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         {
           rescanTimes.erase(deviceMac);
         }
-        Serial.printf("Adding %s to rescanTimes...\n", deviceMac.c_str());
+        if (printSerialOutputForDebugging) {
+          Serial.printf("Adding %s to rescanTimes...\n", deviceMac.c_str());
+        }
         rescanTimes.insert ( std::pair<std::string, long>(deviceMac, millis()));
 
       }
@@ -1152,7 +1245,9 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
         if (home_assistant_mqtt_discovery) {
           if (itM == discoveredDevices.end()) {
-            Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
+            if (printSerialOutputForDebugging) {
+              Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
+            }
             publishHomeAssistantDiscoveryCurtainConfig(aDevice, deviceMac);
             discoveredDevices.insert( std::pair<std::string, bool>(deviceMac, true) );
           }
@@ -1165,23 +1260,31 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       else {
         return false;
       }
-      Serial.println("serializing");
+      if (printSerialOutputForDebugging) {
+        Serial.println("serializing");
+      }
       serializeJson(doc, aBuffer);
       client.publish(deviceStateTopic.c_str(), aState.c_str(), true);
       client.publish(deviceAttrTopic.c_str(), aBuffer, true);
-      Serial.println("published");
+      if (printSerialOutputForDebugging) {
+        Serial.println("published");
+      }
       return true;
     };
 };
 
 void initialScanEndedCB(NimBLEScanResults results) {
-  Serial.println("initialScanEndedCB");
+  if (printSerialOutputForDebugging) {
+    Serial.println("initialScanEndedCB");
+  }
   if (ledOnBootScan) {
     digitalWrite(LED_PIN, ledOFFValue);
   }
   initialScanComplete = true;
-
-  Serial.println("Scan Ended");
+  allSwitchbotsScanned = {};
+  if (printSerialOutputForDebugging) {
+    Serial.println("Scan Ended");
+  }
   client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
 }
 
@@ -1189,7 +1292,10 @@ void scanEndedCB(NimBLEScanResults results) {
   if (ledOnScan || ledOnCommand) {
     digitalWrite(LED_PIN, ledOFFValue);
   }
-  Serial.println("Scan Ended");
+  allSwitchbotsScanned = {};
+  if (printSerialOutputForDebugging) {
+    Serial.println("Scan Ended");
+  }
   client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
 }
 
@@ -1199,7 +1305,10 @@ void rescanEndedCB(NimBLEScanResults results) {
   }
   isRescanning = false;
   lastRescan = millis();
-  Serial.println("ReScan Ended");
+  allSwitchbotsScanned = {};
+  if (printSerialOutputForDebugging) {
+    Serial.println("ReScan Ended");
+  }
   client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
 }
 
@@ -1235,31 +1344,41 @@ void setup () {
     ledONValue = LOW;
     ledOFFValue = HIGH;
   }
-
+  forceRescan = false;
   pinMode (LED_PIN, OUTPUT);
   // Connect to WiFi network
   WiFi.begin(ssid, password);
-  Serial.println("");
+  if (printSerialOutputForDebugging) {
+    Serial.println("");
+  }
 
   // Wait for connection
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print(".");
+    if (printSerialOutputForDebugging) {
+      Serial.print(".");
+    }
   }
-  Serial.println("");
-  Serial.print("Connected to ");
-  Serial.println(ssid);
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
+  if (printSerialOutputForDebugging) {
+    Serial.println("");
+    Serial.print("Connected to ");
+    Serial.println(ssid);
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+  }
 
   /*use mdns for host name resolution*/
   if (!MDNS.begin(host)) { //http://esp32.local
-    Serial.println("Error setting up MDNS responder!");
+    if (printSerialOutputForDebugging) {
+      Serial.println("Error setting up MDNS responder!");
+    }
     while (1) {
       delay(1000);
     }
   }
-  Serial.println("mDNS responder started");
+  if (printSerialOutputForDebugging) {
+    Serial.println("mDNS responder started");
+  }
   /*return index page which is stored in serverIndex */
   server.on("/", HTTP_GET, []() {
     server.sendHeader("Connection", "close");
@@ -1282,7 +1401,9 @@ void setup () {
   }, []() {
     HTTPUpload& upload = server.upload();
     if (upload.status == UPLOAD_FILE_START) {
-      Serial.printf("Update: %s\n", upload.filename.c_str());
+      if (printSerialOutputForDebugging) {
+        Serial.printf("Update: %s\n", upload.filename.c_str());
+      }
       if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
         Update.printError(Serial);
       }
@@ -1293,7 +1414,9 @@ void setup () {
       }
     } else if (upload.status == UPLOAD_FILE_END) {
       if (Update.end(true)) { //true to set the size to the current progress
-        Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+        if (printSerialOutputForDebugging) {
+          Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+        }
       } else {
         Update.printError(Serial);
       }
@@ -1352,7 +1475,13 @@ void setup () {
   allMeters = allMetersTemp;
 
   Serial.begin(115200);
-  Serial.println("Starting NimBLE Client");
+  Serial.println("Switchbot ESP32 starting...");
+  if (!printSerialOutputForDebugging) {
+    Serial.println("Set printSerialOutputForDebugging = true to see more Serial output");
+  }
+  if (printSerialOutputForDebugging) {
+    Serial.println("Starting NimBLE Client");
+  }
   NimBLEDevice::init("");
   NimBLEDevice::setSecurityAuth(/*BLE_SM_PAIR_AUTHREQ_BOND | BLE_SM_PAIR_AUTHREQ_MITM |*/ BLE_SM_PAIR_AUTHREQ_SC);
   NimBLEDevice::setPower(ESP_PWR_LVL_P9);
@@ -1361,7 +1490,7 @@ void setup () {
   pScan->setAdvertisedDeviceCallbacks(new AdvertisedDeviceCallbacks());
   pScan->setInterval(45);
   pScan->setWindow(15);
-  pScan->setDuplicateFilter(true);
+  pScan->setDuplicateFilter(false);
   pScan->setActiveScan(true);
 }
 
@@ -1370,8 +1499,8 @@ void rescan(int seconds) {
   while (pScan->isScanning()) {
     delay(50);
   }
-  allSwitchbotsDev = {};
-  pScan->clearResults();
+  allSwitchbotsScanned = {};
+  //pScan->clearResults();
   lastRescan = millis();
   isRescanning = true;
   delay(50);
@@ -1380,7 +1509,7 @@ void rescan(int seconds) {
   if (ledOnScan) {
     digitalWrite(LED_PIN, ledONValue);
   }
-  pScan->start(seconds, rescanEndedCB);
+  pScan->start(seconds, rescanEndedCB, true);
 }
 
 void rescanFind(std::string aMac) {
@@ -1390,8 +1519,22 @@ void rescanFind(std::string aMac) {
   while (pScan->isScanning()) {
     delay(50);
   }
-  allSwitchbotsDev.erase(aMac);
-  pScan->erase(NimBLEAddress(aMac));
+
+  allSwitchbotsScanned = {};
+  std::map<std::string, NimBLEAdvertisedDevice*>::iterator it = allSwitchbotsDev.begin();
+  std::string anAddr;
+
+  while (it != allSwitchbotsDev.end())
+  {
+    anAddr = it->first;
+    if (anAddr != aMac) {
+      allSwitchbotsScanned.insert ( std::pair<std::string, NimBLEAdvertisedDevice*>(anAddr, it->second) );
+    }
+    it++;
+  }
+
+  //allSwitchbotsDev.erase(aMac);
+  //pScan->erase(NimBLEAddress(aMac));
   delay(100);
   client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"scanning\"}");
   delay(50);
@@ -1407,7 +1550,9 @@ void getAllBotSettings() {
       digitalWrite(LED_PIN, ledONValue);
     }
 
-    Serial.println("In all get bot settings...");
+    if (printSerialOutputForDebugging) {
+      Serial.println("In all get bot settings...");
+    }
     gotSettings = true;
     std::map<std::string, std::string>::iterator itT = allBots.begin();
     std::string aDevice;
@@ -1415,14 +1560,16 @@ void getAllBotSettings() {
     {
       aDevice = itT->first;
       processing = true;
-      controlMQTT(aDevice, "REQUESTSETTINGS");
+      controlMQTT(aDevice, "REQUESTSETTINGS", true);
       processing = false;
       itT++;
     }
     if (ledOnBootScan) {
       digitalWrite(LED_PIN, ledOFFValue);
     }
-    Serial.println("Added all get bot settings...");
+    if (printSerialOutputForDebugging) {
+      Serial.println("Added all get bot settings...");
+    }
   }
 }
 
@@ -1435,17 +1582,23 @@ void loop () {
   if (isRescanning) {
     lastRescan = millis();
   }
-  if (!processing && !(pScan->isScanning()) && !isRescanning) {
+  if (!waitForResponse && !processing && !(pScan->isScanning()) && !isRescanning) {
     if (getSettingsOnBoot && !gotSettings ) {
       getAllBotSettings();
     }
-    if (processQueue()) {
-      if (autoRescan) {
-        recurringRescan();
-      }
+  }
+  if (!waitForResponse && !processing && !(pScan->isScanning()) && !isRescanning) {
+    bool queueProcessed = false;
+    queueProcessed = processQueue();
+    if (commandQueue.isEmpty() && queueProcessed && !waitForResponse && !processing && !(pScan->isScanning()) && !isRescanning) {
       if (scanAfterControl) {
         recurringScan();
       }
+    }
+  }
+  if (commandQueue.isEmpty() && !waitForResponse && !processing && !(pScan->isScanning()) && !isRescanning) {
+    if (autoRescan || forceRescan) {
+      recurringRescan();
     }
   }
   delay(1);
@@ -1456,7 +1609,8 @@ void recurringRescan() {
     lastRescan = millis();
     return;
   }
-  if ((millis() - lastRescan) >= (rescanTime * 1000)) {
+
+  if (((millis() - lastRescan) >= (rescanTime * 1000)) || forceRescan) {
     if (!processing && !(pScan->isScanning()) && !isRescanning) {
       rescan(initialScan);
     }
@@ -1482,9 +1636,15 @@ void recurringScan() {
       {
         itB = allSwitchbotsOpp.find(anAddr);
         itS = botScanTime.find(itB->second);
+
         long lastTime = it->second;
-        int aDefault = 10;
-        long scanTime = aDefault; //default if not in list
+        long scanTime = defaultScanAfterControlSecs; //default if not in list
+
+        std::map<std::string, std::string>::iterator itM = allMeters.find(itB->second);
+        if (itM != allMeters.end())
+        {
+          scanTime = defaultMeterScanSecs; //default if not in list
+        }
         if (itS != botScanTime.end())
         {
           scanTime = itS->second;
@@ -1495,12 +1655,13 @@ void recurringScan() {
           std::map<std::string, int>::iterator itH = botHoldSecs.find(anAddr);
           if (itH != botHoldSecs.end())
           {
-            int holdTimePlus = (itH->second) + aDefault;
+            int holdTimePlus = (itH->second) + defaultScanAfterControlSecs;
             if (holdTimePlus > scanTime) {
               scanTime =  holdTimePlus;
             }
           }
         }
+
         if ((millis() - lastTime) >= (scanTime * 1000)) {
           if (!processing && !(pScan->isScanning()) && !isRescanning) {
             rescanFind(it->first);
@@ -1519,7 +1680,7 @@ void recurringScan() {
 }
 
 
-void processRequest(std::string macAdd, std::string aName, const char * command, std::string deviceTopic) {
+void processRequest(std::string macAdd, std::string aName, const char * command, std::string deviceTopic, bool disconnectAfter) {
   int count = 1;
   std::map<std::string, NimBLEAdvertisedDevice*>::iterator itS = allSwitchbotsDev.find(macAdd);
   NimBLEAdvertisedDevice* advDevice = nullptr;
@@ -1541,7 +1702,8 @@ void processRequest(std::string macAdd, std::string aName, const char * command,
       if (ledOnScan) {
         digitalWrite(LED_PIN, ledONValue);
       }
-      pScan->start(10 * count, scanEndedCB, true);
+      rescanFind(macAdd);
+      //pScan->start(10 * count, scanEndedCB, true);
       delay(500);
       while (pScan->isScanning()) {
         delay(10);
@@ -1565,13 +1727,22 @@ void processRequest(std::string macAdd, std::string aName, const char * command,
     client.publish((deviceTopic + "/status").c_str(), aBuffer);
   }
   else {
-    sendToDevice(advDevice, aName, command, deviceTopic);
+    sendToDevice(advDevice, aName, command, deviceTopic, disconnectAfter);
   }
 }
 
 bool waitToProcess(QueueCommand aCommand) {
   bool wait = false;
   long waitTimeLeft = 0;
+
+  std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
+  if (itP != botsToWaitFor.end())
+  {
+    if (!aCommand.priority) {
+      return true;
+    }
+  }
+
   if (waitBetweenControl) {
     if (aCommand.payload != "REQUESTINFO" && aCommand.payload != "GETINFO" && (aCommand.topic != (ESPMQTTTopic + "/requestInfo"))) {
       std::string anAddr;
@@ -1630,11 +1801,13 @@ bool waitToProcess(QueueCommand aCommand) {
     }
   }
   if (wait) {
-    Serial.print("Control for device: ");
-    Serial.print(aCommand.device.c_str());
-    Serial.print(" will wait ");
-    Serial.print(waitTimeLeft);
-    Serial.println(" millisecondSeconds");
+    if (printSerialOutputForDebugging) {
+      Serial.print("Control for device: ");
+      Serial.print(aCommand.device.c_str());
+      Serial.print(" will wait ");
+      Serial.print(waitTimeLeft);
+      Serial.println(" millisecondSeconds");
+    }
   }
   return wait;
 }
@@ -1643,12 +1816,11 @@ bool processQueue() {
   processing = true;
   struct QueueCommand aCommand;
   while (!commandQueue.isEmpty()) {
+    bool disconnectAfter = true;
     if (ledOnCommand) {
       digitalWrite(LED_PIN, ledONValue);
     }
     if (!waitForResponse) {
-      currentRetry++;
-      bool skipDequeue = false;
       bool requeue = false;
       bool skip = false;
       aCommand = commandQueue.getHead();
@@ -1661,12 +1833,16 @@ bool processQueue() {
         if ( pScan->isScanning() || isRescanning ) {
           return false;
         }
-
         processing = true;
-        Serial.print("Received something on ");
-        Serial.println(aCommand.topic.c_str());
-        Serial.println(aCommand.device.c_str());
+        if (printSerialOutputForDebugging) {
+          Serial.print("Received something on ");
+          Serial.println(aCommand.topic.c_str());
+          Serial.println(aCommand.device.c_str());
+        }
         if (aCommand.topic == ESPMQTTTopic + "/control") {
+          if (aCommand.disconnectAfter == false) {
+            disconnectAfter = false;
+          };
           processing = true;
           if (isBotDevice(aCommand.device.c_str()))
           {
@@ -1692,63 +1868,138 @@ bool processQueue() {
               noResponse = true;
               bool shouldContinue = true;
               long timeSent = millis();
-              controlMQTT(aCommand.device, aCommand.payload);
+
               if (isBotDevice(aCommand.device.c_str()))
               {
+                bool isNum = is_number(aCommand.payload.c_str());
+                if (isNum) {
+                  controlMQTT(aCommand.device, aCommand.payload, false);
+                }
+                else {
+                  controlMQTT(aCommand.device, aCommand.payload, disconnectAfter);
+                }
                 if (getBotResponse) {
                   while (noResponse && shouldContinue )
                   {
                     waitForResponse = true;
-                    //Serial.println("waiting for response...");
+                    //if (printSerialOutputForDebugging) {Serial.println("waiting for response...");}
                     if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
                       shouldContinue = false;
                     }
                   }
+                  std::map<std::string, std::string>::iterator itN = allBots.find(aCommand.device);
+                  std::string anAddr = itN->second;
+                  std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+                  NimBLEClient* pClient = nullptr;
+                  if (NimBLEDevice::getClientListSize()) {
+                    pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
+                    if (pClient) {
+                      if (pClient->isConnected()) {
+                        unsubscribeToNotify(pClient);
+                        if (disconnectAfter) {
+                          pClient->disconnect();
+                        }
+                      }
+                    }
+                  }
+
+                  if (isNum && !lastCommandWasBusy && getBotResponse) {
+                    getSettingsAfter = true;
+                  }
+                  if (lastCommandWasBusy && retryBotOnBusy) {
+                    requeue = true;
+                    botsToWaitFor.insert (std::pair<std::string, bool>(aCommand.device, true));
+                    lastCommandWasBusy = false;
+                    getSettingsAfter = false;
+                    std::map<std::string, long>::iterator itZ = lastCommandSent.find(anAddr);
+                    if (itZ != lastCommandSent.end())
+                    {
+                      lastCommandSent.erase(anAddr);
+                    }
+                    lastCommandSent.insert (std::pair<std::string, long>(anAddr, 0));
+                  }
+                  else if ((retryBotActionNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount)) || (retryBotSetNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount) && ((strcmp(aCommand.payload.c_str(), "REQUESTSETTINGS") == 0) || (strcmp(aCommand.payload.c_str(), "GETSETTINGS") == 0)
+                           || (strcmp(aCommand.payload.c_str(), "MODEPRESS") == 0) || (strcmp(aCommand.payload.c_str(), "MODEPRESSINV") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCH") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCHINV") == 0) || isNum ))) {
+                    if (printSerialOutputForDebugging) {
+                      Serial.print("current retry...");
+                      Serial.println(aCommand.currentTry);
+                    }
+                    requeue = true;
+                    botsToWaitFor.insert (std::pair<std::string, bool>(aCommand.device, true));
+                    lastCommandWasBusy = false;
+                    getSettingsAfter = false;
+                  }
+                  else {
+                    std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
+                    if (itP != botsToWaitFor.end())
+                    {
+                      botsToWaitFor.erase(aCommand.device);
+                    }
+                  }
                 }
                 waitForResponse = false;
-                bool isNum = is_number(aCommand.payload.c_str());
-                if (isNum && !lastCommandWasBusy && getBotResponse) {
-                  getSettingsAfter = true;
-                }
-                if (lastCommandWasBusy && retryBotOnBusy) {
-                  requeue = true;
-                  lastCommandWasBusy = false;
-                  getSettingsAfter = false;
-                }
-
-                else if ((retryBotActionNoResponse && noResponse && (currentRetry <= noResponseRetryAmount)) || (retryBotSetNoResponse && noResponse && (currentRetry <= noResponseRetryAmount) && ((strcmp(aCommand.payload.c_str(), "REQUESTSETTINGS") == 0) || (strcmp(aCommand.payload.c_str(), "GETSETTINGS") == 0)
-                         || (strcmp(aCommand.payload.c_str(), "MODEPRESS") == 0) || (strcmp(aCommand.payload.c_str(), "MODEPRESSINV") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCH") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCHINV") == 0) || isNum ))) {
-                  Serial.print("current retry...");
-                  Serial.println(currentRetry);
-                  skipDequeue = true;
-                  lastCommandWasBusy = false;
-                  getSettingsAfter = false;
-                }
+                noResponse = false;
               }
               else if (isCurtainDevice(aCommand.device.c_str()))
               {
+                controlMQTT(aCommand.device, aCommand.payload, disconnectAfter);
+                std::string anAddr;
                 if (getCurtainResponse) {
                   while (noResponse && shouldContinue )
                   {
                     waitForResponse = true;
-                    Serial.println("waiting for response...");
+                    if (printSerialOutputForDebugging) {
+                      Serial.println("waiting for response...");
+                    }
                     if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
                       shouldContinue = false;
                     }
                   }
-                }
-                waitForResponse = false;
-                if (lastCommandWasBusy && retryCurtainOnBusy) {
-                  requeue = true;
-                  lastCommandWasBusy = false;
-                }
-                else if (retryCurtainNoResponse && noResponse && (currentRetry <= noResponseRetryAmount)) {
-                  Serial.print("current retry...");
-                  Serial.println(currentRetry);
-                  skipDequeue = true;
-                  lastCommandWasBusy = false;
+                  std::map<std::string, std::string>::iterator itN = allCurtains.find(aCommand.device);
+                  anAddr = itN->second;
+                  std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+                  NimBLEClient* pClient = nullptr;
+                  if (NimBLEDevice::getClientListSize()) {
+                    pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
+                    if (pClient) {
+                      if (pClient->isConnected()) {
+                        unsubscribeToNotify(pClient);
+                        if (disconnectAfter) {
+                          pClient->disconnect();
+                        }
+                      }
+                    }
+                  }
+                  if (lastCommandWasBusy && retryCurtainOnBusy) {
+                    requeue = true;
+                    botsToWaitFor.insert (std::pair<std::string, bool>(aCommand.device, true));
+                    lastCommandWasBusy = false;
+                    std::map<std::string, long>::iterator itZ = lastCommandSent.find(anAddr);
+                    if (itZ != lastCommandSent.end())
+                    {
+                      lastCommandSent.erase(anAddr);
+                    }
+                    lastCommandSent.insert (std::pair<std::string, long>(anAddr, 0));
+                  }
+                  else if (retryCurtainNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount)) {
+                    if (printSerialOutputForDebugging) {
+                      Serial.print("current retry...");
+                      Serial.println(aCommand.currentTry);
+                    }
+                    requeue = true;
+                    botsToWaitFor.insert (std::pair<std::string, bool>(aCommand.device, true));
+                    lastCommandWasBusy = false;
+                  }
+                  else {
+                    std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
+                    if (itP != botsToWaitFor.end())
+                    {
+                      botsToWaitFor.erase(aCommand.device);
+                    }
+                  }
                 }
               }
+              waitForResponse = false;
               noResponse = false;
             }
           }
@@ -1766,13 +2017,11 @@ bool processQueue() {
           rescanMQTT(aCommand.payload);
         }
         if (requeue) {
-          currentRetry = 0;
+          aCommand.currentTry = aCommand.currentTry + 1;
+          aCommand.priority = true;
           commandQueue.enqueue(aCommand);
         }
-        if (!skipDequeue) {
-          currentRetry = 0;
-          commandQueue.dequeue();
-        }
+
         lastCommandWasBusy = false;
         if (getSettingsAfter && !skip) {
           processing = true;
@@ -1785,12 +2034,11 @@ bool processQueue() {
             count++;
             shouldContinue = true;
             long timeSent = millis();
-            controlMQTT(requestDevice, "REQUESTSETTINGS");
-
+            controlMQTT(requestDevice, "REQUESTSETTINGS", disconnectAfter);
             while (noResponse && shouldContinue )
             {
               waitForResponse = true;
-              //Serial.println("waiting for response...");
+              //if (printSerialOutputForDebugging) {Serial.println("waiting for response...");}
               if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
                 shouldContinue = false;
               }
@@ -1798,6 +2046,7 @@ bool processQueue() {
             waitForResponse = false;
           }
         }
+        commandQueue.dequeue();
       }
     }
   }
@@ -1808,7 +2057,7 @@ bool processQueue() {
   return true;
 }
 
-void sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const char * command, std::string deviceTopic) {
+void sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const char * command, std::string deviceTopic, bool disconnectAfter) {
 
   NimBLEAdvertisedDevice* advDeviceToUse = advDevice;
   std::string addr = advDeviceToUse->getAddress().toString();
@@ -1863,7 +2112,7 @@ void sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const c
         if (count > 1) {
           delay(50);
         }
-        isSuccess = sendCommand(advDeviceToUse, command, count);
+        isSuccess = sendCommand(advDeviceToUse, command, count, disconnectAfter);
         count++;
         if (isSuccess) {
           delay(100);
@@ -1934,7 +2183,9 @@ void sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const c
       }
     }
   }
-  Serial.println("Done sendCommand...");
+  if (printSerialOutputForDebugging) {
+    Serial.println("Done sendCommand...");
+  }
 }
 
 bool is_number(const std::string & s)
@@ -1944,18 +2195,22 @@ bool is_number(const std::string & s)
   return !s.empty() && it == s.end();
 }
 
-void controlMQTT(std::string device, std::string payload) {
+void controlMQTT(std::string device, std::string payload, bool disconnectAfter) {
   processing = true;
-  Serial.println("Processing Control MQTT...");
+  if (printSerialOutputForDebugging) {
+    Serial.println("Processing Control MQTT...");
+  }
 
   std::string deviceAddr = "";
   std::string deviceTopic;
   std::string anAddr;
 
-  Serial.print("Device: ");
-  Serial.println(device.c_str());
-  Serial.print("Device value: ");
-  Serial.println(payload.c_str());
+  if (printSerialOutputForDebugging) {
+    Serial.print("Device: ");
+    Serial.println(device.c_str());
+    Serial.print("Device value: ");
+    Serial.println(payload.c_str());
+  }
 
   std::map<std::string, std::string>::iterator itS = allBots.find(device.c_str());
   if (itS != allBots.end())
@@ -1982,7 +2237,25 @@ void controlMQTT(std::string device, std::string payload) {
     deviceTopic = meterTopic;
   }
 
-  if (deviceAddr != "") {
+  bool diffDevice = false;
+  if (lastDeviceControlled != deviceAddr) {
+    diffDevice = true;
+  }
+  lastDeviceControlled = deviceAddr;
+  if (lastDeviceControlled != "") {
+    if (diffDevice) {
+      NimBLEClient* pClient = nullptr;
+      if (NimBLEDevice::getClientListSize()) {
+        pClient = NimBLEDevice::getClientByPeerAddress(lastDeviceControlled);
+        if (pClient) {
+          if (pClient->isConnected()) {
+            unsubscribeToNotify(pClient);
+            pClient->disconnect();
+          }
+        }
+      }
+    }
+
     bool isNum = is_number(payload.c_str());
     deviceTopic = deviceTopic + device;
     if (isNum) {
@@ -1994,20 +2267,22 @@ void controlMQTT(std::string device, std::string payload) {
       else if (aVal > 100) {
         payload = "100";
       }
-      processRequest(deviceAddr, device, payload.c_str(), deviceTopic);
+      processRequest(deviceAddr, device, payload.c_str(), deviceTopic, disconnectAfter);
     }
     else {
       if ((strcmp(payload.c_str(), "PRESS") == 0) || (strcmp(payload.c_str(), "ON") == 0) || (strcmp(payload.c_str(), "OFF") == 0) || (strcmp(payload.c_str(), "OPEN") == 0) || (strcmp(payload.c_str(), "CLOSE") == 0) || (strcmp(payload.c_str(), "PAUSE") == 0)
           || (strcmp(payload.c_str(), "REQUESTSETTINGS") == 0) || (strcmp(payload.c_str(), "REQUESTINFO") == 0) || (strcmp(payload.c_str(), "GETSETTINGS") == 0) || (strcmp(payload.c_str(), "GETINFO") == 0)
           || (strcmp(payload.c_str(), "MODEPRESS") == 0) || (strcmp(payload.c_str(), "MODEPRESSINV") == 0) || (strcmp(payload.c_str(), "MODESWITCH") == 0) || (strcmp(payload.c_str(), "MODESWITCHINV") == 0)) {
-        processRequest(deviceAddr, device, payload.c_str(), deviceTopic);
+        processRequest(deviceAddr, device, payload.c_str(), deviceTopic, disconnectAfter);
       }
       else {
         char aBuffer[100];
         StaticJsonDocument<100> docOut;
         docOut["status"] = "errorJSONValue";
         serializeJson(docOut, aBuffer);
-        Serial.println("Parsing failed = value not a valid command");
+        if (printSerialOutputForDebugging) {
+          Serial.println("Parsing failed = value not a valid command");
+        }
         client.publish(ESPMQTTTopic.c_str(), aBuffer);
       }
     }
@@ -2017,7 +2292,9 @@ void controlMQTT(std::string device, std::string payload) {
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorJSONDevice";
     serializeJson(docOut, aBuffer);
-    Serial.println("Parsing failed = device not from list");
+    if (printSerialOutputForDebugging) {
+      Serial.println("Parsing failed = device not from list");
+    }
     client.publish(ESPMQTTTopic.c_str(), aBuffer);
   }
 
@@ -2028,12 +2305,16 @@ void controlMQTT(std::string device, std::string payload) {
 void rescanMQTT(std::string payload) {
   isRescanning = true;
   processing = true;
-  Serial.println("Processing Rescan MQTT...");
+  if (printSerialOutputForDebugging) {
+    Serial.println("Processing Rescan MQTT...");
+  }
   StaticJsonDocument<100> docIn;
   deserializeJson(docIn, payload);
 
   if (docIn == nullptr) { //Check for errors in parsing
-    Serial.println("Parsing failed");
+    if (printSerialOutputForDebugging) {
+      Serial.println("Parsing failed");
+    }
     char aBuffer[100];
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorParsingJSON";
@@ -2061,7 +2342,9 @@ void rescanMQTT(std::string payload) {
         StaticJsonDocument<100> docOut;
         docOut["status"] = "errorJSONValue";
         serializeJson(docOut, aBuffer);
-        Serial.println("Parsing failed = device not from list");
+        if (printSerialOutputForDebugging) {
+          Serial.println("Parsing failed = device not from list");
+        }
         client.publish(ESPMQTTTopic.c_str(), aBuffer);
       }
     }
@@ -2071,12 +2354,16 @@ void rescanMQTT(std::string payload) {
 
 void requestInfoMQTT(std::string payload) {
   processing = true;
-  Serial.println("Processing Request Info MQTT...");
+  if (printSerialOutputForDebugging) {
+    Serial.println("Processing Request Info MQTT...");
+  }
   StaticJsonDocument<100> docIn;
   deserializeJson(docIn, payload);
 
   if (docIn == nullptr) { //Check for errors in parsing
-    Serial.println("Parsing failed");
+    if (printSerialOutputForDebugging) {
+      Serial.println("Parsing failed");
+    }
     char aBuffer[100];
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorParsingJSON";
@@ -2085,8 +2372,10 @@ void requestInfoMQTT(std::string payload) {
   }
   else {
     const char * aName = docIn["id"]; //Get sensor type value
-    Serial.print("Device: ");
-    Serial.println(aName);
+    if (printSerialOutputForDebugging) {
+      Serial.print("Device: ");
+      Serial.println(aName);
+    }
 
     std::string deviceAddr = "";
     std::string deviceTopic;
@@ -2120,14 +2409,16 @@ void requestInfoMQTT(std::string payload) {
     }
     if (deviceAddr != "") {
       deviceTopic = deviceTopic + aName;
-      processRequest(deviceAddr, aName, "requestInfo", deviceTopic);
+      processRequest(deviceAddr, aName, "requestInfo", deviceTopic, true);
     }
     else {
       char aBuffer[100];
       StaticJsonDocument<100> docOut;
       docOut["status"] = "errorJSONId";
       serializeJson(docOut, aBuffer);
-      Serial.println("Parsing failed = device not from list");
+      if (printSerialOutputForDebugging) {
+        Serial.println("Parsing failed = device not from list");
+      }
       client.publish(ESPMQTTTopic.c_str(), aBuffer);
     }
   }
@@ -2162,13 +2453,24 @@ void onConnectionEstablished() {
     aDevice = it->first.c_str();
 
     client.subscribe((curtainTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
-      Serial.println("Control MQTT Received...");
+      if (printSerialOutputForDebugging) {
+        Serial.println("Control MQTT Received...");
+      }
+      if (pScan->isScanning() || isRescanning) {
+        while (waitForDeviceCreation) {} //just so we don't overlap scanned devices and what we have stored
+        pScan->stop();
+        allSwitchbotsScanned = {};
+        forceRescan = true;
+      }
       if (!commandQueue.isFull()) {
 
         struct QueueCommand queueCommand;
         queueCommand.payload = payload.c_str();
         queueCommand.topic = ESPMQTTTopic + "/control";
         queueCommand.device = aDevice;
+        queueCommand.disconnectAfter = true;
+        queueCommand.priority = false;
+        queueCommand.currentTry = 1;
         commandQueue.enqueue(queueCommand);
       }
       else {
@@ -2186,7 +2488,15 @@ void onConnectionEstablished() {
     aDevice = it->first.c_str();
 
     client.subscribe((botTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
-      Serial.println("Control MQTT Received...");
+      if (printSerialOutputForDebugging) {
+        Serial.println("Control MQTT Received...");
+      }
+      if (pScan->isScanning() || isRescanning) {
+        while (waitForDeviceCreation) {} //just so we don't overlap scanned devices and what we have stored
+        pScan->stop();
+        allSwitchbotsScanned = {};
+        forceRescan = true;
+      }
       if (!commandQueue.isFull()) {
         if (immediateBotStateUpdate && isBotDevice(aDevice)) {
           std::string deviceStateTopic = botTopic + aDevice + "/state";
@@ -2241,11 +2551,13 @@ void onConnectionEstablished() {
             }
           }
         }
-
         struct QueueCommand queueCommand;
         queueCommand.payload = payload.c_str();
         queueCommand.topic = ESPMQTTTopic + "/control";
         queueCommand.device = aDevice;
+        queueCommand.disconnectAfter = true;
+        queueCommand.priority = false;
+        queueCommand.currentTry = 1;
         commandQueue.enqueue(queueCommand);
       }
       else {
@@ -2261,18 +2573,34 @@ void onConnectionEstablished() {
   {
     std::string deviceStr ;
     aDevice = it->first.c_str();
-
     client.subscribe((meterTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
-      Serial.println("Control MQTT Received...");
-      if (!commandQueue.isFull()) {
-        struct QueueCommand queueCommand;
-        queueCommand.payload = payload.c_str();
-        queueCommand.topic = ESPMQTTTopic + "/control";
-        queueCommand.device = aDevice;
-        commandQueue.enqueue(queueCommand);
+      if (printSerialOutputForDebugging) {
+        Serial.println("Control MQTT Received...");
       }
-      else {
-        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+      bool skip = false;
+      if (pScan->isScanning() || isRescanning) {
+        while (waitForDeviceCreation) {} //just so we don't overlap scanned devices and what we have stored
+        pScan->stop();
+        allSwitchbotsScanned = {};
+        forceRescan = true;
+        if (payload.c_str() == "REQUESTINFO" || payload.c_str() == "GETINFO") {
+          skip = true;
+        }
+      }
+      if (!skip) {
+        if (!commandQueue.isFull()) {
+          struct QueueCommand queueCommand;
+          queueCommand.payload = payload.c_str();
+          queueCommand.topic = ESPMQTTTopic + "/control";
+          queueCommand.device = aDevice;
+          queueCommand.disconnectAfter = true;
+          queueCommand.priority = false;
+          queueCommand.currentTry = 1;
+          commandQueue.enqueue(queueCommand);
+        }
+        else {
+          client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+        }
       }
     });
 
@@ -2280,20 +2608,37 @@ void onConnectionEstablished() {
   }
 
   client.subscribe(requestInfoTopic, [] (const String & payload)  {
-    Serial.println("Request Info MQTT Received...");
-    if (!commandQueue.isFull()) {
-      struct QueueCommand queueCommand;
-      queueCommand.payload = payload.c_str();
-      queueCommand.topic = ESPMQTTTopic + "/requestInfo";
-      commandQueue.enqueue(queueCommand);
+    if (printSerialOutputForDebugging) {
+      Serial.println("Request Info MQTT Received...");
     }
-    else {
-      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+    bool skip = false;
+    if (pScan->isScanning() || isRescanning) {
+      while (waitForDeviceCreation) {} //just so we don't overlap scanned devices and what we have stored
+      pScan->stop();
+      allSwitchbotsScanned = {};
+      forceRescan = true;
+      skip = true;
+    }
+    if (!skip) {
+      if (!commandQueue.isFull()) {
+        struct QueueCommand queueCommand;
+        queueCommand.payload = payload.c_str();
+        queueCommand.topic = ESPMQTTTopic + "/requestInfo";
+        queueCommand.disconnectAfter = true;
+        queueCommand.priority = false;
+        queueCommand.currentTry = 1;
+        commandQueue.enqueue(queueCommand);
+      }
+      else {
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+      }
     }
   });
 
   client.subscribe(requestSettingsTopic, [] (const String & payload)  {
-    Serial.println("Request Settings MQTT Received...");
+    if (printSerialOutputForDebugging) {
+      Serial.println("Request Settings MQTT Received...");
+    }
     if (!commandQueue.isFull()) {
       StaticJsonDocument<100> docIn;
       deserializeJson(docIn, payload.c_str());
@@ -2302,6 +2647,9 @@ void onConnectionEstablished() {
       queueCommand.payload = "REQUESTSETTINGS";
       queueCommand.topic = ESPMQTTTopic + "/control";
       queueCommand.device = aDevice;
+      queueCommand.disconnectAfter = true;
+      queueCommand.priority = false;
+      queueCommand.currentTry = 1;
       commandQueue.enqueue(queueCommand);
     }
     else {
@@ -2310,7 +2658,9 @@ void onConnectionEstablished() {
   });
 
   client.subscribe(setModeTopic, [] (const String & payload)  {
-    Serial.println("setMode  MQTT Received...");
+    if (printSerialOutputForDebugging) {
+      Serial.println("setMode  MQTT Received...");
+    }
     if (!commandQueue.isFull()) {
       StaticJsonDocument<100> docIn;
       deserializeJson(docIn, payload.c_str());
@@ -2320,6 +2670,9 @@ void onConnectionEstablished() {
       queueCommand.payload = aMode;
       queueCommand.topic = ESPMQTTTopic + "/control";
       queueCommand.device = aDevice;
+      queueCommand.disconnectAfter = true;
+      queueCommand.priority = false;
+      queueCommand.currentTry = 1;
       commandQueue.enqueue(queueCommand);
     }
     else {
@@ -2328,7 +2681,9 @@ void onConnectionEstablished() {
   });
 
   client.subscribe(setHoldTopic, [] (const String & payload)  {
-    Serial.println("setHold MQTT Received...");
+    if (printSerialOutputForDebugging) {
+      Serial.println("setHold MQTT Received...");
+    }
     if (!commandQueue.isFull()) {
       StaticJsonDocument<100> docIn;
       deserializeJson(docIn, payload.c_str());
@@ -2339,7 +2694,39 @@ void onConnectionEstablished() {
       queueCommand.payload = holdString.c_str();
       queueCommand.topic = ESPMQTTTopic + "/control";
       queueCommand.device = aDevice;
+      queueCommand.disconnectAfter = true;
+      queueCommand.priority = false;
+      queueCommand.currentTry = 1;
       commandQueue.enqueue(queueCommand);
+    }
+    else {
+      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+    }
+  });
+
+  client.subscribe(holdPressTopic, [] (const String & payload)  {
+    if (printSerialOutputForDebugging) {
+      Serial.println("holdPress MQTT Received...");
+    }
+    if (!commandQueue.isFull()) {
+      StaticJsonDocument<100> docIn;
+      deserializeJson(docIn, payload.c_str());
+      const char * aDevice = docIn["id"];
+      int aHold = docIn["hold"];
+      String holdString = String(aHold);
+      struct QueueCommand queueCommandHold;
+      queueCommandHold.payload = holdString.c_str();
+      queueCommandHold.topic = ESPMQTTTopic + "/control";
+      queueCommandHold.device = aDevice;
+      queueCommandHold.disconnectAfter = false;
+      commandQueue.enqueue(queueCommandHold);
+      struct QueueCommand queueCommandPress;
+      std::string aPress = "PRESS";
+      queueCommandPress.payload = aPress.c_str();
+      queueCommandPress.topic = ESPMQTTTopic + "/control";
+      queueCommandPress.device = aDevice;
+      queueCommandPress.disconnectAfter = true;
+      commandQueue.enqueue(queueCommandPress);
     }
     else {
       client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
@@ -2347,31 +2734,54 @@ void onConnectionEstablished() {
   });
 
   client.subscribe(rescanTopic, [] (const String & payload)  {
-    Serial.println("Rescan MQTT Received...");
-    if (!commandQueue.isFull()) {
-      struct QueueCommand queueCommand;
-      queueCommand.payload = payload.c_str();
-      queueCommand.topic = ESPMQTTTopic + "/rescan";
-      commandQueue.enqueue(queueCommand);
+    if (printSerialOutputForDebugging) {
+      Serial.println("Rescan MQTT Received...");
     }
-    else {
-      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+
+    bool skip = false;
+    if (pScan->isScanning() || isRescanning) {
+      while (waitForDeviceCreation) {} //just so we don't overlap scanned devices and what we have stored
+      pScan->stop();
+      allSwitchbotsScanned = {};
+      forceRescan = true;
+      skip = true;
+    }
+    if (!skip) {
+
+      if (!commandQueue.isFull()) {
+        struct QueueCommand queueCommand;
+        queueCommand.payload = payload.c_str();
+        queueCommand.topic = ESPMQTTTopic + "/rescan";
+        queueCommand.disconnectAfter = true;
+        queueCommand.priority = false;
+        queueCommand.currentTry = 1;
+        commandQueue.enqueue(queueCommand);
+      }
+      else {
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+      }
     }
   });
 }
 
 bool connectToServer(NimBLEAdvertisedDevice * advDeviceToUse) {
-  Serial.println("Try to connect. Try a reconnect first...");
+  if (printSerialOutputForDebugging) {
+    Serial.println("Try to connect. Try a reconnect first...");
+  }
   NimBLEClient* pClient = nullptr;
   if (NimBLEDevice::getClientListSize()) {
 
     pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
     if (pClient) {
       if (!pClient->connect(advDeviceToUse, false)) {
-        Serial.println("Reconnect failed");
+        if (printSerialOutputForDebugging) {
+          Serial.println("Reconnect failed");
+        }
       }
       else {
-        Serial.println("Reconnected client");
+        if (printSerialOutputForDebugging) {
+          Serial.println("Reconnected client");
+        }
       }
     }
     else {
@@ -2380,11 +2790,15 @@ bool connectToServer(NimBLEAdvertisedDevice * advDeviceToUse) {
   }
   if (!pClient) {
     if (NimBLEDevice::getClientListSize() >= NIMBLE_MAX_CONNECTIONS) {
-      Serial.println("Max clients reached - no more connections available");
+      if (printSerialOutputForDebugging) {
+        Serial.println("Max clients reached - no more connections available");
+      }
       return false;
     }
     pClient = NimBLEDevice::createClient();
-    Serial.println("New client created");
+    if (printSerialOutputForDebugging) {
+      Serial.println("New client created");
+    }
     pClient->setClientCallbacks(&clientCB, false);
     pClient->setConnectionParams(12, 12, 0, 51);
     pClient->setConnectTimeout(10);
@@ -2393,14 +2807,18 @@ bool connectToServer(NimBLEAdvertisedDevice * advDeviceToUse) {
   if (!pClient->isConnected()) {
     if (!pClient->connect(advDeviceToUse)) {
       NimBLEDevice::deleteClient(pClient);
-      Serial.println("Failed to connect, deleted client");
+      if (printSerialOutputForDebugging) {
+        Serial.println("Failed to connect, deleted client");
+      }
       return false;
     }
   }
-  Serial.print("Connected to: ");
-  Serial.println(pClient->getPeerAddress().toString().c_str());
-  Serial.print("RSSI: ");
-  Serial.println(pClient->getRssi());
+  if (printSerialOutputForDebugging) {
+    Serial.print("Connected to: ");
+    Serial.println(pClient->getPeerAddress().toString().c_str());
+    Serial.print("RSSI: ");
+    Serial.println(pClient->getRssi());
+  }
   return true;
 }
 
@@ -2461,11 +2879,13 @@ bool isCurtainDevice (std::string aDevice) {
   return false;
 }
 
-bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int attempts) {
+bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int attempts, bool disconnectAfter) {
   if (advDeviceToUse == nullptr) {
     return false;
   }
-  Serial.println("Sending command...");
+  if (printSerialOutputForDebugging) {
+    Serial.println("Sending command...");
+  }
   std::string anAddr = advDeviceToUse->getAddress();
   if (!NimBLEDevice::getClientListSize()) {
     return false;
@@ -2479,11 +2899,15 @@ bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int
   int count = 1;
   while (tryConnect  || !pClient ) {
     if (count > 20) {
-      Serial.println("Failed to connect for sending command");
+      if (printSerialOutputForDebugging) {
+        Serial.println("Failed to connect for sending command");
+      }
       return false;
     }
     count++;
-    Serial.println("Attempt to send command. Not connecting. Try connecting...");
+    if (printSerialOutputForDebugging) {
+      Serial.println("Attempt to send command. Not connecting. Try connecting...");
+    }
     tryConnect = !(connectToServer(advDeviceToUse));
     if (!tryConnect) {
       pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
@@ -2536,7 +2960,9 @@ bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int
           if (isBotDevice(aDevice)) {
             skipWaitAfter = true;
             if (aPass == "") {
-              Serial.println("Num is for a bot device - no pass");
+              if (printSerialOutputForDebugging) {
+                Serial.println("Num is for a bot device - no pass");
+              }
               byte anArray[4];
               for (int i = 0; i < 4; i++) {
                 if (i == 3) {
@@ -2773,8 +3199,10 @@ bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int
             }
           }
           if (wasSuccess) {
-            Serial.print("Wrote new value to: ");
-            Serial.println(pChr->getUUID().toString().c_str());
+            if (printSerialOutputForDebugging) {
+              Serial.print("Wrote new value to: ");
+              Serial.println(pChr->getUUID().toString().c_str());
+            }
           }
           else {
             returnValue = false;
@@ -2786,18 +3214,26 @@ bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int
       }
     }
     else {
-      Serial.println("CUSTOM write service not found.");
+      if (printSerialOutputForDebugging) {
+        Serial.println("CUSTOM write service not found.");
+      }
       returnValue = false;
     }
   }
   if (!returnValue) {
     if (attempts >= 10) {
-      Serial.println("Sending failed. Disconnecting client");
+      if (printSerialOutputForDebugging) {
+        Serial.println("Sending failed. Disconnecting client");
+      }
       pClient->disconnect();
     } return false;
   }
-  pClient->disconnect();
-  Serial.println("Success! Command sent/received to/from SwitchBot");
+  if (disconnectAfter) {
+    pClient->disconnect();
+  }
+  if (printSerialOutputForDebugging) {
+    Serial.println("Success! Command sent/received to/from SwitchBot");
+  }
   if (!skipWaitAfter) {
     std::map<std::string, long>::iterator itZ = lastCommandSent.find(anAddr);
     if (itZ != lastCommandSent.end())
@@ -2821,9 +3257,11 @@ bool getGeneric(NimBLEAdvertisedDevice * advDeviceToUse) {
 
   if (pChr) {    /** make sure it's not null */
     if (pChr->canRead()) {
-      Serial.print(pChr->getUUID().toString().c_str());
-      Serial.print(" Value: ");
-      Serial.println(pChr->readValue().c_str()); // should return WoHand
+      if (printSerialOutputForDebugging) {
+        Serial.print(pChr->getUUID().toString().c_str());
+        Serial.print(" Value: ");
+        Serial.println(pChr->readValue().c_str());
+      } // should return WoHand
       deviceTypes.insert ( std::pair<std::string, std::string>(advDeviceToUse->getAddress().toString().c_str(), pChr->readValue().c_str()) );
       return true;
     }
@@ -2835,13 +3273,17 @@ bool requestInfo(NimBLEAdvertisedDevice * advDeviceToUse) {
   if (advDeviceToUse == nullptr) {
     return false;
   }
-  Serial.println("Requesting info...");
+  if (printSerialOutputForDebugging) {
+    Serial.println("Requesting info...");
+  }
   rescanFind(advDeviceToUse->getAddress().toString().c_str());
   return true;
 }
 
 void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-  Serial.println("notifyCB");
+  if (printSerialOutputForDebugging) {
+    Serial.println("notifyCB");
+  }
   noResponse = false;
   std::string aDevice;
   std::string aState;
@@ -2868,7 +3310,9 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
     deviceName = itS->second.c_str();
   }
 
-  Serial.printf("deviceName: %s\n", deviceName.c_str());
+  if (printSerialOutputForDebugging) {
+    Serial.printf("deviceName: %s\n", deviceName.c_str());
+  }
 
   if (deviceName == botName) {
     deviceStatusTopic = botTopic + aDevice + "/status";
@@ -2886,8 +3330,10 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
     if (length == 1) {
       StaticJsonDocument<50> statDoc;
       uint8_t byte1 = pData[0];
-      Serial.print("The response value from bot set mode or holdSecs: ");
-      Serial.println(byte1);
+      if (printSerialOutputForDebugging) {
+        Serial.print("The response value from bot set mode or holdSecs: ");
+        Serial.println(byte1);
+      }
       if (byte1 == 3) {
         statDoc["status"] = "busy";
         lastCommandWasBusy = true;
@@ -2907,8 +3353,10 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
     if (length == 3) {
       StaticJsonDocument<50> statDoc;
       uint8_t byte1 = pData[0];
-      Serial.print("The response value from bot action: ");
-      Serial.println(byte1);
+      if (printSerialOutputForDebugging) {
+        Serial.print("The response value from bot action: ");
+        Serial.println(byte1);
+      }
       if (byte1 == 3) {
         statDoc["status"] = "busy";
         lastCommandWasBusy = true;
@@ -3012,8 +3460,10 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       StaticJsonDocument<50> statDoc;
       uint8_t byte1 = pData[0];
 
-      Serial.print("The response value from curtain: ");
-      Serial.println(byte1);
+      if (printSerialOutputForDebugging) {
+        Serial.print("The response value from curtain: ");
+        Serial.println(byte1);
+      }
       if (byte1 == 3) {
         statDoc["status"] = "busy";
         lastCommandWasBusy = true;
@@ -3036,9 +3486,9 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
   if (NimBLEDevice::getClientListSize()) {
     pClient = NimBLEDevice::getClientByPeerAddress(deviceMac);
     if (pClient) {
-      if (!pClient->isConnected()) {
+      if (pClient->isConnected()) {
         unsubscribeToNotify(pClient);
-        pClient->disconnect();
+        //pClient->disconnect();
       }
     }
   }
