@@ -215,7 +215,7 @@
                           - {"status":"success"}
 						  
   // holdPress = set bot hold value, then call press on bot (without disconnecting in between)   
-  ESP32 will Subscribe to MQTT topic setting hold time on bots
+  ESP32 will Subscribe to MQTT topic to action a holdPress on bots
       - <ESPMQTTTopic>/holdPress
 
     send a JSON payload of the device you want to control
