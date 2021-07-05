@@ -11,7 +11,7 @@ Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP3
 
 v4.1
 
-Created: on June 24 2021
+Created: on July 5 2021
   Author: devWaves
   
   Contributions from:
