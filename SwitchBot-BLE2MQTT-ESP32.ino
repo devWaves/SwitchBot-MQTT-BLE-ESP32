@@ -9,13 +9,13 @@
      *  I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v4.0
+  v4.1
 
-    Created: on June 24 2021
+    Created: on July 5 2021
         Author: devWaves
 
         Contributions from:
-			HardcoreWR
+                HardcoreWR
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
@@ -53,9 +53,9 @@
     - ESP32 will collect hold time from bots and automatically wait holdSecs+defaultBotWaitTime until next command is sent to bot
 
     - Retry on no response curtain or bot
-	
+
     - holdPress = set bot hold value, then call press (without disconnecting in between)
-	
+
     - Set/Control is prioritized over scanning. While scanning, if a set/control command is received scanning is stopped and resumed later
 
 
@@ -213,8 +213,8 @@
                           - {"status":"success", "value":1}
                           - {"status":"success", "value":5}
                           - {"status":"success"}
-						  
-  // holdPress = set bot hold value, then call press on bot (without disconnecting in between)   
+
+  // holdPress = set bot hold value, then call press on bot (without disconnecting in between)
   ESP32 will Subscribe to MQTT topic to action a holdPress on bots
       - <ESPMQTTTopic>/holdPress
 
@@ -241,7 +241,7 @@
                           - {"status":"failed", "value":9}
                           - {"status":"success", "value":1}
                           - {"status":"success", "value":5}
-                          - {"status":"success"}					  
+                          - {"status":"success"}
 
 
   // SET MODE ON BOT
@@ -310,7 +310,6 @@ static const char* mqtt_user = "switchbot";                         //  MQTT Bro
 static const char* mqtt_pass = "switchbot";                         //  MQTT Broker password
 static const int mqtt_port = 1883;                                  //  MQTT Port
 static std::string mqtt_main_topic = "switchbot";                   //  MQTT main topic
-static const uint16_t mqtt_packet_size = 1024;
 
 /* Switchbot Bot Settings */
 static std::map<std::string, std::string> allBots = {
@@ -349,7 +348,7 @@ static bool ledOnScan = true;                        // Turn on LED while scanni
 static bool ledOnCommand = true;                     // Turn on LED while MQTT command is processing. If scanning, LED will blink after scan completes. You may not notice it, there is no delay after scan
 
 /* Webserver Settings */
-static bool useLoginScreen = false;                   //  use a basic login page to avoid unwanted access
+static bool useLoginScreen = false;                   //  use a basic login popup to avoid unwanted access
 static String otaUserId = "admin";                    //  user Id for OTA update. Ignore if useLoginScreen = false
 static String otaPass = "admin";                      //  password for OTA update. Ignore if useLoginScreen = false
 static WebServer server(80);                          //  default port 80
@@ -418,54 +417,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-/*
-   Login page
-*/
-
-static const String versionNum = "v4.0";
-static const String loginIndex =
-  "<form name='loginForm'>"
-  "<table bgcolor='A09F9F' align='center' style='top: 250px;position: relative;width: 30%;'>"
-  "<tr>"
-  "<td colspan=2>"
-  "<center><font size=5><b>SwitchBot ESP32 MQTT version: " + versionNum + "</b></font> <font size=1><b>(Unofficial)</b></font></center>"
-  "<center><font size=3>Hostname/MQTT Client Name: " + std::string(host).c_str() + "</font></center>"
-  "<center><font size=3>MQTT Main Topic: " + std::string(mqtt_main_topic).c_str() + "</font></center>"
-  "<br>"
-  "</td>"
-  "<br>"
-  "<br>"
-  "</tr>"
-  "<tr>"
-  "<td>Username:</td>"
-  "<td><input type='text' size=25 name='userid'><br></td>"
-  "</tr>"
-  "<br>"
-  "<br>"
-  "<tr>"
-  "<td>Password:</td>"
-  "<td><input type='Password' size=25 name='pwd'><br></td>"
-  "<br>"
-  "<br>"
-  "</tr>"
-  "<tr>"
-  "<td><input type='submit' onclick='check(this.form)' value='Login'></td>"
-  "</tr>"
-  "</table>"
-  "</form>"
-  "<script>"
-  "function check(form)"
-  "{"
-  "if(form.userid.value=='" + otaUserId + "' && form.pwd.value=='" + otaPass + "')"
-  "{"
-  "window.open('/serverIndex')"
-  "}"
-  "else"
-  "{"
-  " alert('Error Password or Username')/*displays error message*/"
-  "}"
-  "}"
-  "</script>";
+static const String versionNum = "v4.1";
 
 /*
    Server Index Page
@@ -547,6 +499,7 @@ static EspMQTTClient client(
   mqtt_port                             //  MQTT Port
 );
 
+static const uint16_t mqtt_packet_size = 1024;
 static bool home_assistant_discovery_set_up = false;
 static std::string manufacturer = "WonderLabs SwitchBot";
 static std::string curtainModel = "Curtain";
@@ -1029,7 +982,7 @@ bool writeSettings(NimBLEAdvertisedDevice* advDeviceToUse) {
 class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
     void onResult(NimBLEAdvertisedDevice* advertisedDevice) {
       waitForDeviceCreation = true;
-      
+
       if (printSerialOutputForDebugging) {
         Serial.print("Advertised Device found: ");
         Serial.println(advertisedDevice->toString().c_str());
@@ -1066,7 +1019,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         }
       }
       waitForDeviceCreation = false;
-      
+
       bool stopScan = false;
 
       if ((allSwitchbotsDev.size() == allBots.size() + allCurtains.size() + allMeters.size()) && (allSwitchbotsScanned.size() == allBots.size() + allCurtains.size() + allMeters.size()))  {
@@ -1383,19 +1336,20 @@ void setup () {
   server.on("/", HTTP_GET, []() {
     server.sendHeader("Connection", "close");
     if (useLoginScreen) {
-      server.send(200, "text/html", loginIndex);
+      if (!server.authenticate(otaUserId.c_str(), otaPass.c_str())) {
+        return server.requestAuthentication();
+      }
     }
-    else {
-      server.send(200, "text/html", serverIndex);
-    }
-  });
-  server.on("/serverIndex", HTTP_GET, []() {
-    server.sendHeader("Connection", "close");
     server.send(200, "text/html", serverIndex);
   });
   /*handling uploading firmware file */
   server.on("/update", HTTP_POST, []() {
     server.sendHeader("Connection", "close");
+    if (useLoginScreen) {
+      if (!server.authenticate(otaUserId.c_str(), otaPass.c_str())) {
+        return server.requestAuthentication();
+      }
+    }
     server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
     ESP.restart();
   }, []() {
