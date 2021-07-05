@@ -9,7 +9,7 @@ Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP3
   ** I do not know where performance will be affected by number of devices
   ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-v4.0
+v4.1
 
 Created: on June 24 2021
   Author: devWaves
