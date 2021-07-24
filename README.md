@@ -9,9 +9,9 @@ Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP3
   ** I do not know where performance will be affected by number of devices
   ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-v4.1
+v5.0
 
-Created: on July 5 2021
+Created: on July 24 2021
   Author: devWaves
   
   Contributions from:
@@ -39,6 +39,7 @@ Notes:
  - Retry on no response curtain or bot
  - holdPress = set bot hold value, then call press (without disconnecting in between)
  - Set/Control is prioritized over scanning. While scanning, if a set/control command is received scanning is stopped and resumed later
+ - ESP32 can simulate ON/OFF for devices when bot is in PRESS mode. (Cannot guarantee it will always be accurate)
 
 \<ESPMQTTTopic\> = \<mqtt_main_topic\>/\<host\>
 	
@@ -73,16 +74,15 @@ Notes:
                         - <ESPMQTTTopic>/meter/<name>/status
 			
                         Example payload:
-                          - {"status":"connected"}
-                          - {"status":"press"}
-                          - {"status":"errorConnect"}
-                          - {"status":"errorCommand"}
-                          - {"status":"commandSent"}
-                          - {"status":"busy", "value":3}
-                          - {"status":"failed", "value":9}
-                          - {"status":"success", "value":1}
-                          - {"status":"success", "value":5}
-                          - {"status":"success"}
+                          - {"status":"connected", "command":"ON"}
+                          - {"status":"errorConnect", "command":"ON"}
+                          - {"status":"errorCommand", "command":"NOTVALID"}
+                          - {"status":"commandSent", "command":"ON"}
+                          - {"status":"busy", "value":3, "command":"ON"}
+                          - {"status":"failed", "value":9, "command":"ON"}
+                          - {"status":"success", "value":1, "command":"ON"}
+                          - {"status":"success", "value":5, "command":"PRESS"}
+                          - {"status":"success", "command":"REQUESTINFO"}
 			  
                        ESP32 will respond with MQTT on 'state' topic for every configured device
                         - <ESPMQTTTopic>/bot/<name>/state
@@ -189,17 +189,17 @@ Notes:
                           - <ESPMQTTTopic>/bot/<name>/status
 
                         Example payload:
-                          - {"status":"connected"}
-                          - {"status":"errorConnect"}
-                          - {"status":"errorCommand"}
-                          - {"status":"commandSent"}
-                          - {"status":"busy", "value":3}
-                          - {"status":"failed", "value":9}
-                          - {"status":"success", "value":1}
-                          - {"status":"success", "value":5}
-                          - {"status":"success"}
+                          - {"status":"connected", "command":"5"}
+                          - {"status":"errorConnect", "command":"5"}
+                          - {"status":"errorCommand", "command":"NOTVALID"}
+                          - {"status":"commandSent", "command":"5"}
+                          - {"status":"busy", "value":3, "command":"5"}
+                          - {"status":"failed", "value":9, "command":"5"}
+                          - {"status":"success", "value":1, "command":"5"}
+                          - {"status":"success", "value":5, "command":"5"}
+                          - {"status":"success", "command":"REQUESTSETTINGS"}
 
- **ESP32 will Subscribe to MQTT topic to holdPress on bots. holdPress = set bot hold value, then call press on bot (without disconnecting in between) **
+ **ESP32 will Subscribe to MQTT topic to holdPress on bots. holdPress = set bot hold value, then call press on bot without disconnecting in between **
   
       - <ESPMQTTTopic>/holdPress
 
@@ -218,15 +218,22 @@ Notes:
                           - <ESPMQTTTopic>/bot/<name>/status
 
                         Example payload:
-                          - {"status":"connected"}
-                          - {"status":"errorConnect"}
-                          - {"status":"errorCommand"}
-                          - {"status":"commandSent"}
-                          - {"status":"busy", "value":3}
-                          - {"status":"failed", "value":9}
-                          - {"status":"success", "value":1}
-                          - {"status":"success", "value":5}
-                          - {"status":"success"}
+                          - {"status":"connected", "command":"5"}
+                          - {"status":"errorConnect", "command":"5"}
+                          - {"status":"errorCommand", "command":"NOTVALID"}
+                          - {"status":"commandSent", "command":"5"}
+                          - {"status":"busy", "value":3, "command":"5"}
+                          - {"status":"failed", "value":9, "command":"5"}
+                          - {"status":"success", "value":1, "command":"5"}
+                          - {"status":"success", "value":5, "command":"5"}
+                          - {"status":"success", "command":"REQUESTSETTINGS"}
+                          - {"status":"connected", "command":"PRESS"}
+                          - {"status":"errorConnect", "command":"PRESS"}
+                          - {"status":"commandSent", "command":"PRESS"}
+                          - {"status":"busy", "value":3, "command":"PRESS"}
+                          - {"status":"failed", "value":9, "command":"PRESS"}
+                          - {"status":"success", "value":1, "command":"PRESS"}
+                          - {"status":"success", "value":5, "command":"PRESS"}
 	
   **ESP32 will Subscribe to MQTT topic setting mode for bots**
   
@@ -246,14 +253,14 @@ Notes:
                           - <ESPMQTTTopic>/bot/<name>/status
 
                         Example payload:
-                          - {"status":"connected"}
-                          - {"status":"errorConnect"}
-                          - {"status":"errorCommand"}
-                          - {"status":"commandSent"}
-                          - {"status":"busy", "value":3}
-                          - {"status":"failed", "value":9}
-                          - {"status":"success", "value":1}
-                          - {"status":"success", "value":5}
+                          - {"status":"connected", "command":"MODEPRESS"}
+                          - {"status":"errorConnect", "command":"MODEPRESS"}
+                          - {"status":"errorCommand", "command":"NOTVALID"}
+                          - {"status":"commandSent", "command":"MODEPRESS"}
+                          - {"status":"busy", "value":3, "command":"MODEPRESS"}
+                          - {"status":"failed", "value":9, "command":"MODEPRESS"}
+                          - {"status":"success", "value":1, "command":"MODEPRESS"}
+                          - {"status":"success", "value":5, "command":"MODEPRESS"}
 
   **ESP32 will respond with MQTT on ESPMQTTTopic with ESP32 status**
   
