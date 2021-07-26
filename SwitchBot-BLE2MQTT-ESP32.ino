@@ -9,7 +9,7 @@
      *  I do not know where performance will be affected by number of devices
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-  v5.0
+  v5.1
 
     Created: on July 24 2021
         Author: devWaves
@@ -452,7 +452,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v5.0";
+static const String versionNum = "v5.1";
 
 /*
    Server Index Page
@@ -2713,7 +2713,7 @@ void onConnectionEstablished() {
                 }
               }
 
-              int aHold = 0;
+              int aHold = -1;
               std::string commandString = "";
               if (itE != botsSimulateONOFFinPRESSmode.end())
               {
@@ -2735,7 +2735,7 @@ void onConnectionEstablished() {
                   }
                 }
               }
-              if (aHold > 0) {
+              if (aHold >= 0) {
                 performHoldPressSequence(aDevice, commandString, aHold);
               }
               else {
