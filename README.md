@@ -9,9 +9,9 @@ Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP3
   ** I do not know where performance will be affected by number of devices
   ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
 
-v5.1
+v5.2
 
-Created: on July 24 2021
+Created: on August 14 2021
   Author: devWaves
   
   Contributions from:
@@ -59,7 +59,9 @@ Notes:
         - "OPEN"
         - "CLOSE"
         - "PAUSE"
-
+	- "STATEOFF"    (Only for bots in simulated ON/OFF mode)
+	- "STATEON"     (Only for bots in simulated ON/OFF mode)
+	
       Integer 0-100 (for curtain position) Example: 50
       Integer 0-100 (for setting bot hold seconds) Example: 5           (for bot only) Does the same thing as <ESPMQTTTopic>/setHold
 
