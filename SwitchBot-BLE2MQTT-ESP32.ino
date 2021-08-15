@@ -6,12 +6,12 @@
 
   Code can be installed using Arduino IDE for ESP32
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
-     *  I do not know where performance will be affected by number of devices
-     ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
+     ** I do not know where performance will be affected by number of devices **
+     ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v5.1
+  v5.2
 
-    Created: on July 24 2021
+    Created: on August 14 2021
         Author: devWaves
 
         Contributions from:
@@ -79,7 +79,7 @@
         - "PAUSE"
         - "STATEOFF"    (Only for bots in simulated ON/OFF mode)
         - "STATEON"     (Only for bots in simulated ON/OFF mode)
-        
+
       Integer 0-100 (for curtain position) Example: 50
       Integer 0-100 (for setting bot hold seconds) Example: 5           (for bot only) Does the same thing as <ESPMQTTTopic>/setHold
 
@@ -358,7 +358,7 @@ static std::map<std::string, std::string> allPasswords = {     // Set all the bo
 
       //Add bots OFF hold time for simulated ON/OFF, if not in list, the current hold value will be used. Device must be in botsSimulateONOFFinPRESSmode list
       static std::map<std::string, int> botsSimulatedOFFHoldTimes = {
-        /*{ "switchbotone", 3 },
+        /*{ "switchbotone", 0 },
           { "switchbottwo", 10 }*/
       };
 
@@ -452,7 +452,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v5.1";
+static const String versionNum = "v5.2";
 
 /*
    Server Index Page
@@ -528,8 +528,8 @@ static EspMQTTClient client(
   ssid,
   password,
   mqtt_host,
-  (mqtt_user == NULL || strlen(mqtt_user)<1) ? NULL : mqtt_user,                    
-  (mqtt_user == NULL || strlen(mqtt_user)<1) ? NULL : mqtt_pass,
+  (mqtt_user == NULL || strlen(mqtt_user) < 1) ? NULL : mqtt_user,
+  (mqtt_user == NULL || strlen(mqtt_user) < 1) ? NULL : mqtt_pass,
   host,
   mqtt_port
 );
@@ -1126,6 +1126,8 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
         bool isSwitch = (byte1 & 0b10000000);
         std::string aMode = isSwitch ? "Switch" : "Press"; // Whether the light switch Add-on is used or not
+        std::string deviceAssumedStateTopic = botTopic + aDevice + "/assumedstate";
+
         if (isSwitch) {
           std::map<std::string, bool>::iterator itP = botsInPressMode.find(deviceMac);
           if (itP != botsInPressMode.end())
@@ -1133,10 +1135,12 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
             botsInPressMode.erase(deviceMac);
           }
           aState = (byte1 & 0b01000000) ? "OFF" : "ON"; // Mine is opposite, not sure why
+          client.publish(deviceAssumedStateTopic.c_str(), aState.c_str(), true);
         }
         else {
           botsInPressMode[deviceMac] = true;
           std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
+
           if (itE != botsSimulateONOFFinPRESSmode.end())
           {
             aMode = "PressOnOff";
@@ -1154,6 +1158,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
             } else {
               aState = "OFF";
             }
+            client.publish(deviceAssumedStateTopic.c_str(), aState.c_str(), true);
           }
           else {
             aState = "OFF";
@@ -1687,7 +1692,8 @@ void recurringScan() {
 }
 
 
-void processRequest(std::string macAdd, std::string aName, const char * command, std::string deviceTopic, bool disconnectAfter) {
+bool processRequest(std::string macAdd, std::string aName, const char * command, std::string deviceTopic, bool disconnectAfter) {
+  bool isSuccess = false;
   int count = 1;
   std::map<std::string, NimBLEAdvertisedDevice*>::iterator itS = allSwitchbotsDev.find(macAdd);
   NimBLEAdvertisedDevice* advDevice = nullptr;
@@ -1736,8 +1742,9 @@ void processRequest(std::string macAdd, std::string aName, const char * command,
     client.publish((deviceTopic + "/status").c_str(), aBuffer);
   }
   else {
-    sendToDevice(advDevice, aName, command, deviceTopic, disconnectAfter);
+    isSuccess = sendToDevice(advDevice, aName, command, deviceTopic, disconnectAfter);
   }
+  return isSuccess;
 }
 
 bool waitToProcess(QueueCommand aCommand) {
@@ -1835,6 +1842,7 @@ bool processQueue() {
       aCommand = commandQueue.getHead();
       bool getSettingsAfter = false;
       std::string requestDevice = aCommand.device.c_str();
+      std::string deviceStateTopic = botTopic + aCommand.device + "/state";
       if ((aCommand.topic == ESPMQTTTopic + "/rescan") && isRescanning) {
         commandQueue.dequeue();
       }
@@ -1854,222 +1862,240 @@ bool processQueue() {
           };
           processing = true;
           bool boolState = false;
-          if (isBotDevice(aCommand.device.c_str()))
-          {
-            if ((strcmp(aCommand.payload.c_str(), "OFF") == 0) || (strcmp(aCommand.payload.c_str(), "ON") == 0)) {
-              std::map<std::string, std::string>::iterator itN = allBots.find(aCommand.device);
-              std::string anAddr = itN->second;
-              std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
-              std::map<std::string, bool>::iterator itP = botsInPressMode.find(anAddr);
-              if (itP != botsInPressMode.end())
-              {
-                std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aCommand.device);
-                if (itE != botsSimulateONOFFinPRESSmode.end())
-                {
-                  std::map<std::string, bool>::iterator itF = botsSimulatedStates.find(aCommand.device);
 
-                  if (itF != botsSimulatedStates.end())
-                  {
-                    boolState = itF->second;
-                    if (boolState && (strcmp(aCommand.payload.c_str(), "ON") == 0)) {
-                      if (!waitToProcess(aCommand)) {
-                        skip = true;
-                      }
-                    }
-                    else if (!boolState && (strcmp(aCommand.payload.c_str(), "OFF") == 0)) {
-                      if (!waitToProcess(aCommand)) {
-                        skip = true;
-                      }
-                    }
-                  }
-                }
-                else
-                {
-                  if (strcmp(aCommand.payload.c_str(), "OFF") == 0) {
-                    skip = true;
-                  }
-                }
-              }
+          if (waitToProcess(aCommand)) {
+            std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
+            if (itP == botsToWaitFor.end())
+            {
+              botsToWaitFor[aCommand.device] = true;
+              aCommand.priority = true;
             }
+            commandQueue.enqueue(aCommand);
           }
-
-          if (!skip) {
-            if (waitToProcess(aCommand)) {
-              std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
-              if (itP == botsToWaitFor.end())
+          else {
+            bool skipProcess = false;
+            if ((strcmp(aCommand.payload.c_str(), "OFF") == 0) || (strcmp(aCommand.payload.c_str(), "ON") == 0)) {
+              if (isBotDevice(aCommand.device.c_str()))
               {
-                botsToWaitFor[aCommand.device] = true;
-                aCommand.priority = true;
-              }
-              commandQueue.enqueue(aCommand);
-            }
-            else {
-              bool skipProcess = false;
-              std::map<std::string, bool>::iterator itF = botsSimulatedStates.find(aCommand.device);
-              if (itF != botsSimulatedStates.end())
-              {
-                boolState = itF->second;
-                if (boolState && (strcmp(aCommand.payload.c_str(), "ON") == 0)) {
-                  skipProcess = true;
-                }
-                else if (!boolState && (strcmp(aCommand.payload.c_str(), "OFF") == 0)) {
-                  skipProcess = true;
-                }
-              }
-              if (!skipProcess) {
-                if (ledOnCommand) {
-                  digitalWrite(LED_PIN, ledONValue);
-                }
-                noResponse = true;
-                bool shouldContinue = true;
-                long timeSent = millis();
-
-                if (isBotDevice(aCommand.device.c_str()))
-                {
-                  bool isNum = is_number(aCommand.payload.c_str());
-                  if (isNum) {
-                    controlMQTT(aCommand.device, aCommand.payload, false);
+                std::map<std::string, std::string>::iterator itN = allBots.find(aCommand.device);
+                std::string anAddr = itN->second;
+                std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+                std::map<std::string, bool>::iterator itP = botsInPressMode.find(anAddr);
+                std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aCommand.device);
+                if (itP != botsInPressMode.end()) {
+                  if (itE != botsSimulateONOFFinPRESSmode.end()) {
+                    std::map<std::string, bool>::iterator itF = botsSimulatedStates.find(aCommand.device);
+                    if (itF != botsSimulatedStates.end())
+                    {
+                      boolState = itF->second;
+                      if (boolState && (strcmp(aCommand.payload.c_str(), "ON") == 0)) {
+                        skipProcess = true;
+                        client.publish(deviceStateTopic.c_str(), "ON", true);
+                        std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
+                        if (itP != botsToWaitFor.end())
+                        {
+                          botsToWaitFor.erase(aCommand.device);
+                        }
+                      }
+                      else if (!boolState && (strcmp(aCommand.payload.c_str(), "OFF") == 0)) {
+                        skipProcess = true;
+                        client.publish(deviceStateTopic.c_str(), "OFF", true);
+                        std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
+                        if (itP != botsToWaitFor.end())
+                        {
+                          botsToWaitFor.erase(aCommand.device);
+                        }
+                      }
+                    }
                   }
                   else {
-                    controlMQTT(aCommand.device, aCommand.payload, disconnectAfter);
-                  }
-                  if (getBotResponse) {
-                    while (noResponse && shouldContinue )
-                    {
-                      waitForResponse = true;
-                      //if (printSerialOutputForDebugging) {Serial.println("waiting for response...");}
-                      if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
-                        shouldContinue = false;
+                    if (strcmp(aCommand.payload.c_str(), "OFF") == 0) {
+                      skipProcess = true;
+                      std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
+                      if (itP != botsToWaitFor.end())
+                      {
+                        botsToWaitFor.erase(aCommand.device);
                       }
                     }
-                    if (noResponse && assumeNoResponseMeansSuccess && !retryBotActionNoResponse) {
-                      std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aCommand.device);
-                      std::string deviceStateTopic = botTopic + aCommand.device + "/state";
-                      if (itE != botsSimulateONOFFinPRESSmode.end() && ((aCommand.payload.c_str() == "ON") || (aCommand.payload.c_str() == "OFF"))) {
-                        if (aCommand.payload.c_str() == "OFF") {
+                  }
+                }
+              }
+            }
+            if (!skipProcess) {
+              if (ledOnCommand) {
+                digitalWrite(LED_PIN, ledONValue);
+              }
+              noResponse = true;
+              bool shouldContinue = true;
+              long timeSent = millis();
+              bool isSuccess = false;
+              if (isBotDevice(aCommand.device.c_str()))
+              {
+                bool isNum = is_number(aCommand.payload.c_str());
+                if (isNum) {
+                  isSuccess = controlMQTT(aCommand.device, aCommand.payload, false);
+                }
+                else {
+                  isSuccess = controlMQTT(aCommand.device, aCommand.payload, disconnectAfter);
+                }
+                if (getBotResponse) {
+                  while (noResponse && shouldContinue )
+                  {
+                    waitForResponse = true;
+                    //if (printSerialOutputForDebugging) {Serial.println("waiting for response...");}
+                    if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
+                      shouldContinue = false;
+                    }
+                  }
+                  if (noResponse && assumeNoResponseMeansSuccess && !retryBotActionNoResponse && isSuccess) {
+                    std::string deviceAssumedStateTopic = botTopic + aCommand.device + "/state";
+                    std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aCommand.device);
+                    if (itE != botsSimulateONOFFinPRESSmode.end()) {
+                      if ((strcmp(aCommand.payload.c_str(), "ON") == 0) || (strcmp(aCommand.payload.c_str(), "OFF") == 0)) {
+                        if (strcmp(aCommand.payload.c_str(), "OFF") == 0) {
                           botsSimulatedStates[aCommand.device] = false;
                           client.publish(deviceStateTopic.c_str(), "OFF", true);
+                          client.publish(deviceAssumedStateTopic.c_str(), "OFF", true);
                         }
-                        else if (aCommand.payload.c_str() == "ON") {
+                        else if (strcmp(aCommand.payload.c_str(), "ON") == 0) {
                           botsSimulatedStates[aCommand.device] = true;
                           client.publish(deviceStateTopic.c_str(), "ON", true);
+                          client.publish(deviceAssumedStateTopic.c_str(), "ON", true);
                         }
-                        else if (aCommand.payload.c_str() == "PRESS") {
+                        else if (strcmp(aCommand.payload.c_str(), "PRESS") == 0) {
                           botsSimulatedStates[aCommand.device] = !(botsSimulatedStates[aCommand.device]);
                           if (botsSimulatedStates[aCommand.device]) {
                             client.publish(deviceStateTopic.c_str(), "ON", true);
+                            client.publish(deviceAssumedStateTopic.c_str(), "ON", true);
                           }
                           else {
                             client.publish(deviceStateTopic.c_str(), "OFF", true);
+                            client.publish(deviceAssumedStateTopic.c_str(), "OFF", true);
                           }
                         }
-                      }
-                    }
-                    std::map<std::string, std::string>::iterator itN = allBots.find(aCommand.device);
-                    std::string anAddr = itN->second;
-                    std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
-                    NimBLEClient* pClient = nullptr;
-                    if (NimBLEDevice::getClientListSize()) {
-                      pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
-                      if (pClient) {
-                        if (pClient->isConnected()) {
-                          unsubscribeToNotify(pClient);
-                          if (disconnectAfter) {
-                            pClient->disconnect();
-                          }
-                        }
-                      }
-                    }
-
-                    if (isNum && !lastCommandWasBusy && getBotResponse) {
-                      getSettingsAfter = true;
-                    }
-                    if (lastCommandWasBusy && retryBotOnBusy) {
-                      requeue = true;
-                      botsToWaitFor[aCommand.device] = true;
-                      lastCommandWasBusy = false;
-                      getSettingsAfter = false;
-
-                      lastCommandSent[anAddr] = 0;
-                    }
-                    else if ((retryBotActionNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount)) || (retryBotSetNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount) && ((strcmp(aCommand.payload.c_str(), "REQUESTSETTINGS") == 0) || (strcmp(aCommand.payload.c_str(), "GETSETTINGS") == 0)
-                             || (strcmp(aCommand.payload.c_str(), "MODEPRESS") == 0) || (strcmp(aCommand.payload.c_str(), "MODEPRESSINV") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCH") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCHINV") == 0) || isNum ))) {
-                      if (printSerialOutputForDebugging) {
-                        Serial.print("current retry...");
-                        Serial.println(aCommand.currentTry);
-                      }
-                      requeue = true;
-                      botsToWaitFor[aCommand.device] = true;
-                      lastCommandWasBusy = false;
-                      getSettingsAfter = false;
-                    }
-                    else {
-                      std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
-                      if (itP != botsToWaitFor.end())
-                      {
-                        botsToWaitFor.erase(aCommand.device);
                       }
                     }
                   }
-                  waitForResponse = false;
-                  noResponse = false;
-                }
-                else if (isCurtainDevice(aCommand.device.c_str()))
-                {
-                  controlMQTT(aCommand.device, aCommand.payload, disconnectAfter);
-                  std::string anAddr;
-                  if (getCurtainResponse) {
-                    while (noResponse && shouldContinue )
-                    {
-                      waitForResponse = true;
-                      if (printSerialOutputForDebugging) {
-                        Serial.println("waiting for response...");
-                      }
-                      if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
-                        shouldContinue = false;
-                      }
-                    }
-                    std::map<std::string, std::string>::iterator itN = allCurtains.find(aCommand.device);
-                    anAddr = itN->second;
-                    std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
-                    NimBLEClient* pClient = nullptr;
-                    if (NimBLEDevice::getClientListSize()) {
-                      pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
-                      if (pClient) {
-                        if (pClient->isConnected()) {
-                          unsubscribeToNotify(pClient);
-                          if (disconnectAfter) {
-                            pClient->disconnect();
-                          }
+                  std::map<std::string, std::string>::iterator itN = allBots.find(aCommand.device);
+                  std::string anAddr = itN->second;
+                  std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+                  NimBLEClient* pClient = nullptr;
+                  if (NimBLEDevice::getClientListSize()) {
+                    pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
+                    if (pClient) {
+                      if (pClient->isConnected()) {
+                        unsubscribeToNotify(pClient);
+                        if (disconnectAfter) {
+                          pClient->disconnect();
                         }
                       }
                     }
-                    if (lastCommandWasBusy && retryCurtainOnBusy) {
-                      requeue = true;
-                      botsToWaitFor[aCommand.device] = true;
-                      lastCommandWasBusy = false;
-                      lastCommandSent[anAddr] = 0;
+                  }
+
+                  if (isNum && !lastCommandWasBusy && getBotResponse) {
+                    getSettingsAfter = true;
+                  }
+                  if (lastCommandWasBusy && retryBotOnBusy) {
+                    requeue = true;
+                    botsToWaitFor[aCommand.device] = true;
+                    lastCommandWasBusy = false;
+                    getSettingsAfter = false;
+
+                    lastCommandSent[anAddr] = 0;
+                  }
+                  else if ((retryBotActionNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount)) || (retryBotSetNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount) && ((strcmp(aCommand.payload.c_str(), "REQUESTSETTINGS") == 0) || (strcmp(aCommand.payload.c_str(), "GETSETTINGS") == 0)
+                           || (strcmp(aCommand.payload.c_str(), "MODEPRESS") == 0) || (strcmp(aCommand.payload.c_str(), "MODEPRESSINV") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCH") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCHINV") == 0) || isNum ))) {
+                    if (printSerialOutputForDebugging) {
+                      Serial.print("current retry...");
+                      Serial.println(aCommand.currentTry);
                     }
-                    else if (retryCurtainNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount)) {
-                      if (printSerialOutputForDebugging) {
-                        Serial.print("current retry...");
-                        Serial.println(aCommand.currentTry);
-                      }
-                      requeue = true;
-                      botsToWaitFor[aCommand.device] = true;
-                      lastCommandWasBusy = false;
-                    }
-                    else {
-                      std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
-                      if (itP != botsToWaitFor.end())
-                      {
-                        botsToWaitFor.erase(aCommand.device);
-                      }
+                    requeue = true;
+                    botsToWaitFor[aCommand.device] = true;
+                    lastCommandWasBusy = false;
+                    getSettingsAfter = false;
+                  }
+                  else {
+                    std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
+                    if (itP != botsToWaitFor.end())
+                    {
+                      botsToWaitFor.erase(aCommand.device);
                     }
                   }
                 }
                 waitForResponse = false;
                 noResponse = false;
+              }
+              else if (isCurtainDevice(aCommand.device.c_str()))
+              {
+                controlMQTT(aCommand.device, aCommand.payload, disconnectAfter);
+                std::string anAddr;
+                if (getCurtainResponse) {
+                  while (noResponse && shouldContinue )
+                  {
+                    waitForResponse = true;
+                    if (printSerialOutputForDebugging) {
+                      Serial.println("waiting for response...");
+                    }
+                    if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
+                      shouldContinue = false;
+                    }
+                  }
+                  std::map<std::string, std::string>::iterator itN = allCurtains.find(aCommand.device);
+                  anAddr = itN->second;
+                  std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+                  NimBLEClient* pClient = nullptr;
+                  if (NimBLEDevice::getClientListSize()) {
+                    pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
+                    if (pClient) {
+                      if (pClient->isConnected()) {
+                        unsubscribeToNotify(pClient);
+                        if (disconnectAfter) {
+                          pClient->disconnect();
+                        }
+                      }
+                    }
+                  }
+                  if (lastCommandWasBusy && retryCurtainOnBusy) {
+                    requeue = true;
+                    botsToWaitFor[aCommand.device] = true;
+                    lastCommandWasBusy = false;
+                    lastCommandSent[anAddr] = 0;
+                  }
+                  else if (retryCurtainNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount)) {
+                    if (printSerialOutputForDebugging) {
+                      Serial.print("current retry...");
+                      Serial.println(aCommand.currentTry);
+                    }
+                    requeue = true;
+                    botsToWaitFor[aCommand.device] = true;
+                    lastCommandWasBusy = false;
+                  }
+                  else {
+                    std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
+                    if (itP != botsToWaitFor.end())
+                    {
+                      botsToWaitFor.erase(aCommand.device);
+                    }
+                  }
+                }
+              }
+              waitForResponse = false;
+              noResponse = false;
+            }
+
+            std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aCommand.device);
+            if (itE != botsSimulateONOFFinPRESSmode.end())
+            {
+              std::map<std::string, bool>::iterator itF = botsSimulatedStates.find(aCommand.device);
+              if (itF != botsSimulatedStates.end())
+              {
+                bool boolState = itF->second;
+                if (boolState && (strcmp(aCommand.payload.c_str(), "OFF") == 0))  {
+                  client.publish(deviceStateTopic.c_str(), "ON", true);
+                }
+                else if (!boolState && (strcmp(aCommand.payload.c_str(), "ON") == 0)) {
+                  client.publish(deviceStateTopic.c_str(), "OFF", true);
+                }
               }
             }
           }
@@ -2127,8 +2153,8 @@ bool processQueue() {
   return true;
 }
 
-void sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const char * command, std::string deviceTopic, bool disconnectAfter) {
-
+bool sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const char * command, std::string deviceTopic, bool disconnectAfter) {
+  bool isSuccess = false;
   NimBLEAdvertisedDevice* advDeviceToUse = advDevice;
   std::string addr = advDeviceToUse->getAddress().toString();
   //std::transform(addr.begin(), addr.end(), addr.begin(), ::toupper);
@@ -2142,14 +2168,14 @@ void sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const c
     StaticJsonDocument<100> doc;
     //    doc["id"] = aName.c_str();
     if (strcmp(command, "requestInfo") == 0 || strcmp(command, "REQUESTINFO") == 0 || strcmp(command, "GETINFO") == 0) {
-      bool isSuccess = requestInfo(advDeviceToUse);
+      isSuccess = requestInfo(advDeviceToUse);
       if (!isSuccess) {
         doc["status"] = "errorRequestInfo";
         doc["command"] = command;
         serializeJson(doc, aBuffer);
         client.publish(deviceTopic.c_str(),  aBuffer);
       }
-      return;
+      return isSuccess;
     }
     bool isConnected = false;
     int count = 0;
@@ -2180,7 +2206,6 @@ void sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const c
     count = 0;
     if (isConnected) {
       shouldContinue = true;
-      bool isSuccess;
       while (shouldContinue) {
         if (count > 1) {
           delay(50);
@@ -2257,6 +2282,7 @@ void sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const c
   if (printSerialOutputForDebugging) {
     Serial.println("Done sendCommand...");
   }
+  return isSuccess;
 }
 
 bool is_number(const std::string & s)
@@ -2266,7 +2292,8 @@ bool is_number(const std::string & s)
   return !s.empty() && it == s.end();
 }
 
-void controlMQTT(std::string device, std::string payload, bool disconnectAfter) {
+bool controlMQTT(std::string device, std::string payload, bool disconnectAfter) {
+  bool isSuccess = false;
   processing = true;
   if (printSerialOutputForDebugging) {
     Serial.println("Processing Control MQTT...");
@@ -2338,13 +2365,13 @@ void controlMQTT(std::string device, std::string payload, bool disconnectAfter) 
       else if (aVal > 100) {
         payload = "100";
       }
-      processRequest(deviceAddr, device, payload.c_str(), deviceTopic, disconnectAfter);
+      isSuccess = processRequest(deviceAddr, device, payload.c_str(), deviceTopic, disconnectAfter);
     }
     else {
       if ((strcmp(payload.c_str(), "PRESS") == 0) || (strcmp(payload.c_str(), "ON") == 0) || (strcmp(payload.c_str(), "OFF") == 0) || (strcmp(payload.c_str(), "OPEN") == 0) || (strcmp(payload.c_str(), "CLOSE") == 0) || (strcmp(payload.c_str(), "PAUSE") == 0)
           || (strcmp(payload.c_str(), "REQUESTSETTINGS") == 0) || (strcmp(payload.c_str(), "REQUESTINFO") == 0) || (strcmp(payload.c_str(), "GETSETTINGS") == 0) || (strcmp(payload.c_str(), "GETINFO") == 0)
           || (strcmp(payload.c_str(), "MODEPRESS") == 0) || (strcmp(payload.c_str(), "MODEPRESSINV") == 0) || (strcmp(payload.c_str(), "MODESWITCH") == 0) || (strcmp(payload.c_str(), "MODESWITCHINV") == 0)) {
-        processRequest(deviceAddr, device, payload.c_str(), deviceTopic, disconnectAfter);
+        isSuccess = processRequest(deviceAddr, device, payload.c_str(), deviceTopic, disconnectAfter);
       }
       else {
         char aBuffer[100];
@@ -2371,6 +2398,7 @@ void controlMQTT(std::string device, std::string payload, bool disconnectAfter) 
 
   delay(100);
   client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
+  return isSuccess;
 }
 
 void performHoldPressSequence(std::string aDevice, std::string aCommand, int aHold ) {
@@ -2548,7 +2576,7 @@ void onConnectionEstablished() {
     {
       std::string deviceStr ;
       aDevice = it->first.c_str();
-      client.subscribe((botTopic + aDevice + "/state").c_str(), [aDevice] (const String & payload)  {
+      client.subscribe((botTopic + aDevice + "/assumedstate").c_str(), [aDevice] (const String & payload)  {
         if (printSerialOutputForDebugging) {
           Serial.println("state MQTT Received (from retained)...updating ON/OFF simulate states");
         }
@@ -2578,7 +2606,7 @@ void onConnectionEstablished() {
             }
           }
         }
-        client.unsubscribe((botTopic + aDevice + "/state").c_str());
+        client.unsubscribe((botTopic + aDevice + "/assumedstate").c_str());
       });
       it++;
     }
@@ -3500,6 +3528,7 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
     deviceStatusTopic = botTopic + aDevice + "/status";
     deviceSettingsTopic = botTopic + aDevice + "/settings";
     deviceAttrTopic = botTopic + aDevice + "/attributes";
+    std::string deviceAssumedStateTopic = botTopic + aDevice + "/assumedstate";
 
     if (!lastCommandSentPublished) {
       StaticJsonDocument<50> statDoc;
@@ -3549,6 +3578,12 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       else if (byte1 == 1 || byte1 == 5) {
         statDoc["status"] = "success";
         lastCommandWasBusy = false;
+        if (strcmp(aCommand.c_str(), "OFF") == 0) {
+          client.publish(deviceAssumedStateTopic.c_str(), "OFF", true);
+        }
+        else if (strcmp(aCommand.c_str(), "ON") == 0) {
+          client.publish(deviceAssumedStateTopic.c_str(), "ON", true);
+        }
         std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice.c_str());
         if (itE != botsSimulateONOFFinPRESSmode.end())
         {
@@ -3560,6 +3595,7 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
           }
           else if (strcmp(aCommand.c_str(), "PRESS") == 0) {
             botsSimulatedStates[aDevice] = !(botsSimulatedStates[aDevice]);
+            client.publish(deviceAssumedStateTopic.c_str(), botsSimulatedStates[aDevice] ? "ON" : "OFF", true);
           }
         }
       } else {
