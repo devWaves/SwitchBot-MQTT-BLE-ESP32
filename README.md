@@ -59,8 +59,8 @@ Notes:
         - "OPEN"
         - "CLOSE"
         - "PAUSE"
-	- "STATEOFF"    (Only for bots in simulated ON/OFF mode)
-	- "STATEON"     (Only for bots in simulated ON/OFF mode)
+        - "STATEOFF"    (Only for bots in simulated ON/OFF mode)
+        - "STATEON"     (Only for bots in simulated ON/OFF mode)
 	
       Integer 0-100 (for curtain position) Example: 50
       Integer 0-100 (for setting bot hold seconds) Example: 5           (for bot only) Does the same thing as <ESPMQTTTopic>/setHold
