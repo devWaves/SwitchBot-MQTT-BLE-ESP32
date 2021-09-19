@@ -21,11 +21,11 @@ based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
 Notes:
  - Supports Home Assistant MQTT Discovery
- - Support bots and curtains and meters
+ - Support bots, curtains, temp meters, contact sensors, and motion sensors
  - It works for button press/on/off
  - It works for curtain open/close/pause/position(%)
- - It can request status values (bots/curtain/meter: battery, mode, state, position, temp etc) using a "rescan" for all devices
- - It can request individual device status values (bots/curtain/meter: battery, mode, state, position, temp etc) using a "requestInfo"
+ - It can request status values (bots/curtain/meter/motion/contact: battery, mode, state, position, temp etc) using a "rescan" for all devices
+ - It can request individual device status values (bots/curtain/meter/motion/contact: battery, mode, state, position, temp etc) using a "requestInfo"
  - Good for placing one ESP32 in a zone with 1 or 2 devices that has a bad bluetooth signal from your smart hub. MQTT will use Wifi to "boost" the bluetooth signal
  - ESP32 bluetooth is pretty strong and one ESP32 can work for entire house. The code will try around 60 times to connect/push button. It should not need this many but it depends on ESP32 bluetooth signal to switchbots. If one alone doesn't work, get another esp32 and place it in the problem area
  - OTA update added. Go to ESP32 IP address in browser. In Arduino IDE menu - Sketch / Export compile Binary . Upload the .bin file
@@ -50,6 +50,8 @@ Notes:
       - <ESPMQTTTopic>/bot/<name>/set
       - <ESPMQTTTopic>/curtain/<name>/set
       - <ESPMQTTTopic>/meter/<name>/set
+      - <ESPMQTTTopic>/contact/<name>/set
+      - <ESPMQTTTopic>/motion/<name>/set
 
     Send a payload to the 'set' topic of the device you want to control
       Strings:
@@ -129,16 +131,21 @@ Notes:
                           - <ESPMQTTTopic>/bot/<name>/attributes
                           - <ESPMQTTTopic>/curtain/<name>/attributes
                           - <ESPMQTTTopic>/meter/<name>/attributes
+                          - <ESPMQTTTopic>/contact/<name>/attributes
+                          - <ESPMQTTTopic>/motion/<name>/attributes
 			  
                         Example payloads:
                           - {"rssi":-78,"mode":"Press","state":"OFF","batt":94}
                           - {"rssi":-66,"calib":true,"batt":55,"pos":50,"state":"open","light":1}
                           - {"rssi":-66,"scale":"c","batt":55,"C":"21.5","F":"70.7","hum":"65"}
+                          - {"rssi":-77,"batt":89,"motion":"NO MOTION","led":"OFF","sensedistance":"LONG","light":"DARK"}
+                          - {"rssi":-76,"batt":91,"motion":"NO MOTION","contact":"CLOSED","light":"DARK","incount":1,"outcount":3,"buttoncount":4}
 			  
                         Example attribute responses per device are detected:
                           - <ESPMQTTTopic>/bot/<name>/state
                           - <ESPMQTTTopic>/curtain/<name>/state
                           - <ESPMQTTTopic>/meter/<name>/state
+
 			  
                         Example payload:
                           - "ON"
@@ -153,6 +160,19 @@ Notes:
                           - {"pos":0}
                           - {"pos":100}
                           - {"pos":50}
+			  
+			Example topic responses specific to motion/contact sensors:
+                          - <ESPMQTTTopic>/motion/<name>/motion		Example response payload: "MOTION", "NO MOTION"
+                          - <ESPMQTTTopic>/motion/<name>/illuminance	Example response payload: "LIGHT", "DARK"
+                          - <ESPMQTTTopic>/contact/<name>/contact		Example response payload: "OPEN", "CLOSED"
+                          - <ESPMQTTTopic>/contact/<name>/motion		Example response payload: "MOTION", "NO MOTION"
+                          - <ESPMQTTTopic>/contact/<name>/illuminance	Example response payload: "LIGHT", "DARK"
+                          - <ESPMQTTTopic>/contact/<name>/in		Example response payload: "IDLE", "ENTERED"
+                          - <ESPMQTTTopic>/contact/<name>/out		Example response payload: "IDLE", "EXITED"
+                          - <ESPMQTTTopic>/contact/<name>/button		Example response payload: "IDLE", "PUSHED" 
+
+				Note: 	You can use the button on the contact sensor to trigger other non-switchbot devices from your smarthub
+					When <ESPMQTTTopic>/contact/<name>/button = "PUSHED"
 
   **ESP32 will Subscribe to MQTT topic for device settings information (requires getBotResponse = true) - BOT ONLY**
   
@@ -277,9 +297,10 @@ Notes:
   **Errors that cannot be linked to a specific device will be published to**
   
       - <ESPMQTTTopic>
+<br>
+<br>
+<h3>Steps to Install on ESP32</h3>
 
-	
-<strong>Steps to Install on ESP32</strong>
 1. Install Arduino IDE
 2. Setup IDE for proper ESP32 type
      https://randomnerdtutorials.com/installing-the-esp32-board-in-arduino-ide-windows-instructions/
@@ -288,6 +309,18 @@ Notes:
 5. Install ArduinoJson library
 6. Install CRC32 library (by Christopher Baker)
 7. Install ArduinoQueue library
-8. Modify code for your Wifi and MQTT configurations and SwitchBot MAC address
-9. Compile and upload to ESP32 (I am using Wemos D1 Mini ESP32)
-10. Reboot ESP32 plug it in with 5v usb (no data needed)
+8. Modify code for your Wifi and MQTT configurations and SwitchBot MAC addresses
+
+	Configurations to change can be found in the code under these line...
+	```
+	/****************** CONFIGURATIONS TO CHANGE *******************/
+
+	/********** REQUIRED SETTINGS TO CHANGE **********/
+	```
+
+	Stop when you see this line...
+	```
+	/********** ADVANCED SETTINGS - ONLY NEED TO CHANGE IF YOU WANT TO TWEAK SETTINGS **********/
+	```
+10. Compile and upload to ESP32 (I am using Wemos D1 Mini ESP32)
+11. Reboot ESP32 plug it in with 5v usb (no data needed)
