@@ -9,9 +9,9 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v5.2
+  v6.0
 
-    Created: on August 14 2021
+    Created: on Sept 19 2021
         Author: devWaves
 
         Contributions from:
@@ -22,15 +22,15 @@
   Notes:
     - Supports Home Assistant MQTT Discovery
 
-    - Support bots and curtains and meters
+    - Support bots, curtains, temp meters, contact sensors, and motion sensors
 
     - It works for button press/on/off, set mode, set hold seconds
 
     - It works for curtain open/close/pause/position(%)
 
-    - It can request status values (bots/curtain/meter: battery, mode, state, position, temp etc) using a "rescan" for all devices
+    - It can request status values (bots/curtain/meter/motion/contact: battery, mode, state, position, temp etc) using a "rescan" for all devices
 
-    - It can request individual device status values (bots/curtain/meter: battery, mode, state, position, temp etc) using a "requestInfo"
+    - It can request individual device status values (bots/curtain/meter/motion/contact: battery, mode, state, position, temp etc) using a "requestInfo"
 
     - Good for placing one ESP32 in a zone with 1 or more devices that has a bad bluetooth signal from your smart hub. MQTT will use Wifi to "boost" the bluetooth signal
 
@@ -59,6 +59,8 @@
     - Set/Control is prioritized over scanning. While scanning, if a set/control command is received scanning is stopped and resumed later
 
     - ESP32 can simulate ON/OFF for devices when bot is in PRESS mode. (Cannot guarantee it will always be accurate)
+	
+	- If you only have bots/curtain/meters the ESP32 will only scan when needed and requested. If you include motion or contact sensors the ESP32 will scan all the time
 
 
   <ESPMQTTTopic> = <mqtt_main_topic>/<host>
@@ -68,6 +70,8 @@
       - <ESPMQTTTopic>/bot/<name>/set
       - <ESPMQTTTopic>/curtain/<name>/set
       - <ESPMQTTTopic>/meter/<name>/set
+      - <ESPMQTTTopic>/contact/<name>/set
+      - <ESPMQTTTopic>/motion/<name>/set
 
     Send a payload to the 'set' topic of the device you want to control
       Strings:
@@ -145,16 +149,22 @@
                           - <ESPMQTTTopic>/bot/<name>/attributes
                           - <ESPMQTTTopic>/curtain/<name>/attributes
                           - <ESPMQTTTopic>/meter/<name>/attributes
+                          - <ESPMQTTTopic>/contact/<name>/attributes
+                          - <ESPMQTTTopic>/motion/<name>/attributes
 
-                        Example payloads:
+                        Example response payloads:
                           - {"rssi":-78,"mode":"Press","state":"OFF","batt":94}
                           - {"rssi":-66,"calib":true,"batt":55,"pos":50,"state":"open","light":1}
                           - {"rssi":-66,"scale":"c","batt":55,"C":"21.5","F":"70.7","hum":"65"}
+						  - {"rssi":-77,"batt":89,"motion":"NO MOTION","led":"OFF","sensedistance":"LONG","light":"DARK"}
+						  - {"rssi":-76,"batt":91,"motion":"NO MOTION","contact":"CLOSED","light":"DARK","incount":1,"outcount":3,"buttoncount":4}
 
                         Example attribute responses per device are detected:
                           - <ESPMQTTTopic>/bot/<name>/state
                           - <ESPMQTTTopic>/curtain/<name>/state
                           - <ESPMQTTTopic>/meter/<name>/state
+						  - <ESPMQTTTopic>/contact/<name>/state            (contact sensor has motion and contact. state = contact)
+						  - <ESPMQTTTopic>/motion/<name>/state
 
                         Example payload:
                           - "ON"
@@ -165,10 +175,24 @@
                         ESP32 will respond with MQTT on 'position' topic for every configured device
                         - <ESPMQTTTopic>/curtain/<name>/position
 
-                        Example payload:
+                        Example response payload:
                           - {"pos":0}
                           - {"pos":100}
                           - {"pos":50}
+						  
+						Example topic responses specific to motion/contact sensors:
+                          - <ESPMQTTTopic>/motion/<name>/motion						Example response payload: "MOTION", "NO MOTION"
+						  - <ESPMQTTTopic>/motion/<name>/illuminance				Example response payload: "LIGHT", "DARK"
+						  - <ESPMQTTTopic>/contact/<name>/contact					Example response payload: "OPEN", "CLOSED"
+						  - <ESPMQTTTopic>/contact/<name>/motion					Example response payload: "MOTION", "NO MOTION"
+						  - <ESPMQTTTopic>/contact/<name>/illuminance				Example response payload: "LIGHT", "DARK"
+						  - <ESPMQTTTopic>/contact/<name>/in						Example response payload: "IDLE", "ENTERED"
+						  - <ESPMQTTTopic>/contact/<name>/out						Example response payload: "IDLE", "EXITED"
+						  - <ESPMQTTTopic>/contact/<name>/button                   	Example response payload: "IDLE", "PUSHED" 
+
+									Note: 	You can use the button on the contact sensor to trigger other non-switchbot devices from your smarthub
+											When <ESPMQTTTopic>/contact/<name>/button = "PUSHED"
+						  
 
   // REQUESTSETTINGS WORKS FOR BOT ONLY - DOCUMENTATION NOT AVAILABLE ONLINE FOR CURTAIN
   ESP32 will Subscribe to MQTT topic for device settings information (requires getBotResponse = true)
@@ -235,7 +259,7 @@
                         Example reponses:
                           - <ESPMQTTTopic>/bot/<name>/status
 
-                        Example payload:
+                        Example response payload:
                           - {"status":"connected", "command":"5"}
                           - {"status":"errorConnect", "command":"5"}
                           - {"status":"errorCommand", "command":"NOTVALID"}
@@ -319,12 +343,19 @@ static const char* mqtt_host = "192.168.0.1";                       //  MQTT Bro
 static const char* mqtt_user = "switchbot";                         //  MQTT Broker username. If empty or NULL, no authentication will be used
 static const char* mqtt_pass = "switchbot";                         //  MQTT Broker password
 static const int mqtt_port = 1883;                                  //  MQTT Port
-static std::string mqtt_main_topic = "switchbot";                   //  MQTT main topic
+static const std::string mqtt_main_topic = "switchbot";             //  MQTT main topic
 
 /* Switchbot Bot Settings */
 static std::map<std::string, std::string> allBots = {
   /*{ "switchbotone", "xX:xX:xX:xX:xX:xX" },
     { "switchbottwo", "yY:yY:yY:yY:yY:yY" }*/
+};
+
+/* Switchbot Curtain Settings */
+static const int curtainClosedPosition = 10;    // When 2 curtains are controlled (left -> right and right -> left) it's possible one of the curtains pushes one of the switchbots more open. Change this value to set a position where a curtain is still considered closed
+static std::map<std::string, std::string> allCurtains = {
+  /*{ "curtainone", "xX:xX:xX:xX:xX:xX" },
+    { "curtaintwo", "yY:yY:yY:yY:yY:yY" }*/
 };
 
 /* Switchbot Meter Settings */
@@ -333,14 +364,19 @@ static std::map<std::string, std::string> allMeters = {
     { "metertwo", "yY:yY:yY:yY:yY:yY" }*/
 };
 
-/* Switchbot Curtain Settings */
-static int curtainClosedPosition = 10;    // When 2 curtains are controlled (left -> right and right -> left) it's possible one of the curtains pushes one of the switchbots more open. Change this value to set a position where a curtain is still considered closed
-static std::map<std::string, std::string> allCurtains = {
-  /*{ "curtainone", "xX:xX:xX:xX:xX:xX" },
-    { "curtaintwo", "yY:yY:yY:yY:yY:yY" }*/
+/* Switchbot Contact Sensor Settings */
+static std::map<std::string, std::string> allContactSensors = {
+  /*{ "contactone", "xX:xX:xX:xX:xX:xX" },
+    { "contacttwo", "yY:yY:yY:yY:yY:yY" }*/
 };
 
-/* Switchbot Bot/Meter/Curtain Passwords */
+/* Switchbot Motion Sensor Settings */
+static std::map<std::string, std::string> allMotionSensors = {
+  /*{ "motionone", "xX:xX:xX:xX:xX:xX" },
+    { "motiontwo", "yY:yY:yY:yY:yY:yY" }*/
+};
+
+/* Switchbot Bot Passwords */
 static std::map<std::string, std::string> allPasswords = {     // Set all the bot passwords (setup in app first). Ignore if passwords are not used
   /*{ "switchbotone", "switchbotonePassword" },
     { "switchbottwo", "switchbottwoPassword" }*/
@@ -372,57 +408,60 @@ static std::map<std::string, std::string> allPasswords = {     // Set all the bo
 
 /********** ADVANCED SETTINGS - ONLY NEED TO CHANGE IF YOU WANT TO TWEAK SETTINGS **********/
 
+
 /* ESP32 LED Settings */
 #define LED_PIN LED_BUILTIN                          // If your board doesn't have a defined LED_BUILTIN (You will get a compile error), comment this line out
 //#define LED_PIN 2                                  // If your board doesn't have a defined LED_BUILTIN, uncomment this line out and replace 2 with the LED pin value
-static bool ledHighEqualsON = true;                  // ESP32 board LED ON=HIGH (Default). If your ESP32 LED is turning OFF on scanning and turning ON while IDLE, then set this value to false
-static bool ledOnBootScan = true;                    // Turn on LED during initial boot scan
-static bool ledOnScan = true;                        // Turn on LED while scanning (non-boot)
-static bool ledOnCommand = true;                     // Turn on LED while MQTT command is processing. If scanning, LED will blink after scan completes. You may not notice it, there is no delay after scan
+static const bool ledHighEqualsON = true;            // ESP32 board LED ON=HIGH (Default). If your ESP32 LED is turning OFF on scanning and turning ON while IDLE, then set this value to false
+static const bool ledOnBootScan = true;              // Turn on LED during initial boot scan
+static const bool ledOnScan = true;                  // Turn on LED while scanning (non-boot)
+static const bool ledOnCommand = true;               // Turn on LED while MQTT command is processing. If scanning, LED will blink after scan completes. You may not notice it, there is no delay after scan
 
 /* Webserver Settings */
-static bool useLoginScreen = false;                   //  use a basic login popup to avoid unwanted access
-static String otaUserId = "admin";                    //  user Id for OTA update. Ignore if useLoginScreen = false
-static String otaPass = "admin";                      //  password for OTA update. Ignore if useLoginScreen = false
-static WebServer server(80);                          //  default port 80
+static const bool useLoginScreen = false;            //  use a basic login popup to avoid unwanted access
+static const String otaUserId = "admin";             //  user Id for OTA update. Ignore if useLoginScreen = false
+static const String otaPass = "admin";               //  password for OTA update. Ignore if useLoginScreen = false
+static WebServer server(80);                         //  default port 80
 
 /* Home Assistant Settings */
-static bool home_assistant_mqtt_discovery = true;                    // Enable to publish Home Assistant MQTT Discovery config
-static std::string home_assistant_mqtt_prefix = "homeassistant";     // MQTT Home Assistant prefix
-static bool home_assistant_expose_seperate_curtain_position = true;  // When enabled, a seperate sensor will be added that will expose the curtain position. This is useful when using the Prometheus integration to graph curtain positions. The cover entity doesn't expose the position for Prometheus
-static bool home_assistant_use_opt_mode = false;                     // For bots in switch mode assume on/off right away. Optimistic mode. (Icon will change in HA). If devices were already configured in HA, you need to delete them and reboot esp32
+static const bool home_assistant_mqtt_discovery = true;                    // Enable to publish Home Assistant MQTT Discovery config
+static const std::string home_assistant_mqtt_prefix = "homeassistant";     // MQTT Home Assistant prefix
+static const bool home_assistant_expose_seperate_curtain_position = true;  // When enabled, a seperate sensor will be added that will expose the curtain position. This is useful when using the Prometheus integration to graph curtain positions. The cover entity doesn't expose the position for Prometheus
+static const bool home_assistant_use_opt_mode = false;                     // For bots in switch mode assume on/off right away. Optimistic mode. (Icon will change in HA). If devices were already configured in HA, you need to delete them and reboot esp32
 
 /* Switchbot General Settings */
-static int tryConnecting = 60;                  // How many times to try connecting to bot
-static int trySending = 30;                     // How many times to try sending command to bot
-static int initialScan = 120;                   // How many seconds to scan for bots on ESP reboot and autoRescan. Once all devices are found scan stops, so you can set this to a big number
-static int infoScanTime = 60;                   // How many seconds to scan for single device status updates
-static int rescanTime = 600;                    // Automatically rescan for device info of all devices every X seconds (default 10 min)
-static int queueSize = 50;                      // Max number of control/requestInfo/rescan MQTT commands stored in the queue. If you send more then queueSize, they will be ignored
-static int defaultBotWaitTime = 2;              // wait at least X seconds between control command send to bots. ESP32 will detect if bot is in press mode with a hold time and will add hold time to this value per device
-static int defaultCurtainWaitTime = 0;          // wait at least X seconds between control command send to curtains
-static int waitForResponseSec = 20;             // How many seconds to wait for a bot/curtain response
-static int noResponseRetryAmount = 5;           // How many times to retry if no response received
-static int defaultScanAfterControlSecs = 10;    // Default How many seconds to wait for state/status update call after set/control command. *override with botScanTime list
-static int defaultMeterScanSecs = 60;           // Default Scan for meter temp sensors every X seconds. *override with botScanTime list
-static int waitForMQTTRetainMessages = 5;       // Only for bots in simulated ON/OFF: On boot ESP32 will look for retained MQTT state messages for X secs, otherwise default state is used
+static const int tryConnecting = 60;                  // How many times to try connecting to bot
+static const int trySending = 30;                     // How many times to try sending command to bot
+static const int initialScan = 120;                   // How many seconds to scan for bots on ESP reboot and autoRescan. Once all devices are found scan stops, so you can set this to a big number
+static const int infoScanTime = 60;                   // How many seconds to scan for single device status updates
+static const int rescanTime = 600;                    // Automatically rescan for device info of all devices every X seconds (default 10 min)
+static const int queueSize = 50;                      // Max number of control/requestInfo/rescan MQTT commands stored in the queue. If you send more then queueSize, they will be ignored
+static const int defaultBotWaitTime = 2;              // wait at least X seconds between control command send to bots. ESP32 will detect if bot is in press mode with a hold time and will add hold time to this value per device
+static const int defaultCurtainWaitTime = 0;          // wait at least X seconds between control command send to curtains
+static const int waitForResponseSec = 20;             // How many seconds to wait for a bot/curtain response
+static const int noResponseRetryAmount = 5;           // How many times to retry if no response received
+static const int defaultScanAfterControlSecs = 10;    // Default How many seconds to wait for state/status update call after set/control command. *override with botScanTime list
+static const int defaultMeterScanSecs = 60;           // Default Scan/MQTT Update for meter temp sensors every X seconds. *override with botScanTime list
+static const int defaultMotionScanSecs = 60;          // Default Scan/MQTT Update for motion sensors every X seconds. *override with botScanTime list
+static const int defaultContactScanSecs = 60;         // Default Scan/MQTT Update for contact temp sensors every X seconds. *override with botScanTime list
+static const int waitForMQTTRetainMessages = 5;       // Only for bots in simulated ON/OFF: On boot ESP32 will look for retained MQTT state messages for X secs, otherwise default state is used
 
-static bool autoRescan = true;                      // perform automatic rescan (uses rescanTime and initialScan).
-static bool scanAfterControl = true;                // perform requestInfo after successful control command (uses botScanTime).
-static bool waitBetweenControl = true;              // wait between commands sent to bot/curtain (avoids sending while bot is busy)
-static bool getSettingsOnBoot = true;               // Currently only works for bot (curtain documentation not available but can probably be reverse engineered easily). Get bot extra settings values like firmware, holdSecs, inverted, number of timers. ***If holdSecs is available it is used by waitBetweenControl
-static bool getBotResponse = true;                  // get a response from the bot devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
-static bool getCurtainResponse = true;              // get a response from the curtain devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
-static bool retryBotOnBusy = true;                  // Requires getBotResponse = true. if bot responds with busy, the last control command will retry until success
-static bool retryCurtainOnBusy = true;              // Requires getCurtainResponse = true. if curtain responds with busy, the last control command will retry until success
-static bool retryBotActionNoResponse = false;       // Retry if bot doesn't send a response. Bot default is false because no response can still mean the bot triggered.
-static bool retryBotSetNoResponse = true;           // Retry if bot doesn't send a response when requesting settings (hold, firwmare etc) or settings hold/mode
-static bool retryCurtainNoResponse = true;          // Retry if curtain doesn't send a response. Default is true. It shouldn't matter if curtain receives the same command twice (or multiple times)
-static bool immediateBotStateUpdate = true;         // ESP32 will send ON/OFF state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
-static bool immediateCurtainStateUpdate = true;     // ESP32 will send OPEN/CLOSE and Position state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
-static bool assumeNoResponseMeansSuccess = true;    // Only for bots in simulated ON/OFF: If the ESP32 does not receive a response after sending command (after noResponseRetryAmount reached and retryBotActionNoResponse = true) assume it worked and change state
+static const bool autoRescan = true;                      // perform automatic rescan (uses rescanTime and initialScan).
+static const bool scanAfterControl = true;                // perform requestInfo after successful control command (uses botScanTime).
+static const bool waitBetweenControl = true;              // wait between commands sent to bot/curtain (avoids sending while bot is busy)
+static const bool getSettingsOnBoot = true;               // Currently only works for bot (curtain documentation not available but can probably be reverse engineered easily). Get bot extra settings values like firmware, holdSecs, inverted, number of timers. ***If holdSecs is available it is used by waitBetweenControl
+static const bool getBotResponse = true;                  // get a response from the bot devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
+static const bool getCurtainResponse = true;              // get a response from the curtain devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
+static const bool retryBotOnBusy = true;                  // Requires getBotResponse = true. if bot responds with busy, the last control command will retry until success
+static const bool retryCurtainOnBusy = true;              // Requires getCurtainResponse = true. if curtain responds with busy, the last control command will retry until success
+static const bool retryBotActionNoResponse = false;       // Retry if bot doesn't send a response. Bot default is false because no response can still mean the bot triggered.
+static const bool retryBotSetNoResponse = true;           // Retry if bot doesn't send a response when requesting settings (hold, firwmare etc) or settings hold/mode
+static const bool retryCurtainNoResponse = true;          // Retry if curtain doesn't send a response. Default is true. It shouldn't matter if curtain receives the same command twice (or multiple times)
+static const bool immediateBotStateUpdate = true;         // ESP32 will send ON/OFF state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
+static const bool immediateCurtainStateUpdate = true;     // ESP32 will send OPEN/CLOSE and Position state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
+static const bool assumeNoResponseMeansSuccess = true;    // Only for bots in simulated ON/OFF: If the ESP32 does not receive a response after sending command (after noResponseRetryAmount reached and retryBotActionNoResponse = true) assume it worked and change state
 
-static bool printSerialOutputForDebugging = false;  // Only set to true when you want to debug an issue from Arduino IDE. Lots of Serial output from scanning can crash the ESP32
+static const bool printSerialOutputForDebugging = false;  // Only set to true when you want to debug an issue from Arduino IDE. Lots of Serial output from scanning can crash the ESP32
 
 /* Switchbot Bot/Meter/Curtain scan interval */
 /* Meters don't support commands so will be scanned every <int> interval automatically if scanAfterControl = true */
@@ -452,7 +491,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v5.2";
+static const String versionNum = "v6.0";
 
 /*
    Server Index Page
@@ -534,26 +573,37 @@ static EspMQTTClient client(
   mqtt_port
 );
 
-static const uint16_t mqtt_packet_size = 1024;
-static bool home_assistant_discovery_set_up = false;
-static std::string manufacturer = "WonderLabs SwitchBot";
-static std::string curtainModel = "Curtain";
-static std::string curtainName = "WoCurtain";
-static std::string botModel = "Bot";
-static std::string botName = "WoHand";
-static std::string meterModel = "Meter";
-static std::string meterName = "WoSensorTH";
+static const uint16_t mqtt_packet_size = 512;
+static const bool home_assistant_discovery_set_up = false;
+static const std::string manufacturer = "WonderLabs SwitchBot";
+static const std::string curtainModel = "Curtain";
+static const std::string curtainName = "WoCurtain";
+static const std::string botModel = "Bot";
+static const std::string botName = "WoHand";
+static const std::string meterModel = "Meter";
+static const std::string meterName = "WoSensorTH";
+static const std::string contactModel = "Contact";
+static const std::string contactName = "WoContact";
+static const std::string motionModel = "Motion";
+static const std::string motionName = "WoMotion";
 
 static int ledONValue = HIGH;
 static int ledOFFValue = LOW;
-
 void scanEndedCB(NimBLEScanResults results);
 void rescanEndedCB(NimBLEScanResults results);
 void initialScanEndedCB(NimBLEScanResults results);
 static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsDev = {};
 static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsScanned = {};
 static std::map<std::string, long> rescanTimes = {};
+static std::map<std::string, long> lastScanTimes = {};
 static std::map<std::string, bool> botsSimulatedStates = {};
+static std::map<std::string, std::string> motionStates = {};
+static std::map<std::string, std::string> contactStates = {};
+static std::map<std::string, std::string> illuminanceStates = {};
+static std::map<std::string, std::string> ledStates = {};
+static std::map<std::string, int> outCounts = {};
+static std::map<std::string, int> entranceCounts = {};
+static std::map<std::string, int> buttonCounts = {};
 static std::map<std::string, std::string> lastCommandSentStrings = {};
 static std::map<std::string, std::string> allSwitchbots;
 static std::map<std::string, std::string> allSwitchbotsOpp;
@@ -574,22 +624,25 @@ static bool lastCommandSentPublished = false;
 static bool forceRescan = false;
 //static bool waitForDeviceCreation = false;
 static bool overrideScan = false;
-
-static std::string ESPMQTTTopic = mqtt_main_topic + "/" + std::string(host);
-//static std::string esp32Topic = ESPMQTTTopic + "/ESP32";
-static std::string lastWillStr = ESPMQTTTopic + "/lastwill";
+static char aBuffer[200];
+static const std::string ESPMQTTTopic = mqtt_main_topic + "/" + std::string(host);
+static const std::string esp32Topic = ESPMQTTTopic + "/esp32";
+static const std::string rssiStdStr = esp32Topic + "/rssi";
+static const std::string lastWillStr = ESPMQTTTopic + "/lastwill";
 static const char* lastWill = lastWillStr.c_str();
-static std::string botTopic = ESPMQTTTopic + "/bot/";
-static std::string curtainTopic = ESPMQTTTopic + "/curtain/";
-static std::string meterTopic = ESPMQTTTopic + "/meter/";
-static std::string rescanStdStr = ESPMQTTTopic + "/rescan";
+static const std::string botTopic = ESPMQTTTopic + "/bot/";
+static const std::string curtainTopic = ESPMQTTTopic + "/curtain/";
+static const std::string meterTopic = ESPMQTTTopic + "/meter/";
+static const std::string contactTopic = ESPMQTTTopic + "/contact/";
+static const std::string motionTopic = ESPMQTTTopic + "/motion/";
+static const std::string rescanStdStr = ESPMQTTTopic + "/rescan";
 //static std::string controlStdStr = ESPMQTTTopic + "/control";
-static std::string controlStdStr = ESPMQTTTopic + "/#/#/set";
-static std::string requestInfoStdStr = ESPMQTTTopic + "/requestInfo";
-static std::string requestSettingsStdStr = ESPMQTTTopic + "/requestSettings";
-static std::string setModeStdStr = ESPMQTTTopic + "/setMode";
-static std::string setHoldStdStr = ESPMQTTTopic + "/setHold";
-static std::string holdPressStdStr = ESPMQTTTopic + "/holdPress";
+static const std::string controlStdStr = ESPMQTTTopic + "/#/#/set";
+static const std::string requestInfoStdStr = ESPMQTTTopic + "/requestInfo";
+static const std::string requestSettingsStdStr = ESPMQTTTopic + "/requestSettings";
+static const std::string setModeStdStr = ESPMQTTTopic + "/setMode";
+static const std::string setHoldStdStr = ESPMQTTTopic + "/setHold";
+static const std::string holdPressStdStr = ESPMQTTTopic + "/holdPress";
 static const String rescanTopic = rescanStdStr.c_str();
 static const String controlTopic = controlStdStr.c_str();
 static const String requestInfoTopic = requestInfoStdStr.c_str();
@@ -647,8 +700,22 @@ void publishLastwillOnline() {
     if (client.isConnected()) {
       client.publish(lastWill, "online", true);
       lastOnlinePublished = millis();
+      String rssi = String(WiFi.RSSI());
+      client.publish(rssiStdStr.c_str(), rssi.c_str());
     }
   }
+}
+
+void publishHomeAssistantDiscoveryESPConfig() {
+  String wifiMAC = String(WiFi.macAddress());
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + host + "/linkquality/config").c_str(), ("{\"~\":\"" + esp32Topic + "\"," +
+                 + "\"name\":\"" + host + " Linkquality\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + "ESP32" + "\",\"name\": \"" + host + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "_linkquality\"," +
+                 + "\"stat_t\":\"~/rssi\"," +
+                 + "\"icon\":\"mdi:signal\"," +
+                 + "\"unit_of_meas\": \"rssi\"}").c_str(), true);
 }
 
 void publishHomeAssistantDiscoveryBotConfig(std::string deviceName, std::string deviceMac, bool optimistic) {
@@ -679,6 +746,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string deviceName, std::string 
                  + "\"avty_t\": \"" + lastWill + "\"," +
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "inverted\"," +
                  + "\"stat_t\":\"~/settings\"," +
+                 + "\"icon\":\"mdi:cog\"," +
                  + "\"pl_on\":true," +
                  + "\"pl_off\":false," +
                  + "\"value_template\":\"{{ value_json.inverted }}\"}").c_str(), true);
@@ -688,6 +756,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string deviceName, std::string 
                  + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                  + "\"avty_t\": \"" + lastWill + "\"," +
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "_mode\"," +
+                 + "\"icon\":\"mdi:cog\"," +
                  + "\"stat_t\":\"~/attributes\"," +
                  + "\"value_template\":\"{{ value_json.mode }}\"}").c_str(), true);
 
@@ -696,6 +765,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string deviceName, std::string 
                  + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                  + "\"avty_t\": \"" + lastWill + "\"," +
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "_firmware\"," +
+                 + "\"icon\":\"mdi:cog\"," +
                  + "\"stat_t\":\"~/settings\"," +
                  + "\"value_template\":\"{{ value_json.firmware }}\"}").c_str(), true);
 
@@ -704,6 +774,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string deviceName, std::string 
                  + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                  + "\"avty_t\": \"" + lastWill + "\"," +
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "_holdsecs\"," +
+                 + "\"icon\":\"mdi:cog\"," +
                  + "\"stat_t\":\"~/settings\"," +
                  + "\"value_template\":\"{{ value_json.hold }}\"}").c_str(), true);
 
@@ -712,6 +783,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string deviceName, std::string 
                  + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                  + "\"avty_t\": \"" + lastWill + "\"," +
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "_timers\"," +
+                 + "\"icon\":\"mdi:cog\"," +
                  + "\"stat_t\":\"~/settings\"," +
                  + "\"value_template\":\"{{ value_json.timers }}\"}").c_str(), true);
 
@@ -771,6 +843,7 @@ void publishHomeAssistantDiscoveryCurtainConfig(std::string deviceName, std::str
                  + "\"avty_t\": \"" + lastWill + "\"," +
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "_calibrated\"," +
                  + "\"stat_t\":\"~/attributes\"," +
+                 + "\"icon\":\"mdi:cog\"," +
                  + "\"pl_on\":true," +
                  + "\"pl_off\":false," +
                  + "\"value_template\":\"{{ value_json.calib }}\"}").c_str(), true);
@@ -846,6 +919,212 @@ void publishHomeAssistantDiscoveryMeterConfig(std::string deviceName, std::strin
                  + "\"unit_of_meas\": \"%\", " +
                  + "\"value_template\":\"{{ value_json.hum }}\"}").c_str(), true);
 }
+
+
+void publishHomeAssistantDiscoveryContactConfig(std::string deviceName, std::string deviceMac) {
+  std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/battery/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Battery\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"dev_cla\":\"battery\"," +
+                 + "\"unit_of_meas\": \"%\", " +
+                 + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Linkquality\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"icon\":\"mdi:signal\"," +
+                 + "\"unit_of_meas\": \"rssi\", " +
+                 + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/contact/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Contact\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_contact\"," +
+                 + "\"icon\":\"mdi:door\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"value_template\":\"{{ value_json.contact }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/motion/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Motion\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_motion\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"dev_cla\":\"motion\"," +
+                 + "\"pl_on\":\"MOTION\"," +
+                 + "\"pl_off\":\"NO MOTION\"," +
+                 + "\"value_template\":\"{{ value_json.motion }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/in/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " In\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_in\"," +
+                 + "\"icon\":\"mdi:motion-sensor\"," +
+                 + "\"stat_t\":\"~/in\"," +
+                 + "\"pl_on\":\"ENTERED\"," +
+                 + "\"pl_off\":\"IDLE\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/out/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Out\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_out\"," +
+                 + "\"icon\":\"mdi:exit-run\"," +
+                 + "\"stat_t\":\"~/out\"," +
+                 + "\"pl_on\":\"EXITED\"," +
+                 + "\"pl_off\":\"IDLE\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/button/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Button\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_button\"," +
+                 + "\"stat_t\":\"~/button\"," +
+                 + "\"icon\":\"mdi:gesture-tap-button\"," +
+                 + "\"pl_on\":\"PUSHED\"," +
+                 + "\"pl_off\":\"IDLE\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/illuminance/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Illuminance\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "__illuminance\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"dev_cla\":\"light\"," +
+                 + "\"pl_on\":\"BRIGHT\"," +
+                 + "\"pl_off\":\"DARK\"," +
+                 + "\"value_template\":\"{{ value_json.light }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/lastmotion/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " LastMotion\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastmotion\"," +
+                 + "\"dev_cla\":\"timestamp\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"value_template\":\"{{ value_json.lastmotion }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/lastcontact/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " LastContact\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastcontact\"," +
+                 + "\"dev_cla\":\"timestamp\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"value_template\":\"{{ value_json.lastcontact }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/buttoncount/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " ButtonCount\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_buttoncount\"," +
+                 + "\"icon\":\"mdi:counter\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"value_template\":\"{{ value_json.buttoncount }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/incount/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " InCount\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_entrancecount\"," +
+                 + "\"icon\":\"mdi:counter\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"value_template\":\"{{ value_json.incount }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/outcount/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " OutCount\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_outcount\"," +
+                 + "\"icon\":\"mdi:counter\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"value_template\":\"{{ value_json.outcount }}\"}").c_str(), true);
+}
+
+void publishHomeAssistantDiscoveryMotionConfig(std::string deviceName, std::string deviceMac) {
+  std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/battery/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Battery\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"dev_cla\":\"battery\"," +
+                 + "\"unit_of_meas\": \"%\", " +
+                 + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Linkquality\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"icon\":\"mdi:signal\"," +
+                 + "\"unit_of_meas\": \"rssi\", " +
+                 + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/motion/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Motion\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_motion\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"dev_cla\":\"motion\"," +
+                 + "\"pl_on\":\"MOTION\"," +
+                 + "\"pl_off\":\"NO MOTION\"," +
+                 + "\"value_template\":\"{{ value_json.motion }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/illuminance/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " Illuminance\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_illuminance\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"dev_cla\":\"light\"," +
+                 + "\"pl_on\":\"BRIGHT\"," +
+                 + "\"pl_off\":\"DARK\"," +
+                 + "\"value_template\":\"{{ value_json.light }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/led/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " LED\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_led\"," +
+                 + "\"icon\":\"mdi:led-on\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"pl_on\":\"ON\"," +
+                 + "\"pl_off\":\"OFF\"," +
+                 + "\"value_template\":\"{{ value_json.led }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/lastmotion/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " LastMotion\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastmotion\"," +
+                 + "\"dev_cla\":\"timestamp\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"value_template\":\"{{ value_json.lastmotion }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/sensedistance/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " SenseDistance\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_sensedistance\"," +
+                 + "\"icon\":\"mdi:cog\"," +
+                 + "\"stat_t\":\"~/attributes\"," +
+                 + "\"value_template\":\"{{ value_json.sensedistance }}\"}").c_str(), true);
+
+}
+
 
 class ClientCallbacks : public NimBLEClientCallbacks {
 
@@ -1032,22 +1311,66 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       std::string advStr = advertisedDevice->getAddress().toString().c_str();
       std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(advStr);
       bool gotAllStatus = false;
+
       if (itS != allSwitchbotsOpp.end())
       {
-        if (advertisedDevice->isAdvertisingService(NimBLEUUID("cba20d00-224d-11e6-9fb8-0002a5d5c51b")))
+        std::string deviceName = itS->second.c_str();
+        if ((advertisedDevice->isAdvertisingService(NimBLEUUID("cba20d00-224d-11e6-9fb8-0002a5d5c51b"))) || isContactDevice(deviceName) || isMotionDevice(deviceName))
         {
-          std::map<std::string, NimBLEAdvertisedDevice*>::iterator itY = allSwitchbotsScanned.find(advStr);
-          if (itY == allSwitchbotsScanned.end())
+          std::map<std::string, NimBLEAdvertisedDevice*>::iterator itY;
+          if ((shouldMQTTUpdateForDevice(advStr) || isContactDevice(deviceName) || isMotionDevice(deviceName)) && initialScanComplete) {
+            itY = allSwitchbotsScanned.find(advStr);
+            if (itY != allSwitchbotsScanned.end())
+            {
+              allSwitchbotsScanned.erase(advStr);
+            }
+          }
+          itY = allSwitchbotsScanned.find(advStr);
+          if ((itY == allSwitchbotsScanned.end()) && client.isConnected())
           {
+            if (home_assistant_mqtt_discovery) {
+              std::map<std::string, bool>::iterator itM = discoveredDevices.find(advStr);
+              if (itM == discoveredDevices.end()) {
+                if (printSerialOutputForDebugging) {
+                  Serial.printf("Publishing MQTT Discovery for %s (%s)\n", deviceName.c_str(), advStr.c_str());
+                }
+                if (isBotDevice(deviceName)) {
+                  publishHomeAssistantDiscoveryBotConfig(deviceName, advStr, home_assistant_use_opt_mode);
+                }
+                else if (isMeterDevice(deviceName)) {
+                  publishHomeAssistantDiscoveryMeterConfig(deviceName, advStr);
+                }
+                else if (isContactDevice(deviceName)) {
+                  publishHomeAssistantDiscoveryContactConfig(deviceName, advStr);
+                }
+                else if (isMotionDevice(deviceName)) {
+                  publishHomeAssistantDiscoveryMotionConfig(deviceName, advStr);
+                }
+                else if (isCurtainDevice(deviceName)) {
+                  publishHomeAssistantDiscoveryCurtainConfig(deviceName, advStr);
+                }
+                discoveredDevices[advStr] = true;
+                delay(100);
+              }
+            }
+
             if (printSerialOutputForDebugging) {
               Serial.println("Adding Our Service ... ");
               Serial.println(itS->second.c_str());
             }
             std::string aValueString = advertisedDevice->getServiceData(0);
-            gotAllStatus = callForInfoAdvDev(advertisedDevice, aValueString);
+            gotAllStatus = callForInfoAdvDev(advertisedDevice->getAddress().toString(), advertisedDevice->getRSSI() , aValueString);
             if (gotAllStatus) {
               allSwitchbotsScanned[advStr] = advertisedDevice;
               allSwitchbotsDev[advStr] = advertisedDevice;
+              std::map<std::string, long>::iterator itR = rescanTimes.find(advStr);
+              if (itR != rescanTimes.end())
+              {
+                rescanTimes.erase(advStr);
+              }
+              /* if (isContactDevice(deviceName) || isMotionDevice(deviceName) || isMeterDevice(deviceName)) {
+                 rescanTimes[advStr] = millis();
+                }*/
             }
             if (printSerialOutputForDebugging) {
               Serial.println("Assigned advDevService");
@@ -1055,44 +1378,74 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           }
         }
       }
+      else {
+        NimBLEDevice::addIgnored(advStr);
+      }
       //waitForDeviceCreation = false;
 
       bool stopScan = false;
-      client.loop();
-      if ((allSwitchbotsDev.size() == allBots.size() + allCurtains.size() + allMeters.size()) && (allSwitchbotsScanned.size() == allBots.size() + allCurtains.size() + allMeters.size()))  {
-        stopScan = true;
-        forceRescan = false;
+      if (client.isConnected()) {
+        client.loop();
+        if ((allContactSensors.size() + allMotionSensors.size()) != 0) {
+          if (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) {
+            if (!initialScanComplete) {
+              initialScanComplete = true;
+              stopScan = true;
+            }
+          }
+          if (!(commandQueue.isEmpty()) && initialScanComplete && !overrideScan) {
+            stopScan = true;
+            forceRescan = true;
+            lastScanTimes = {};
+            allSwitchbotsScanned = {};
+          }
+        }
+        else {
+          if ((allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) && (allSwitchbotsScanned.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())))  {
+            stopScan = true;
+            forceRescan = false;
+            allSwitchbotsScanned = {};
+          }
+          else if (!(commandQueue.isEmpty()) && initialScanComplete && !overrideScan) {
+            forceRescan = true;
+            lastScanTimes = {};
+            stopScan = true;
+            allSwitchbotsScanned = {};
+          }
+        }
       }
-      else if (!(commandQueue.isEmpty()) && initialScanComplete && !overrideScan) {
+      else {
         forceRescan = true;
+        lastScanTimes = {};
         stopScan = true;
+        allSwitchbotsScanned = {};
       }
 
       if (stopScan) {
-        allSwitchbotsScanned = {};
         if (printSerialOutputForDebugging) {
           Serial.println("Stopping Scan found devices ... ");
         }
         NimBLEDevice::getScan()->stop();
       }
-
-
     };
-
-    bool callForInfoAdvDev(NimBLEAdvertisedDevice* advDev,  std::string aValueString) {
+  
+    bool callForInfoAdvDev(std::string deviceMac, long anRSSI,  std::string aValueString) {
       if (printSerialOutputForDebugging) {
         Serial.println("callForInfoAdvDev");
       }
+      if ((strcmp(deviceMac.c_str(), "") == 0)) {
+        return false;
+      }
+      if ((strcmp(aValueString.c_str(), "") == 0)) {
+        return false;
+      }
+      bool shouldPublish = false;
       std::string aDevice;
-      std::string aState;
+      std::string aState = "";
       std::string deviceStateTopic;
       std::string deviceAttrTopic;
-      std::string deviceMac = advDev->getAddress().toString();
-      std::map<std::string, bool>::iterator itM = discoveredDevices.find(deviceMac);
       int aLength = aValueString.length();
-      StaticJsonDocument<200> doc;
-      char aBuffer[200];
-      std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(advDev->getAddress().toString().c_str());
+      std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(deviceMac);
       if (itS != allSwitchbotsOpp.end())
       {
         aDevice = itS->second.c_str();
@@ -1100,31 +1453,28 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       else {
         return false;
       }
-
       std::string deviceName;
-      itS = deviceTypes.find(advDev->getAddress().toString().c_str());
+      itS = deviceTypes.find(deviceMac);
       if (itS != deviceTypes.end())
       {
         deviceName = itS->second.c_str();
       }
 
-      if (printSerialOutputForDebugging) {
-        Serial.printf("deviceName: %s\n", deviceName.c_str());
-      }
-
-      doc["rssi"] = advDev->getRSSI();
+      StaticJsonDocument<200> doc;
+      //char aBuffer[200];
+      doc["rssi"] = anRSSI;
 
       if (deviceName == botName) {
         if (aLength < 3) {
           return false;
         }
+        shouldPublish = true;
+        uint8_t byte1 = (uint8_t) aValueString[1];
+        uint8_t byte2 = (uint8_t) aValueString[2];
+        bool isSwitch = (byte1 & 0b10000000);
         deviceStateTopic = botTopic + aDevice + "/state";
         deviceAttrTopic = botTopic + aDevice + "/attributes";
 
-        uint8_t byte1 = (uint8_t) aValueString[1];
-        uint8_t byte2 = (uint8_t) aValueString[2];
-
-        bool isSwitch = (byte1 & 0b10000000);
         std::string aMode = isSwitch ? "Switch" : "Press"; // Whether the light switch Add-on is used or not
         std::string deviceAssumedStateTopic = botTopic + aDevice + "/assumedstate";
 
@@ -1165,31 +1515,17 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           }
         }
         int battLevel = byte2 & 0b01111111; // %
-
         doc["mode"] = aMode;
         doc["state"] = aState;
         doc["batt"] = battLevel;
-
-        if (home_assistant_mqtt_discovery) {
-          if (itM == discoveredDevices.end()) {
-            if (printSerialOutputForDebugging) {
-              Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
-            }
-            if (home_assistant_use_opt_mode) {
-              publishHomeAssistantDiscoveryBotConfig(aDevice, deviceMac, isSwitch);
-            }
-            else {
-              publishHomeAssistantDiscoveryBotConfig(aDevice, deviceMac, false);
-            }
-            discoveredDevices[deviceMac] = true;
-          }
-        }
 
       }
       else if (deviceName == meterName) {
         if (aLength < 6) {
           return false;
         }
+        shouldPublish = true;
+
         deviceStateTopic = meterTopic + aDevice + "/state";
         deviceAttrTopic = meterTopic + aDevice + "/attributes";
 
@@ -1213,26 +1549,281 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         doc["hum"] = humidity;
         aState = String(tempC, 1).c_str();
 
-        if (home_assistant_mqtt_discovery) {
-          if (itM == discoveredDevices.end()) {
-            if (printSerialOutputForDebugging) {
-              Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
-            }
-            publishHomeAssistantDiscoveryMeterConfig(aDevice, deviceMac);
-            discoveredDevices[deviceMac] = true;
+      }
+      else if (deviceName == motionName) {
+        if (aLength < 6) {
+          return false;
+        }
+
+        deviceStateTopic = motionTopic + aDevice + "/state";
+        deviceAttrTopic = motionTopic + aDevice + "/attributes";
+        std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
+        std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
+
+        uint8_t byte1 = (uint8_t) aValueString[1];
+        uint8_t byte2 = (uint8_t) aValueString[2];
+        uint8_t byte3 = (uint8_t) aValueString[3];
+        uint8_t byte4 = (uint8_t) aValueString[4];
+        uint8_t byte5 = (uint8_t) aValueString[5];
+
+        int battLevel = (byte2 & 0b01111111);
+        doc["batt"] = battLevel;
+
+        std::string motion = (byte1 & 0b01000000) ? "MOTION" : "NO MOTION";
+        doc["motion"] = motion;
+        aState = motion;
+        std::string ledState = (byte5 & 0b00100000) ? "ON" : "OFF";
+        doc["led"] = ledState;
+
+        bool sensingDistanceA = (byte5 & 0b00001000);
+        bool sensingDistanceB = (byte5 & 0b00000100);
+        std::string sensingDistance;
+        if (!sensingDistanceA && !sensingDistanceB) {
+          sensingDistance = "LONG";
+        }
+        else if (!sensingDistanceA && sensingDistanceB) {
+          sensingDistance = "MIDDLE";
+        }
+        else if (sensingDistanceA && !sensingDistanceB) {
+          sensingDistance = "SHORT";
+        }
+        else if (sensingDistanceA && sensingDistanceB) {
+          sensingDistance = "RESERVE";
+        }
+
+        doc["sensedistance"] = sensingDistance;
+
+        bool lightA = (byte5 & 0b00000010);
+        bool lightB = (byte5 & 0b00000001);
+        std::string light;
+        if (!lightA && !lightB) {
+          light = "RESERVE";
+        }
+        else if (!lightA && lightB) {
+          light = "DARK";
+        }
+        else if (lightA && !lightB) {
+          light = "BRIGHT";
+        }
+        else if (lightA && lightB) {
+          light = "RESERVE";
+        }
+
+        doc["light"] = light;
+
+        //TODO
+        //std::string lastmotion;
+
+        std::map<std::string, std::string>::iterator itH = motionStates.find(deviceMac);
+        if (itH != motionStates.end())
+        {
+          std::string motionState = itH->second.c_str();
+          if (strcmp(motionState.c_str(), motion.c_str()) != 0) {
+            shouldPublish = true;
+          }
+        }
+        motionStates[deviceMac] = motion;
+
+        std::map<std::string, std::string>::iterator itL = ledStates.find(deviceMac);
+        if (itL != ledStates.end())
+        {
+          std::string aLED = itL->second.c_str();
+          if (strcmp(aLED.c_str(), ledState.c_str()) != 0) {
+            shouldPublish = true;
+          }
+        }
+        ledStates[deviceMac] = ledState;
+
+        std::map<std::string, std::string>::iterator itI = illuminanceStates.find(deviceMac);
+        if (itI != illuminanceStates.end())
+        {
+          std::string illuminanceState = itI->second.c_str();
+          if (strcmp(illuminanceState.c_str(), light.c_str()) != 0) {
+            shouldPublish = true;
+          }
+        }
+        illuminanceStates[deviceMac] = light;
+
+        if (!initialScanComplete) {
+          shouldPublish = true;
+        }
+
+        if (!shouldPublish) {
+          if (shouldMQTTUpdateForDevice(deviceMac)) {
+            shouldPublish = true;
           }
         }
 
-        if (printSerialOutputForDebugging) {
-          Serial.printf("Adding %s to rescanTimes...\n", deviceMac.c_str());
+
+        if (shouldPublish) {
+          client.publish(deviceMotionTopic.c_str(), motion.c_str(), true);
+          client.publish(deviceLightTopic.c_str(), light.c_str(), true);
         }
-        rescanTimes[deviceMac] = millis();
+      }
+
+      else if (deviceName == contactName) {
+        if (aLength < 9) {
+          return false;
+        }
+
+        std::string deviceButtonTopic = contactTopic + aDevice + "/button";
+        std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+        std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
+        std::string deviceInTopic = contactTopic + aDevice + "/in";
+        std::string deviceOutTopic = contactTopic + aDevice + "/out";
+        std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
+        deviceStateTopic = contactTopic + aDevice + "/state";
+        deviceAttrTopic = contactTopic + aDevice + "/attributes";
+
+        uint8_t byte1 = (uint8_t) aValueString[1];
+        uint8_t byte2 = (uint8_t) aValueString[2];
+        uint8_t byte3 = (uint8_t) aValueString[3];
+        uint8_t byte4 = (uint8_t) aValueString[4];
+        uint8_t byte5 = (uint8_t) aValueString[5];
+        uint8_t byte6 = (uint8_t) aValueString[6];
+        uint8_t byte7 = (uint8_t) aValueString[7];
+        uint8_t byte8 = (uint8_t) aValueString[8];
+        int battLevel = (byte2 & 0b01111111);
+        doc["batt"] = battLevel;
+
+        std::string motion = (byte1 & 0b01000000) ? "MOTION" : "NO MOTION";
+        doc["motion"] = motion;
+
+        bool contactA = (byte3 & 0b00000100);
+        bool contactB = (byte3 & 0b00000010);
+        std::string contact;
+        if (!contactA && !contactB) {
+          contact = "CLOSED";
+        }
+        else if (!contactA && contactB) {
+          contact = "OPEN";
+        }
+        else if (contactA && !contactB) {
+          contact = "TIMEOUT";
+        }
+        else if (contactA && contactB) {
+          contact = "RESERVE";
+        }
+
+        doc["contact"] = contact;
+        aState = contact;
+        std::string light = (byte3 & 0b00000001) ? "BRIGHT" : "DARK";
+        doc["light"] = light;
+
+        int entranceCountA = (byte8 & 0b10000000) ? 2 : 0;
+        int entranceCountB = (byte8 & 0b01000000) ? 1 : 0;
+        int entranceCount = entranceCountA + entranceCountB;
+        doc["incount"] = entranceCount;
+
+        int outCountA = (byte8 & 0b00100000) ? 2 : 0;
+        int outCountB = (byte8 & 0b00010000) ? 1 : 0;
+        int outCount = outCountA + outCountB;
+        doc["outcount"] = outCount;
+
+        int buttonCountA = (byte8 & 0b00001000) ? 8 : 0;
+        int buttonCountB = (byte8 & 0b00000100) ? 4 : 0;
+        int buttonCountC = (byte8 & 0b00000010) ? 2 : 0;
+        int buttonCountD = (byte8 & 0b00000001) ? 1 : 0;
+        int buttonCount = buttonCountA + buttonCountB + buttonCountC + buttonCountD;
+        doc["buttoncount"] = buttonCount;
+
+        //TODO
+        //std::string lastmotion;
+        //std::string lastcontact;
+
+        std::map<std::string, std::string>::iterator itH = motionStates.find(deviceMac);
+        if (itH != motionStates.end())
+        {
+          std::string motionState = itH->second.c_str();
+          if (strcmp(motionState.c_str(), motion.c_str()) != 0) {
+            shouldPublish = true;
+          }
+
+        }
+        motionStates[deviceMac] = motion;
+
+        std::map<std::string, std::string>::iterator itC = contactStates.find(deviceMac);
+        if (itC != contactStates.end())
+        {
+          std::string contactState = itC->second.c_str();
+          if (strcmp(contactState.c_str(), contact.c_str()) != 0) {
+            shouldPublish = true;
+          }
+
+        }
+        contactStates[deviceMac] = contact;
+
+        std::map<std::string, std::string>::iterator itI = illuminanceStates.find(deviceMac);
+        if (itI != illuminanceStates.end())
+        {
+          std::string illuminanceState = itI->second.c_str();
+          if (strcmp(illuminanceState.c_str(), light.c_str()) != 0) {
+            shouldPublish = true;
+          }
+
+        }
+        illuminanceStates[deviceMac] = light;
+
+        std::map<std::string, int>::iterator itE = entranceCounts.find(deviceMac);
+        if (itE != entranceCounts.end())
+        {
+          int eCount = itE->second;
+          if (eCount != entranceCount) {
+            shouldPublish = true;
+            client.publish(deviceInTopic.c_str(), "ENTERING", false);
+          }
+        }
+        entranceCounts[deviceMac] = entranceCount;
+
+        std::map<std::string, int>::iterator itO = outCounts.find(deviceMac);
+        if (itO != outCounts.end())
+        {
+          int oCount = itO->second;
+          if (oCount != outCount) {
+            shouldPublish = true;
+            client.publish(deviceOutTopic.c_str(), "EXITING", false);
+          }
+        }
+        outCounts[deviceMac] = outCount;
+
+        std::map<std::string, int>::iterator itBu = buttonCounts.find(deviceMac);
+        if (itBu != buttonCounts.end())
+        {
+          int bCount = itBu->second;
+          if (bCount != buttonCount) {
+            shouldPublish = true;
+            client.publish(deviceButtonTopic.c_str(), "PUSHED", false);
+          }
+        }
+        buttonCounts[deviceMac] = buttonCount;
+
+        if (!initialScanComplete) {
+          shouldPublish = true;
+        }
+
+        if (!shouldPublish) {
+          if (shouldMQTTUpdateForDevice(deviceMac)) {
+            shouldPublish = true;
+          }
+        }
+
+        if (shouldPublish) {
+          client.publish(deviceMotionTopic.c_str(), motion.c_str(), true);
+          client.publish(deviceContactTopic.c_str(), contact.c_str(), true);
+          client.publish(deviceLightTopic.c_str(), light.c_str(), true);
+          client.publish(deviceInTopic.c_str(), "IDLE", false);
+          client.publish(deviceOutTopic.c_str(), "IDLE", false);
+          client.publish(deviceButtonTopic.c_str(), "IDLE", false);
+        }
 
       }
+
       else if (deviceName == curtainName) {
         if (aLength < 5) {
           return false;
         }
+
+        shouldPublish = true;
         std::string devicePosTopic = curtainTopic + aDevice + "/position";
         deviceStateTopic = curtainTopic + aDevice + "/state";
         deviceAttrTopic = curtainTopic + aDevice + "/attributes";
@@ -1256,15 +1847,6 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         doc["state"] = aState;
         doc["light"] = lightLevel;
 
-        if (home_assistant_mqtt_discovery) {
-          if (itM == discoveredDevices.end()) {
-            if (printSerialOutputForDebugging) {
-              Serial.printf("Publishing MQTT Discovery for %s (%s)\n", aDevice.c_str(), deviceMac.c_str());
-            }
-            publishHomeAssistantDiscoveryCurtainConfig(aDevice, deviceMac);
-            discoveredDevices[deviceMac] = true;
-          }
-        }
         StaticJsonDocument<50> docPos;
         docPos["pos"] = currentPosition;
         serializeJson(docPos, aBuffer);
@@ -1273,20 +1855,21 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       else {
         return false;
       }
-      if (printSerialOutputForDebugging) {
-        Serial.println("serializing");
+
+      if (shouldPublish) {
+        lastScanTimes[deviceMac] = millis();
+        serializeJson(doc, aBuffer);
+        client.publish(deviceAttrTopic.c_str(), aBuffer, true);
+        delay(50);
+        client.publish(deviceStateTopic.c_str(), aState.c_str(), true);
       }
-      serializeJson(doc, aBuffer);
-      client.publish(deviceStateTopic.c_str(), aState.c_str(), true);
-      client.publish(deviceAttrTopic.c_str(), aBuffer, true);
-      if (printSerialOutputForDebugging) {
-        Serial.println("published");
-      }
+
       return true;
     };
 };
 
 void initialScanEndedCB(NimBLEScanResults results) {
+  //pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
   if (printSerialOutputForDebugging) {
     Serial.println("initialScanEndedCB");
   }
@@ -1294,6 +1877,7 @@ void initialScanEndedCB(NimBLEScanResults results) {
     digitalWrite(LED_PIN, ledOFFValue);
   }
   initialScanComplete = true;
+  isRescanning = false;
   allSwitchbotsScanned = {};
   if (printSerialOutputForDebugging) {
     Serial.println("Scan Ended");
@@ -1446,10 +2030,11 @@ void setup () {
   static std::map<std::string, std::string> allBotsTemp = {};
   static std::map<std::string, std::string> allCurtainsTemp = {};
   static std::map<std::string, std::string> allMetersTemp = {};
-
+  static std::map<std::string, std::string> allContactSensorsTemp = {};
+  static std::map<std::string, std::string> allMotionSensorsTemp = {};
+  NimBLEDevice::init("");
   std::map<std::string, std::string>::iterator it = allBots.begin();
   std::string anAddr;
-
   while (it != allBots.end())
   {
     anAddr = it->second;
@@ -1458,6 +2043,7 @@ void setup () {
     allSwitchbots[it->first] = anAddr.c_str();
     deviceTypes[anAddr.c_str()] = botName;
     allBotsTemp[it->first] = anAddr.c_str();
+    NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr));
     it++;
   }
   allBots = allBotsTemp;
@@ -1471,6 +2057,7 @@ void setup () {
     allSwitchbots[it->first] = anAddr.c_str();
     deviceTypes[anAddr.c_str()] = curtainName;
     allCurtainsTemp[it->first] = anAddr.c_str();
+    NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr));
     it++;
   }
   allCurtains = allCurtainsTemp;
@@ -1484,9 +2071,38 @@ void setup () {
     allSwitchbots[it->first] = anAddr.c_str();
     deviceTypes[anAddr.c_str()] = meterName;
     allMetersTemp[it->first] = anAddr.c_str();
+    NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr));
     it++;
   }
   allMeters = allMetersTemp;
+
+  it = allContactSensors.begin();
+  while (it != allContactSensors.end())
+  {
+    anAddr = it->second;
+    std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+    allSwitchbotsOpp[anAddr.c_str()] = it->first;
+    allSwitchbots[it->first] = anAddr.c_str();
+    deviceTypes[anAddr.c_str()] = contactName;
+    allContactSensorsTemp[it->first] = anAddr.c_str();
+    NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr));
+    it++;
+  }
+  allContactSensors = allContactSensorsTemp;
+
+  it = allMotionSensors.begin();
+  while (it != allMotionSensors.end())
+  {
+    anAddr = it->second;
+    std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+    allSwitchbotsOpp[anAddr.c_str()] = it->first;
+    allSwitchbots[it->first] = anAddr.c_str();
+    deviceTypes[anAddr.c_str()] = motionName;
+    allMotionSensorsTemp[it->first] = anAddr.c_str();
+    NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr));
+    it++;
+  }
+  allMotionSensors = allMotionSensorsTemp;
 
   Serial.begin(115200);
   Serial.println("Switchbot ESP32 starting...");
@@ -1496,7 +2112,7 @@ void setup () {
   if (printSerialOutputForDebugging) {
     Serial.println("Starting NimBLE Client");
   }
-  NimBLEDevice::init("");
+
   NimBLEDevice::setSecurityAuth(/*BLE_SM_PAIR_AUTHREQ_BOND | BLE_SM_PAIR_AUTHREQ_MITM |*/ BLE_SM_PAIR_AUTHREQ_SC);
   NimBLEDevice::setPower(ESP_PWR_LVL_P9);
   //NimBLEDevice::setScanFilterMode(2);
@@ -1506,6 +2122,9 @@ void setup () {
   pScan->setWindow(15);
   pScan->setDuplicateFilter(false);
   pScan->setActiveScan(true);
+  //pScan->setMaxResults(20);
+  //pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
+
 }
 
 void rescan(int seconds) {
@@ -1524,6 +2143,23 @@ void rescan(int seconds) {
     digitalWrite(LED_PIN, ledONValue);
   }
   pScan->start(seconds, rescanEndedCB, true);
+}
+
+void scanForever() {
+  lastRescan = millis();
+  while (pScan->isScanning()) {
+    delay(50);
+  }
+  //allSwitchbotsScanned = {};
+  lastRescan = millis();
+  isRescanning = true;
+  delay(50);
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"scanning\"}");
+  delay(50);
+  if (ledOnScan) {
+    digitalWrite(LED_PIN, ledONValue);
+  }
+  pScan->start(0, rescanEndedCB, true);
 }
 
 void rescanFind(std::string aMac) {
@@ -1588,30 +2224,53 @@ void getAllBotSettings() {
 }
 
 void loop () {
+  vTaskDelay(10 / portTICK_PERIOD_MS);
   server.handleClient();
   client.loop();
   publishLastwillOnline();
 
-  if (isRescanning) {
-    lastRescan = millis();
+  if ((!initialScanComplete) && client.isConnected() && (!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning)) {
+    client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"scanning\"}");
+    isRescanning = true;
+    pScan->start(initialScan, initialScanEndedCB, true);
   }
-  if (!waitForResponse && !processing && !(pScan->isScanning()) && !isRescanning) {
-    if (getSettingsOnBoot && !gotSettings ) {
-      getAllBotSettings();
+
+  if (initialScanComplete && client.isConnected()) {
+    if (isRescanning) {
+      lastRescan = millis();
     }
-  }
-  if (!waitForResponse && !processing && !(pScan->isScanning()) && !isRescanning) {
-    bool queueProcessed = false;
-    queueProcessed = processQueue();
-    if (commandQueue.isEmpty() && queueProcessed && !waitForResponse && !processing && !(pScan->isScanning()) && !isRescanning) {
-      if (scanAfterControl) {
-        recurringScan();
+    if ((!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning)) {
+      if (getSettingsOnBoot && !gotSettings ) {
+        getAllBotSettings();
       }
     }
-  }
-  if (commandQueue.isEmpty() && !waitForResponse && !processing && !(pScan->isScanning()) && !isRescanning) {
-    if (autoRescan || forceRescan) {
-      recurringRescan();
+
+    if ((allContactSensors.size() + allMotionSensors.size()) != 0) {
+      if ((!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning)) {
+        bool queueProcessed = false;
+        queueProcessed = processQueue();
+      }
+      if (commandQueue.isEmpty() && (!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning)) {
+        if (!getSettingsOnBoot || (getSettingsOnBoot && gotSettings) ) {
+          startForeverScan();
+        }
+      }
+    }
+    else {
+      if ((!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning)) {
+        bool queueProcessed = false;
+        queueProcessed = processQueue();
+        if (commandQueue.isEmpty() && queueProcessed && !waitForResponse && !processing && !(pScan->isScanning()) && !isRescanning) {
+          if (scanAfterControl) {
+            recurringScan();
+          }
+        }
+      }
+      if (commandQueue.isEmpty() && (!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning)) {
+        if (autoRescan || forceRescan) {
+          recurringRescan();
+        }
+      }
     }
   }
 }
@@ -1636,6 +2295,94 @@ void recurringRescan() {
   }
 }
 
+void startForeverScan() {
+  if (isRescanning) {
+    lastRescan = millis();
+    return;
+  }
+  if (!processing && !(pScan->isScanning()) && !isRescanning) {
+    scanForever();
+  }
+}
+
+bool shouldMQTTUpdateForDevice(std::string anAddr) {
+  if (!client.isConnected()) {
+    return false;
+  }
+  std::map<std::string, std::string>::iterator itB = allSwitchbotsOpp.find(anAddr);
+  long lastScanTime = 0;
+  std::map<std::string, long>::iterator itX = lastScanTimes.find(anAddr);
+  if (itX != lastScanTimes.end())
+  {
+    lastScanTime = itX->second;
+  }
+  else
+  {
+    return true;
+  }
+
+  if ((millis() - lastScanTime) >= (rescanTime * 1000)) {
+    return true;
+  }
+
+  std::map<std::string, std::string>::iterator itM = allMeters.find(itB->second);
+  if (itM != allMeters.end())
+  {
+    if ((lastScanTime == 0 ) || ((millis() - lastScanTime) >= (defaultMeterScanSecs * 1000))) {
+      return true;
+    }
+  }
+  itM = allContactSensors.find(itB->second);
+  if (itM != allContactSensors.end())
+  {
+    if ((lastScanTime == 0 ) || ((millis() - lastScanTime) >= (defaultContactScanSecs * 1000))) {
+      return true;
+    }
+  }
+  itM = allMotionSensors.find(itB->second);
+  if (itM != allMotionSensors.end())
+  {
+    if ((lastScanTime == 0 ) || ((millis() - lastScanTime) >= (defaultMotionScanSecs * 1000))) {
+      return true;
+    }
+  }
+
+  std::map<std::string, int>::iterator itS = botScanTime.find(itB->second);
+  long lastTime;
+  std::map<std::string, long>::iterator it = rescanTimes.find(anAddr);
+  if (it != rescanTimes.end())
+  {
+    lastTime = it->second;
+  }
+  else {
+    return false;
+  }
+
+  long scanTime = defaultScanAfterControlSecs; //default if not in list
+
+  if (itS != botScanTime.end())
+  {
+    scanTime = itS->second;
+  }
+  std::map<std::string, bool>::iterator itP = botsInPressMode.find(anAddr);
+  if (itP != botsInPressMode.end())
+  {
+    std::map<std::string, int>::iterator itH = botHoldSecs.find(anAddr);
+    if (itH != botHoldSecs.end())
+    {
+      int holdTimePlus = (itH->second) + defaultScanAfterControlSecs;
+      if (holdTimePlus > scanTime) {
+        scanTime =  holdTimePlus;
+      }
+    }
+  }
+
+  if ((millis() - lastTime) >= (scanTime * 1000)) {
+    return true;
+  }
+  return false;
+}
+
 void recurringScan() {
   if ((millis() - lastScanCheck) >= 200) {
     if (!rescanTimes.empty()) {
@@ -1646,38 +2393,12 @@ void recurringScan() {
       std::string anAddr = it->first;
       while (it != rescanTimes.end())
       {
-        itB = allSwitchbotsOpp.find(anAddr);
-        itS = botScanTime.find(itB->second);
-
-        long lastTime = it->second;
-        long scanTime = defaultScanAfterControlSecs; //default if not in list
-
-        std::map<std::string, std::string>::iterator itM = allMeters.find(itB->second);
-        if (itM != allMeters.end())
-        {
-          scanTime = defaultMeterScanSecs; //default if not in list
-        }
-        if (itS != botScanTime.end())
-        {
-          scanTime = itS->second;
-        }
-        std::map<std::string, bool>::iterator itP = botsInPressMode.find(anAddr);
-        if (itP != botsInPressMode.end())
-        {
-          std::map<std::string, int>::iterator itH = botHoldSecs.find(anAddr);
-          if (itH != botHoldSecs.end())
-          {
-            int holdTimePlus = (itH->second) + defaultScanAfterControlSecs;
-            if (holdTimePlus > scanTime) {
-              scanTime =  holdTimePlus;
-            }
-          }
-        }
-
-        if ((millis() - lastTime) >= (scanTime * 1000)) {
+        bool shouldMQTTUpdate = false;
+        shouldMQTTUpdate = shouldMQTTUpdateForDevice(anAddr);
+        if (shouldMQTTUpdate) {
           if (!processing && !(pScan->isScanning()) && !isRescanning) {
             rescanFind(it->first);
-            rescanTimes.erase(it->first);
+            //rescanTimes.erase(it->first);
             delay(100);
             it = rescanTimes.begin();
           }
@@ -1735,7 +2456,7 @@ bool processRequest(std::string macAdd, std::string aName, const char * command,
   if (advDevice == nullptr)
   {
     StaticJsonDocument<100> doc;
-    char aBuffer[100];
+    //char aBuffer[100];
     doc["id"] = aName.c_str();
     doc["status"] = "errorLocatingDevice";
     serializeJson(doc, aBuffer);
@@ -2164,7 +2885,7 @@ bool sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const c
 
   if ((advDeviceToUse != nullptr) && (advDeviceToUse != NULL))
   {
-    char aBuffer[100];
+    //char aBuffer[100];
     StaticJsonDocument<100> doc;
     //    doc["id"] = aName.c_str();
     if (strcmp(command, "requestInfo") == 0 || strcmp(command, "REQUESTINFO") == 0 || strcmp(command, "GETINFO") == 0) {
@@ -2217,7 +2938,7 @@ bool sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const c
           shouldContinue = false;
           if (!lastCommandSentPublished) {
             StaticJsonDocument<100> doc;
-            char aBuffer[100];
+            //char aBuffer[100];
             doc["status"] = "commandSent";
             doc["command"] = command;
             serializeJson(doc, aBuffer);
@@ -2245,7 +2966,7 @@ bool sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const c
               if (isCurtainDevice(aDevice)) {
                 std::string devicePosTopic = deviceTopic + aDevice + "/position";
                 StaticJsonDocument<50> docPos;
-                char aBuffer[100];
+                //char aBuffer[100];
                 docPos["pos"] = aVal;
                 serializeJson(docPos, aBuffer);
                 client.publish(devicePosTopic.c_str(), aBuffer);
@@ -2334,6 +3055,22 @@ bool controlMQTT(std::string device, std::string payload, bool disconnectAfter) 
     deviceAddr = anAddr.c_str();
     deviceTopic = meterTopic;
   }
+  itS = allContactSensors.find(device.c_str());
+  if (itS != allContactSensors.end())
+  {
+    anAddr = itS->second;
+    std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+    deviceAddr = anAddr.c_str();
+    deviceTopic = contactTopic;
+  }
+  itS = allMotionSensors.find(device.c_str());
+  if (itS != allMotionSensors.end())
+  {
+    anAddr = itS->second;
+    std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+    deviceAddr = anAddr.c_str();
+    deviceTopic = motionTopic;
+  }
 
   bool diffDevice = false;
   if (lastDeviceControlled != deviceAddr) {
@@ -2374,7 +3111,7 @@ bool controlMQTT(std::string device, std::string payload, bool disconnectAfter) 
         isSuccess = processRequest(deviceAddr, device, payload.c_str(), deviceTopic, disconnectAfter);
       }
       else {
-        char aBuffer[100];
+        //char aBuffer[100];
         StaticJsonDocument<100> docOut;
         docOut["status"] = "errorJSONValue";
         serializeJson(docOut, aBuffer);
@@ -2386,7 +3123,7 @@ bool controlMQTT(std::string device, std::string payload, bool disconnectAfter) 
     }
   }
   else {
-    char aBuffer[100];
+    //char aBuffer[100];
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorJSONDevice";
     serializeJson(docOut, aBuffer);
@@ -2448,7 +3185,7 @@ void rescanMQTT(std::string payload) {
     if (printSerialOutputForDebugging) {
       Serial.println("Parsing failed");
     }
-    char aBuffer[100];
+    //char aBuffer[100];
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorParsingJSON";
     serializeJson(docOut, aBuffer);
@@ -2471,7 +3208,7 @@ void rescanMQTT(std::string payload) {
         rescan(aVal);
       }
       else {
-        char aBuffer[100];
+        //char aBuffer[100];
         StaticJsonDocument<100> docOut;
         docOut["status"] = "errorJSONValue";
         serializeJson(docOut, aBuffer);
@@ -2497,7 +3234,7 @@ void requestInfoMQTT(std::string payload) {
     if (printSerialOutputForDebugging) {
       Serial.println("Parsing failed");
     }
-    char aBuffer[100];
+    //char aBuffer[100];
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorParsingJSON";
     serializeJson(docOut, aBuffer);
@@ -2539,13 +3276,29 @@ void requestInfoMQTT(std::string payload) {
         deviceAddr = anAddr.c_str();
         deviceTopic = meterTopic;
       }
+      itS = allContactSensors.find(aName);
+      if (itS != allContactSensors.end())
+      {
+        anAddr = itS->second;
+        std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+        deviceAddr = anAddr.c_str();
+        deviceTopic = contactTopic;
+      }
+      itS = allMotionSensors.find(aName);
+      if (itS != allMotionSensors.end())
+      {
+        anAddr = itS->second;
+        std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+        deviceAddr = anAddr.c_str();
+        deviceTopic = motionTopic;
+      }
     }
     if (deviceAddr != "") {
       deviceTopic = deviceTopic + aName;
       processRequest(deviceAddr, aName, "requestInfo", deviceTopic, true);
     }
     else {
-      char aBuffer[100];
+      //char aBuffer[100];
       StaticJsonDocument<100> docOut;
       docOut["status"] = "errorJSONId";
       serializeJson(docOut, aBuffer);
@@ -2559,6 +3312,7 @@ void requestInfoMQTT(std::string payload) {
 }
 
 void onConnectionEstablished() {
+
   std::string anAddr;
   std::string aDevice;
   std::map<std::string, std::string>::iterator it;
@@ -2619,11 +3373,6 @@ void onConnectionEstablished() {
     delay(10);
   }
 
-  if (!initialScanComplete) {
-    client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"scanning\"}");
-    pScan->start(initialScan, initialScanEndedCB, true);
-  }
-
   it = allCurtains.begin();
   while (it != allCurtains.end())
   {
@@ -2633,12 +3382,14 @@ void onConnectionEstablished() {
       if (printSerialOutputForDebugging) {
         Serial.println("Control MQTT Received...");
       }
-      /* if (pScan->isScanning() || isRescanning) {
-         while (waitForDeviceCreation) {} //just so we don't overlap scanned devices and what we have stored
-         if(pScan->isScanning()){pScan->stop();}
-         allSwitchbotsScanned = {};
-         forceRescan = true;
-        }*/
+      if (pScan->isScanning() || isRescanning) {
+        if (pScan->isScanning()) {
+          pScan->stop();
+        }
+        allSwitchbotsScanned = {};
+        forceRescan = true;
+        lastScanTimes = {};
+      }
       if (!commandQueue.isFull()) {
         if (immediateCurtainStateUpdate && isCurtainDevice(aDevice)) {
           std::string deviceStateTopic = curtainTopic + aDevice + "/state";
@@ -2658,7 +3409,7 @@ void onConnectionEstablished() {
                 aVal = 100;
               }
               StaticJsonDocument<50> docPos;
-              char aBuffer[100];
+              //char aBuffer[100];
               docPos["pos"] = aVal;
               serializeJson(docPos, aBuffer);
               client.publish(devicePosTopic.c_str(), aBuffer);
@@ -2713,12 +3464,14 @@ void onConnectionEstablished() {
         }
       }
       else {
-        /*if (pScan->isScanning() || isRescanning) {
-          while (waitForDeviceCreation) {} //just so we don't overlap scanned devices and what we have stored
-          pScan->stop();
+        if (pScan->isScanning() || isRescanning) {
+          if (pScan->isScanning()) {
+            pScan->stop();
+          }
           allSwitchbotsScanned = {};
           forceRescan = true;
-          }*/
+          lastScanTimes = {};
+        }
         if (!commandQueue.isFull()) {
           if (isBotDevice(aDevice)) {
             std::map<std::string, std::string>::iterator itP = allBots.find(aDevice);
@@ -2799,10 +3552,100 @@ void onConnectionEstablished() {
       }
       bool skip = false;
       if (isRescanning) {
-        /*while (waitForDeviceCreation) {} //just so we don't overlap scanned devices and what we have stored
-          pScan->stop();
+        if (pScan->isScanning() || isRescanning) {
+          if (pScan->isScanning()) {
+            pScan->stop();
+          }
           allSwitchbotsScanned = {};
-          forceRescan = true;*/
+          forceRescan = true;
+          lastScanTimes = {};
+        }
+        if ((strcmp(payload.c_str(), "REQUESTINFO") == 0) || (strcmp(payload.c_str(), "GETINFO") == 0)) {
+          skip = true;
+        }
+      }
+      if (!skip) {
+        if (!commandQueue.isFull()) {
+          struct QueueCommand queueCommand;
+          queueCommand.payload = payload.c_str();
+          queueCommand.topic = ESPMQTTTopic + "/control";
+          queueCommand.device = aDevice;
+          queueCommand.disconnectAfter = true;
+          queueCommand.priority = false;
+          queueCommand.currentTry = 1;
+          commandQueue.enqueue(queueCommand);
+        }
+        else {
+          client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+        }
+      }
+    });
+
+    it++;
+  }
+
+  it = allContactSensors.begin();
+  while (it != allContactSensors.end())
+  {
+    std::string deviceStr ;
+    aDevice = it->first.c_str();
+    client.subscribe((contactTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
+      if (printSerialOutputForDebugging) {
+        Serial.println("Control MQTT Received...");
+      }
+      bool skip = false;
+      if (isRescanning) {
+        if (pScan->isScanning() || isRescanning) {
+          if (pScan->isScanning()) {
+            pScan->stop();
+          }
+          allSwitchbotsScanned = {};
+          forceRescan = true;
+          lastScanTimes = {};
+        }
+        if ((strcmp(payload.c_str(), "REQUESTINFO") == 0) || (strcmp(payload.c_str(), "GETINFO") == 0)) {
+          skip = true;
+        }
+      }
+      if (!skip) {
+        if (!commandQueue.isFull()) {
+          struct QueueCommand queueCommand;
+          queueCommand.payload = payload.c_str();
+          queueCommand.topic = ESPMQTTTopic + "/control";
+          queueCommand.device = aDevice;
+          queueCommand.disconnectAfter = true;
+          queueCommand.priority = false;
+          queueCommand.currentTry = 1;
+          commandQueue.enqueue(queueCommand);
+        }
+        else {
+          client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+        }
+      }
+    });
+
+    it++;
+  }
+
+  it = allMotionSensors.begin();
+  while (it != allMotionSensors.end())
+  {
+    std::string deviceStr ;
+    aDevice = it->first.c_str();
+    client.subscribe((motionTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
+      if (printSerialOutputForDebugging) {
+        Serial.println("Control MQTT Received...");
+      }
+      bool skip = false;
+      if (isRescanning) {
+        if (pScan->isScanning() || isRescanning) {
+          if (pScan->isScanning()) {
+            pScan->stop();
+          }
+          allSwitchbotsScanned = {};
+          forceRescan = true;
+          lastScanTimes = {};
+        }
         if ((strcmp(payload.c_str(), "REQUESTINFO") == 0) || (strcmp(payload.c_str(), "GETINFO") == 0)) {
           skip = true;
         }
@@ -2833,10 +3676,14 @@ void onConnectionEstablished() {
     }
     bool skip = false;
     if (isRescanning) {
-      /*while (waitForDeviceCreation) {} //just so we don't overlap scanned devices and what we have stored
-        pScan->stop();
+      if (pScan->isScanning() || isRescanning) {
+        if (pScan->isScanning()) {
+          pScan->stop();
+        }
         allSwitchbotsScanned = {};
-        forceRescan = true;*/
+        forceRescan = true;
+        lastScanTimes = {};
+      }
       skip = true;
     }
     if (!skip) {
@@ -2947,10 +3794,14 @@ void onConnectionEstablished() {
 
     bool skip = false;
     if (isRescanning) {
-      /*while (waitForDeviceCreation) {} //just so we don't overlap scanned devices and what we have stored
-        pScan->stop();
+      if (pScan->isScanning() || isRescanning) {
+        if (pScan->isScanning()) {
+          pScan->stop();
+        }
         allSwitchbotsScanned = {};
-        forceRescan = true;*/
+        forceRescan = true;
+        lastScanTimes = {};
+      }
       skip = true;
     }
     if (!skip) {
@@ -2969,6 +3820,10 @@ void onConnectionEstablished() {
       }
     }
   });
+
+  publishHomeAssistantDiscoveryESPConfig();
+  discoveredDevices = {};
+
 }
 
 bool connectToServer(NimBLEAdvertisedDevice * advDeviceToUse) {
@@ -3068,7 +3923,7 @@ bool sendBotCommandBytes(NimBLERemoteCharacteristic * pChr, byte * bArray, int a
   }
 }
 
-bool isBotDevice (std::string aDevice) {
+bool isBotDevice(std::string aDevice) {
   std::map<std::string, std::string>::iterator itS = allBots.find(aDevice);
   if (itS != allBots.end())
   {
@@ -3077,9 +3932,36 @@ bool isBotDevice (std::string aDevice) {
   return false;
 }
 
-bool isCurtainDevice (std::string aDevice) {
+bool isCurtainDevice(std::string aDevice) {
   std::map<std::string, std::string>::iterator itS = allCurtains.find(aDevice);
   if (itS != allCurtains.end())
+  {
+    return true;
+  }
+  return false;
+}
+
+bool isMeterDevice(std::string aDevice) {
+  std::map<std::string, std::string>::iterator itS = allMeters.find(aDevice);
+  if (itS != allMeters.end())
+  {
+    return true;
+  }
+  return false;
+}
+
+bool isContactDevice(std::string aDevice) {
+  std::map<std::string, std::string>::iterator itS = allContactSensors.find(aDevice);
+  if (itS != allContactSensors.end())
+  {
+    return true;
+  }
+  return false;
+}
+
+bool isMotionDevice(std::string aDevice) {
+  std::map<std::string, std::string>::iterator itS = allMotionSensors.find(aDevice);
+  if (itS != allMotionSensors.end())
   {
     return true;
   }
@@ -3512,7 +4394,7 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
     aCommand = itH->second.c_str();
   }
 
-  char aBuffer[200];
+  //char aBuffer[200];
   std::string deviceName;
   itS = deviceTypes.find(deviceMac.c_str());
   if (itS != deviceTypes.end())
@@ -3554,7 +4436,12 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       else if (byte1 == 1) {
         statDoc["status"] = "success";
         lastCommandWasBusy = false;
-      } else {
+      }
+      else if (byte1 == 6) {
+        statDoc["status"] = "lowbattery";
+        lastCommandWasBusy = false;
+      }
+      else {
         statDoc["status"] = "failed";
         lastCommandWasBusy = false;
       }
@@ -3598,7 +4485,12 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
             client.publish(deviceAssumedStateTopic.c_str(), botsSimulatedStates[aDevice] ? "ON" : "OFF", true);
           }
         }
-      } else {
+      }
+      else if (byte1 == 6) {
+        statDoc["status"] = "lowbattery";
+        lastCommandWasBusy = false;
+      }
+      else {
         statDoc["status"] = "failed";
         lastCommandWasBusy = false;
       }
@@ -3703,7 +4595,12 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       else if (byte1 == 1 || byte1 == 5) {
         statDoc["status"] = "success";
         lastCommandWasBusy = false;
-      } else {
+      }
+      else if (byte1 == 6) {
+        statDoc["status"] = "lowbattery";
+        lastCommandWasBusy = false;
+      }
+      else {
         statDoc["status"] = "failed";
         lastCommandWasBusy = false;
       }
