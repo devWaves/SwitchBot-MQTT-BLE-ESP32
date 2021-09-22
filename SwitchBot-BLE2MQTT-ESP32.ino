@@ -9,9 +9,9 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v6.0
+  v6.1
 
-    Created: on Sept 19 2021
+    Created: on Sept 21 2021
         Author: devWaves
 
         Contributions from:
@@ -491,7 +491,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v6.0";
+static const String versionNum = "v6.1";
 
 /*
    Server Index Page
