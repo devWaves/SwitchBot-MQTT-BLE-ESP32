@@ -2261,7 +2261,7 @@ void loop () {
         bool queueProcessed = false;
         queueProcessed = processQueue();
         if (commandQueue.isEmpty() && queueProcessed && !waitForResponse && !processing && !(pScan->isScanning()) && !isRescanning) {
-          if (scanAfterControl) {
+          if (scanAfterControl || (!allMeters.empty())) {
             recurringScan();
           }
         }
@@ -2385,21 +2385,24 @@ bool shouldMQTTUpdateForDevice(std::string anAddr) {
 
 void recurringScan() {
   if ((millis() - lastScanCheck) >= 200) {
+    recurringMeterScan();
     if (!rescanTimes.empty()) {
       std::map<std::string, long>::iterator it = rescanTimes.begin();
-      std::map<std::string, std::string>::iterator itB;
-      std::map<std::string, int>::iterator itS;
-
-      std::string anAddr = it->first;
+      std::string anAddr;
       while (it != rescanTimes.end())
       {
+        anAddr = it->first;
         bool shouldMQTTUpdate = false;
         shouldMQTTUpdate = shouldMQTTUpdateForDevice(anAddr);
         if (shouldMQTTUpdate) {
           if (!processing && !(pScan->isScanning()) && !isRescanning) {
-            rescanFind(it->first);
-            //rescanTimes.erase(it->first);
+            rescanFind(anAddr);
             delay(100);
+            std::map<std::string, long>::iterator itS = rescanTimes.find(anAddr);
+            if (itS != rescanTimes.end())
+            {
+              rescanTimes.erase(anAddr);
+            }
             it = rescanTimes.begin();
           }
         }
@@ -2409,6 +2412,22 @@ void recurringScan() {
       }
     }
     lastScanCheck = millis();
+  }
+}
+
+void recurringMeterScan() {
+  if (!allMeters.empty()) {
+    std::map<std::string, std::string>::iterator it = allMeters.begin();
+    std::string anAddr = it->second;
+    while (it != allMeters.end())
+    {
+      bool shouldMQTTUpdate = false;
+      shouldMQTTUpdate = shouldMQTTUpdateForDevice(anAddr);
+      if (shouldMQTTUpdate) {
+        rescanTimes[anAddr] = millis();
+      }
+      it++;
+    }
   }
 }
 
