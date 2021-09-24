@@ -9,9 +9,9 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v6.1
+  v6.2
 
-    Created: on Sept 21 2021
+    Created: on Sept 24 2021
         Author: devWaves
 
         Contributions from:
@@ -491,7 +491,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v6.1";
+static const String versionNum = "v6.2";
 
 /*
    Server Index Page
@@ -573,7 +573,7 @@ static EspMQTTClient client(
   mqtt_port
 );
 
-static const uint16_t mqtt_packet_size = 512;
+static const uint16_t mqtt_packet_size = 1024;
 static const bool home_assistant_discovery_set_up = false;
 static const std::string manufacturer = "WonderLabs SwitchBot";
 static const std::string curtainModel = "Curtain";
