@@ -9,9 +9,9 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v6.2
+  v6.3
 
-    Created: on Sept 24 2021
+    Created: on Sept 29 2021
         Author: devWaves
 
         Contributions from:
@@ -491,7 +491,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v6.2";
+static const String versionNum = "v6.3";
 
 /*
    Server Index Page
@@ -857,6 +857,7 @@ void publishHomeAssistantDiscoveryCurtainConfig(std::string deviceName, std::str
                  + "\"stat_t\":\"~/state\", " +
                  + "\"stat_open\": \"OPEN\", " +
                  + "\"stat_clsd\": \"CLOSE\", " +
+                 + "\"stat_stopped\": \"PAUSE\", " +
                  + "\"pl_stop\":\"PAUSE\", " +
                  + "\"pos_open\": 100, " +
                  + "\"pos_clsd\": 0, " +
