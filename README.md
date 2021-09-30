@@ -4,18 +4,22 @@ Switchbot local control using ESP32. no switchbot hub used/required. works with 
 
 https://github.com/devWaves/SwitchBot-MQTT-BLE-ESP32
 
-Code can be installed using Arduino IDE for ESP32
-Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
-  ** I do not know where performance will be affected by number of devices
-  ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
+v6.4
 
-v6.3
-
-Created: on Sept 29 2021
+Created: on Sept 30 2021
   Author: devWaves
   
   Contributions from:
   	HardcoreWR
+	
+Code can be installed using Arduino IDE OR using Visual Studio Code PlatformIO
+- For Arduino IDE - Use only the SwitchBot-BLE2MQTT-ESP32.ino file
+- For Visual Studio Code PlatformIO - Use the src/SwitchBot-BLE2MQTT-ESP32.cpp and platformio.ini files
+	
+Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
+- I do not know where performance will be affected by number of devices
+- This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code**
+
 
 based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
@@ -299,7 +303,7 @@ Notes:
       - <ESPMQTTTopic>
 <br>
 <br>
-<h3>Steps to Install on ESP32</h3>
+<h3>Steps to Install on ESP32 - Using Arduino IDE</h3>
 
 1. Install Arduino IDE
 2. Setup IDE for proper ESP32 type
@@ -324,3 +328,31 @@ Notes:
 	```
 10. Compile and upload to ESP32 (I am using Wemos D1 Mini ESP32)
 11. Reboot ESP32 plug it in with 5v usb (no data needed)
+
+
+<br>
+<br>
+<h3>Steps to Install on ESP32 - Using Visual Studio Code - PlatformIO</h3>
+
+1. Install Visual Studio Code
+2. Add the PlatformIO extension to VSCode
+3. Open SwitchBot-BLE2MQTT-ESP32 project from PlatformIO
+4. Modify SwitchBot-BLE2MQTT-ESP32.cpp code for your Wifi and MQTT configurations and SwitchBot MAC addresses
+
+	Configurations to change can be found in the code under these line...
+	```
+	/****************** CONFIGURATIONS TO CHANGE *******************/
+
+	/********** REQUIRED SETTINGS TO CHANGE **********/
+	```
+
+	Stop when you see this line...
+	```
+	/********** ADVANCED SETTINGS - ONLY NEED TO CHANGE IF YOU WANT TO TWEAK SETTINGS **********/
+	```
+5. Choose your ESP32 board type and Upload to ESP32
+
+![image](https://user-images.githubusercontent.com/79881052/135519310-3a474d84-dac4-44f7-8061-259f0322c291.png)
+<br>
+<br>
+6. Reboot ESP32 plug it in with 5v usb (no data needed)
