@@ -362,8 +362,14 @@ Notes:
 <br>
 ## Videos and Tutorials on Youtube ##
 
-by KPeyanski (Language English. based on v6.4. Home Assistant) = https://www.youtube.com/watch?v=ZskFhma8atc
+by KPeyanski (Language English. based on v6.4. Home Assistant)
 <br>
-by CTech&Media (Language German. based on v1.5. Home Assistant) = https://www.youtube.com/watch?v=HiBZb-IAbD8
+&nbsp;&nbsp;&nbsp;https://www.youtube.com/watch?v=ZskFhma8atc
 <br>
-by BangerTech (Language German. based on v6.1. OpenHab) = https://www.youtube.com/watch?v=TmtCwZbDJIU
+by CTech&Media (Language German. based on v1.5. Home Assistant)
+<br>
+&nbsp;&nbsp;&nbsp;https://www.youtube.com/watch?v=HiBZb-IAbD8
+<br>
+by BangerTech (Language German. based on v6.1. OpenHab)
+<br>
+&nbsp;&nbsp;&nbsp;https://www.youtube.com/watch?v=TmtCwZbDJIU
