@@ -1,4 +1,4 @@
-**SwitchBot-MQTT-BLE-ESP32**
+## SwitchBot-MQTT-BLE-ESP32 ##
 
 Switchbot local control using ESP32. no switchbot hub used/required. works with any smarthub that supports MQTT
 
@@ -224,8 +224,8 @@ Notes:
                           - {"status":"success", "value":1, "command":"5"}
                           - {"status":"success", "value":5, "command":"5"}
                           - {"status":"success", "command":"REQUESTSETTINGS"}
-
- **ESP32 will Subscribe to MQTT topic to holdPress on bots. holdPress = set bot hold value, then call press on bot without disconnecting in between **
+			  
+  **ESP32 will Subscribe to MQTT topic to holdPress on bots. holdPress = set bot hold value, then call press on bot without disconnecting in between**
   
       - <ESPMQTTTopic>/holdPress
 
@@ -301,9 +301,11 @@ Notes:
   **Errors that cannot be linked to a specific device will be published to**
   
       - <ESPMQTTTopic>
+      
 <br>
 <br>
-<h3>Steps to Install on ESP32 - Using Arduino IDE</h3>
+
+## Steps to Install on ESP32 - Using Arduino IDE ##
 
 1. Install Arduino IDE
 2. Setup IDE for proper ESP32 type
@@ -329,10 +331,10 @@ Notes:
 10. Compile and upload to ESP32 (I am using Wemos D1 Mini ESP32)
 11. Reboot ESP32 plug it in with 5v usb (no data needed)
 
+<br>
+<br>
 
-<br>
-<br>
-<h3>Steps to Install on ESP32 - Using Visual Studio Code - PlatformIO</h3>
+## Steps to Install on ESP32 - Using Visual Studio Code - PlatformIO ##
 
 1. Install Visual Studio Code
 2. Add the PlatformIO extension to VSCode
@@ -356,3 +358,12 @@ Notes:
 <br>
 <br>
 6. Reboot ESP32 plug it in with 5v usb (no data needed)
+<br>
+<br>
+## Videos and Tutorials on Youtube ##
+
+by KPeyanski (Language English. based on v6.4. Home Assistant) = https://www.youtube.com/watch?v=ZskFhma8atc
+<br>
+by CTech&Media (Language German. based on v1.5. Home Assistant) = https://www.youtube.com/watch?v=HiBZb-IAbD8
+<br>
+by BangerTech (Language German. based on v6.1. OpenHab) = https://www.youtube.com/watch?v=TmtCwZbDJIU
