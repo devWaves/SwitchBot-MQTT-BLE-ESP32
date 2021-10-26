@@ -356,3 +356,13 @@ Notes:
 <br>
 <br>
 6. Reboot ESP32 plug it in with 5v usb (no data needed)
+<br>
+<br>
+### Guides, Tutorials & Videos about SwitchBot-MQTT-BLE-ESP32 
+
+ _by [KPeyanski](https://www.youtube.com/channel/UCiyU6otsAn6v2NbbtM85npg)_
+
+ <a href="https://youtu.be/ZskFhma8atc" target="_blank" title="Home Assistant SwitchBot MQTT integration using D1 mini ESP32 | SwitchBot Motion & Contact Sensors">
+     <img src="https://img.youtube.com/vi/ZskFhma8atc/0.jpg" />
+ </a>
+
