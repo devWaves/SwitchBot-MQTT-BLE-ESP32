@@ -5,15 +5,15 @@
   **does not use/require switchbot hub
 
   Code can be installed using Arduino IDE OR using Visual Studio Code PlatformIO
-  	-For Arduino IDE - Use only the SwitchBot-BLE2MQTT-ESP32.ino file
-	-For Visual Studio Code PlatformIO - Use the src/SwitchBot-BLE2MQTT-ESP32.cpp and platformio.ini files
+    -For Arduino IDE - Use only the SwitchBot-BLE2MQTT-ESP32.ino file
+  -For Visual Studio Code PlatformIO - Use the src/SwitchBot-BLE2MQTT-ESP32.cpp and platformio.ini files
   Allows for "unlimited" switchbots devices to be controlled via MQTT sent to ESP32. ESP32 will send BLE commands to switchbots and return MQTT responses to the broker
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v6.4
+  v6.4-Alexa-alpha
 
-    Created: on Sept 30 2021
+    Created: on Nov 11 2021
         Author: devWaves
 
         Contributions from:
@@ -61,8 +61,8 @@
     - Set/Control is prioritized over scanning. While scanning, if a set/control command is received scanning is stopped and resumed later
 
     - ESP32 can simulate ON/OFF for devices when bot is in PRESS mode. (Cannot guarantee it will always be accurate)
-	
-	- If you only have bots/curtain/meters the ESP32 will only scan when needed and requested. If you include motion or contact sensors the ESP32 will scan all the time
+
+  - If you only have bots/curtain/meters the ESP32 will only scan when needed and requested. If you include motion or contact sensors the ESP32 will scan all the time
 
 
   <ESPMQTTTopic> = <mqtt_main_topic>/<host>
@@ -158,15 +158,15 @@
                           - {"rssi":-78,"mode":"Press","state":"OFF","batt":94}
                           - {"rssi":-66,"calib":true,"batt":55,"pos":50,"state":"open","light":1}
                           - {"rssi":-66,"scale":"c","batt":55,"C":"21.5","F":"70.7","hum":"65"}
-						  - {"rssi":-77,"batt":89,"motion":"NO MOTION","led":"OFF","sensedistance":"LONG","light":"DARK"}
-						  - {"rssi":-76,"batt":91,"motion":"NO MOTION","contact":"CLOSED","light":"DARK","incount":1,"outcount":3,"buttoncount":4}
+              - {"rssi":-77,"batt":89,"motion":"NO MOTION","led":"OFF","sensedistance":"LONG","light":"DARK"}
+              - {"rssi":-76,"batt":91,"motion":"NO MOTION","contact":"CLOSED","light":"DARK","incount":1,"outcount":3,"buttoncount":4}
 
                         Example attribute responses per device are detected:
                           - <ESPMQTTTopic>/bot/<name>/state
                           - <ESPMQTTTopic>/curtain/<name>/state
                           - <ESPMQTTTopic>/meter/<name>/state
-						  - <ESPMQTTTopic>/contact/<name>/state            (contact sensor has motion and contact. state = contact)
-						  - <ESPMQTTTopic>/motion/<name>/state
+              - <ESPMQTTTopic>/contact/<name>/state            (contact sensor has motion and contact. state = contact)
+              - <ESPMQTTTopic>/motion/<name>/state
 
                         Example payload:
                           - "ON"
@@ -181,20 +181,20 @@
                           - {"pos":0}
                           - {"pos":100}
                           - {"pos":50}
-						  
-						Example topic responses specific to motion/contact sensors:
-                          - <ESPMQTTTopic>/motion/<name>/motion						Example response payload: "MOTION", "NO MOTION"
-						  - <ESPMQTTTopic>/motion/<name>/illuminance				Example response payload: "LIGHT", "DARK"
-						  - <ESPMQTTTopic>/contact/<name>/contact					Example response payload: "OPEN", "CLOSED"
-						  - <ESPMQTTTopic>/contact/<name>/motion					Example response payload: "MOTION", "NO MOTION"
-						  - <ESPMQTTTopic>/contact/<name>/illuminance				Example response payload: "LIGHT", "DARK"
-						  - <ESPMQTTTopic>/contact/<name>/in						Example response payload: "IDLE", "ENTERED"
-						  - <ESPMQTTTopic>/contact/<name>/out						Example response payload: "IDLE", "EXITED"
-						  - <ESPMQTTTopic>/contact/<name>/button                   	Example response payload: "IDLE", "PUSHED" 
 
-									Note: 	You can use the button on the contact sensor to trigger other non-switchbot devices from your smarthub
-											When <ESPMQTTTopic>/contact/<name>/button = "PUSHED"
-						  
+            Example topic responses specific to motion/contact sensors:
+                          - <ESPMQTTTopic>/motion/<name>/motion           Example response payload: "MOTION", "NO MOTION"
+              - <ESPMQTTTopic>/motion/<name>/illuminance        Example response payload: "LIGHT", "DARK"
+              - <ESPMQTTTopic>/contact/<name>/contact         Example response payload: "OPEN", "CLOSED"
+              - <ESPMQTTTopic>/contact/<name>/motion          Example response payload: "MOTION", "NO MOTION"
+              - <ESPMQTTTopic>/contact/<name>/illuminance       Example response payload: "LIGHT", "DARK"
+              - <ESPMQTTTopic>/contact/<name>/in            Example response payload: "IDLE", "ENTERED"
+              - <ESPMQTTTopic>/contact/<name>/out           Example response payload: "IDLE", "EXITED"
+              - <ESPMQTTTopic>/contact/<name>/button                    Example response payload: "IDLE", "PUSHED"
+
+                  Note:   You can use the button on the contact sensor to trigger other non-switchbot devices from your smarthub
+                      When <ESPMQTTTopic>/contact/<name>/button = "PUSHED"
+
 
   // REQUESTSETTINGS WORKS FOR BOT ONLY - DOCUMENTATION NOT AVAILABLE ONLINE FOR CURTAIN
   ESP32 will Subscribe to MQTT topic for device settings information (requires getBotResponse = true)
@@ -320,15 +320,18 @@
 */
 
 #include <NimBLEDevice.h>
-#include <EspMQTTClient.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
 #include <WiFiClient.h>
+#include <EspMQTTClient.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <Update.h>
 #include <CRC32.h>
 #include <ArduinoQueue.h>
+#include <fauxmoESP.h>
+
+fauxmoESP fauxmo;
 
 /****************** CONFIGURATIONS TO CHANGE *******************/
 
@@ -384,32 +387,31 @@ static std::map<std::string, std::string> allPasswords = {     // Set all the bo
     { "switchbottwo", "switchbottwoPassword" }*/
 };
 
-      /*** Bots in PRESS mode to simulate ON/OFF - ESP32 will try to keep track of the ON/OFF state of your device while in PRESS mode***/
-      // Add bots while in PRESS mode that will simulate ON/OFF. Default state will be used if no MQTT retained on state topic
-      // false = default state = OFF
-      // true = default state = ON
-      // If the state is incorrect, call set STATEOFF or STATEON
-      static std::map<std::string, bool> botsSimulateONOFFinPRESSmode = {
-        /*{ "switchbotone", false },
-          { "switchbottwo", false }*/
-      };
+/*** Bots in PRESS mode to simulate ON/OFF - ESP32 will try to keep track of the ON/OFF state of your device while in PRESS mode***/
+// Add bots while in PRESS mode that will simulate ON/OFF. Default state will be used if no MQTT retained on state topic
+// false = default state = OFF
+// true = default state = ON
+// If the state is incorrect, call set STATEOFF or STATEON
+static std::map<std::string, bool> botsSimulateONOFFinPRESSmode = {
+  /*{ "switchbotone", false },
+    { "switchbottwo", false }*/
+};
 
-      //Add bots OFF hold time for simulated ON/OFF, if not in list, the current hold value will be used. Device must be in botsSimulateONOFFinPRESSmode list
-      static std::map<std::string, int> botsSimulatedOFFHoldTimes = {
-        /*{ "switchbotone", 0 },
-          { "switchbottwo", 10 }*/
-      };
+//Add bots OFF hold time for simulated ON/OFF, if not in list, the current hold value will be used. Device must be in botsSimulateONOFFinPRESSmode list
+static std::map<std::string, int> botsSimulatedOFFHoldTimes = {
+  /*{ "switchbotone", 0 },
+    { "switchbottwo", 10 }*/
+};
 
-      //Add bots ON hold time for simulated ON/OFF, if not in list, the current hold value will be used. Device must be in botsSimulateONOFFinPRESSmode list
-      static std::map<std::string, int> botsSimulatedONHoldTimes = {
-        /*{ "switchbotone", 15 },
-          { "switchbottwo", 1}*/
-      };
-      /********************************************/
+//Add bots ON hold time for simulated ON/OFF, if not in list, the current hold value will be used. Device must be in botsSimulateONOFFinPRESSmode list
+static std::map<std::string, int> botsSimulatedONHoldTimes = {
+  /*{ "switchbotone", 15 },
+    { "switchbottwo", 1}*/
+};
+/********************************************/
 
 
 /********** ADVANCED SETTINGS - ONLY NEED TO CHANGE IF YOU WANT TO TWEAK SETTINGS **********/
-
 
 /* ESP32 LED Settings */
 #define LED_PIN LED_BUILTIN                          // If your board doesn't have a defined LED_BUILTIN (You will get a compile error), comment this line out
@@ -423,7 +425,7 @@ static const bool ledOnCommand = true;               // Turn on LED while MQTT c
 static const bool useLoginScreen = false;            //  use a basic login popup to avoid unwanted access
 static const String otaUserId = "admin";             //  user Id for OTA update. Ignore if useLoginScreen = false
 static const String otaPass = "admin";               //  password for OTA update. Ignore if useLoginScreen = false
-static WebServer server(80);                         //  default port 80
+static WebServer server(599);                         //  default port 80
 
 /* Home Assistant Settings */
 static const bool home_assistant_mqtt_discovery = true;                    // Enable to publish Home Assistant MQTT Discovery config
@@ -493,7 +495,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v6.4";
+static const String versionNum = "v6.4-Alexa-alpha";
 
 /*
    Server Index Page
@@ -1203,6 +1205,16 @@ class ClientCallbacks : public NimBLEClientCallbacks {
     };
 };
 
+void publishState(std::string aDevice, std::string stateTopic,  std::string aState, bool retain) {
+  client.publish(stateTopic.c_str(), aState.c_str(), retain);
+  if ((strcmp(aState.c_str(), "ON") == 0) || (strcmp(aState.c_str(), "OPEN") == 0)) {
+    fauxmo.setState(aDevice.c_str(), true, 255);
+  }
+  else if ((strcmp(aState.c_str(), "OFF") == 0) || (strcmp(aState.c_str(), "CLOSE") == 0)) {
+    fauxmo.setState(aDevice.c_str(), false, 0);
+  }
+}
+
 bool unsubscribeToNotify(NimBLEClient* pClient) {
   NimBLERemoteService* pSvc = nullptr;
   NimBLERemoteCharacteristic* pChr = nullptr;
@@ -1453,7 +1465,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         NimBLEDevice::getScan()->stop();
       }
     };
-  
+
     bool callForInfoAdvDev(std::string deviceMac, long anRSSI,  std::string aValueString) {
       if (printSerialOutputForDebugging) {
         Serial.println("callForInfoAdvDev");
@@ -1886,7 +1898,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         serializeJson(doc, aBuffer);
         client.publish(deviceAttrTopic.c_str(), aBuffer, true);
         delay(50);
-        client.publish(deviceStateTopic.c_str(), aState.c_str(), true);
+        publishState(aDevice, deviceStateTopic.c_str(), aState.c_str(), true);
       }
 
       return true;
@@ -2062,6 +2074,7 @@ void setup () {
   std::string anAddr;
   while (it != allBots.end())
   {
+    const char * theDevice = (it->first).c_str();
     anAddr = it->second;
     std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
     allSwitchbotsOpp[anAddr.c_str()] = it->first;
@@ -2069,6 +2082,7 @@ void setup () {
     deviceTypes[anAddr.c_str()] = botName;
     allBotsTemp[it->first] = anAddr.c_str();
     NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr));
+    fauxmo.addDevice(theDevice);
     it++;
   }
   allBots = allBotsTemp;
@@ -2076,6 +2090,7 @@ void setup () {
   it = allCurtains.begin();
   while (it != allCurtains.end())
   {
+    const char * theDevice = (it->first).c_str();
     anAddr = it->second;
     std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
     allSwitchbotsOpp[anAddr.c_str()] = it->first;
@@ -2083,6 +2098,7 @@ void setup () {
     deviceTypes[anAddr.c_str()] = curtainName;
     allCurtainsTemp[it->first] = anAddr.c_str();
     NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr));
+    fauxmo.addDevice(theDevice);
     it++;
   }
   allCurtains = allCurtainsTemp;
@@ -2150,6 +2166,35 @@ void setup () {
   //pScan->setMaxResults(20);
   //pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
 
+  // By default, fauxmoESP creates it's own webserver on the defined port
+  // The TCP port must be 80 for gen3 devices (default is 1901)
+  // This has to be done before the call to enable()
+  fauxmo.createServer(true); // not needed, this is the default value
+  fauxmo.setPort(80);
+  fauxmo.onSetState([](unsigned char device_id, const char * device_name, bool state, unsigned char value) {
+    if (isBotDevice(device_name))
+    {
+      if (state) {
+        callONOFFForBot(device_name, "ON");
+      }
+      else if (!state) {
+        callONOFFForBot(device_name, "OFF");
+      }
+      //else if(value<=0){callONOFFForBot(device_name,"OFF");}
+      //else if(value>0){callONOFFForBot(device_name,"ON");}
+    }
+    else if (isCurtainDevice(device_name)) {
+      //if(value>0){callONOFFForCurtain(device_name,value);}
+      if (state) {
+        callONOFFForCurtain(device_name, "OPEN");
+      }
+      else if (!state) {
+        callONOFFForCurtain(device_name, "CLOSE");
+      }
+    }
+  });
+
+  fauxmo.enable(true);
 }
 
 void rescan(int seconds) {
@@ -2248,12 +2293,7 @@ void getAllBotSettings() {
   }
 }
 
-void loop () {
-  vTaskDelay(10 / portTICK_PERIOD_MS);
-  server.handleClient();
-  client.loop();
-  publishLastwillOnline();
-
+void processLoop() {
   if ((!initialScanComplete) && client.isConnected() && (!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning)) {
     client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"scanning\"}");
     isRescanning = true;
@@ -2298,6 +2338,16 @@ void loop () {
       }
     }
   }
+}
+
+void loop () {
+  vTaskDelay(10 / portTICK_PERIOD_MS);
+  server.handleClient();
+  client.loop();
+  publishLastwillOnline();
+  processLoop();
+  fauxmo.handle();
+
 }
 
 void recurringRescan() {
@@ -2655,7 +2705,8 @@ bool processQueue() {
                       boolState = itF->second;
                       if (boolState && (strcmp(aCommand.payload.c_str(), "ON") == 0)) {
                         skipProcess = true;
-                        client.publish(deviceStateTopic.c_str(), "ON", true);
+                        publishState(aCommand.device, deviceStateTopic.c_str(), "ON", true);
+                        //client.publish(deviceStateTopic.c_str(), "ON", true);
                         std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
                         if (itP != botsToWaitFor.end())
                         {
@@ -2664,7 +2715,8 @@ bool processQueue() {
                       }
                       else if (!boolState && (strcmp(aCommand.payload.c_str(), "OFF") == 0)) {
                         skipProcess = true;
-                        client.publish(deviceStateTopic.c_str(), "OFF", true);
+                        publishState(aCommand.device, deviceStateTopic.c_str(), "OFF", true);
+                        //client.publish(deviceStateTopic.c_str(), "OFF", true);
                         std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
                         if (itP != botsToWaitFor.end())
                         {
@@ -2719,22 +2771,26 @@ bool processQueue() {
                       if ((strcmp(aCommand.payload.c_str(), "ON") == 0) || (strcmp(aCommand.payload.c_str(), "OFF") == 0)) {
                         if (strcmp(aCommand.payload.c_str(), "OFF") == 0) {
                           botsSimulatedStates[aCommand.device] = false;
-                          client.publish(deviceStateTopic.c_str(), "OFF", true);
+                          publishState(aCommand.device, deviceStateTopic.c_str(), "OFF", true);
+                          //client.publish(deviceStateTopic.c_str(), "OFF", true);
                           client.publish(deviceAssumedStateTopic.c_str(), "OFF", true);
                         }
                         else if (strcmp(aCommand.payload.c_str(), "ON") == 0) {
                           botsSimulatedStates[aCommand.device] = true;
-                          client.publish(deviceStateTopic.c_str(), "ON", true);
+                          publishState(aCommand.device, deviceStateTopic.c_str(), "ON", true);
+                          //client.publish(deviceStateTopic.c_str(), "ON", true);
                           client.publish(deviceAssumedStateTopic.c_str(), "ON", true);
                         }
                         else if (strcmp(aCommand.payload.c_str(), "PRESS") == 0) {
                           botsSimulatedStates[aCommand.device] = !(botsSimulatedStates[aCommand.device]);
                           if (botsSimulatedStates[aCommand.device]) {
-                            client.publish(deviceStateTopic.c_str(), "ON", true);
+                            publishState(aCommand.device, deviceStateTopic.c_str(), "ON", true);
+                            //client.publish(deviceStateTopic.c_str(), "ON", true);
                             client.publish(deviceAssumedStateTopic.c_str(), "ON", true);
                           }
                           else {
-                            client.publish(deviceStateTopic.c_str(), "OFF", true);
+                            publishState(aCommand.device, deviceStateTopic.c_str(), "OFF", true);
+                            //client.publish(deviceStateTopic.c_str(), "OFF", true);
                             client.publish(deviceAssumedStateTopic.c_str(), "OFF", true);
                           }
                         }
@@ -2856,10 +2912,12 @@ bool processQueue() {
               {
                 bool boolState = itF->second;
                 if (boolState && (strcmp(aCommand.payload.c_str(), "OFF") == 0))  {
-                  client.publish(deviceStateTopic.c_str(), "ON", true);
+                  publishState(aCommand.device, deviceStateTopic.c_str(), "ON", true);
+                  //client.publish(deviceStateTopic.c_str(), "ON", true);
                 }
                 else if (!boolState && (strcmp(aCommand.payload.c_str(), "ON") == 0)) {
-                  client.publish(deviceStateTopic.c_str(), "OFF", true);
+                  publishState(aCommand.device, deviceStateTopic.c_str(), "OFF", true);
+                  //client.publish(deviceStateTopic.c_str(), "OFF", true);
                 }
               }
             }
@@ -3021,10 +3079,12 @@ bool sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string aName, const c
               std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
               if (itP != botsInPressMode.end() && itE == botsSimulateONOFFinPRESSmode.end())
               {
-                client.publish(deviceStateTopic.c_str(), "OFF", true);
+                publishState(aDevice, deviceStateTopic.c_str(), "OFF", true);
+                //client.publish(deviceStateTopic.c_str(), "OFF", true);
               }
               else {
-                client.publish(deviceStateTopic.c_str(), command, true);
+                publishState(aDevice, deviceStateTopic.c_str(), command, true);
+                //client.publish(deviceStateTopic.c_str(), command, true);
               }
             }
             if (scanAfterControl && scanAfterNum) {
@@ -3355,6 +3415,171 @@ void requestInfoMQTT(std::string payload) {
   processing = false;
 }
 
+
+void callONOFFForCurtain(std::string aDevice, const String & payload) {
+
+  if (printSerialOutputForDebugging) {
+    Serial.println("Control MQTT Received...");
+  }
+  if (pScan->isScanning() || isRescanning) {
+    if (pScan->isScanning()) {
+      pScan->stop();
+    }
+    allSwitchbotsScanned = {};
+    forceRescan = true;
+    lastScanTimes = {};
+  }
+  if (!commandQueue.isFull()) {
+    if (immediateCurtainStateUpdate && isCurtainDevice(aDevice)) {
+      std::string deviceStateTopic = curtainTopic + aDevice + "/state";
+      std::string devicePosTopic = curtainTopic + aDevice + "/position";
+      std::map<std::string, std::string>::iterator itP = allCurtains.find(aDevice);
+      if (itP != allCurtains.end())
+      {
+        std::string aMac = itP->second.c_str();
+        bool isNum = is_number(payload.c_str());
+        if (isNum) {
+          int aVal;
+          sscanf(payload.c_str(), "%d", &aVal);
+          if (aVal < 0) {
+            aVal = 0;
+          }
+          else if (aVal > 100) {
+            aVal = 100;
+          }
+          StaticJsonDocument<50> docPos;
+          //char aBuffer[100];
+          docPos["pos"] = aVal;
+          serializeJson(docPos, aBuffer);
+          client.publish(devicePosTopic.c_str(), aBuffer);
+        }
+        else if ((strcmp(payload.c_str(), "OPEN") == 0))  {
+          publishState(aDevice, deviceStateTopic.c_str(), "OPEN", true);
+          //client.publish(deviceStateTopic.c_str(), "OPEN", true);
+        } else if ((strcmp(payload.c_str(), "CLOSE") == 0))  {
+          publishState(aDevice, deviceStateTopic.c_str(), "CLOSE", true);
+          //client.publish(deviceStateTopic.c_str(), "CLOSE", true);
+        } else if ((strcmp(payload.c_str(), "PAUSE") == 0)) {
+          publishState(aDevice, deviceStateTopic.c_str(), "PAUSE", true);
+          //client.publish(deviceStateTopic.c_str(), "PAUSE", true);
+        }
+      }
+    }
+    struct QueueCommand queueCommand;
+    queueCommand.payload = payload.c_str();
+    queueCommand.topic = ESPMQTTTopic + "/control";
+    queueCommand.device = aDevice;
+    queueCommand.disconnectAfter = true;
+    queueCommand.priority = false;
+    queueCommand.currentTry = 1;
+    commandQueue.enqueue(queueCommand);
+  }
+  else {
+    client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+  }
+
+
+}
+
+void callONOFFForBot(std::string aDevice, const String & payload)
+{
+  if (printSerialOutputForDebugging) {
+    Serial.println("Control MQTT Received...");
+  }
+
+  std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
+  std::string deviceStateTopic = botTopic + aDevice + "/state";
+  if (itE != botsSimulateONOFFinPRESSmode.end() && ((strcmp(payload.c_str(), "STATEOFF") == 0) || (strcmp(payload.c_str(), "STATEON") == 0))) {
+    if (strcmp(payload.c_str(), "STATEOFF") == 0) {
+      botsSimulatedStates[aDevice] = false;
+      publishState(aDevice, deviceStateTopic.c_str(), "OFF", true);
+      //client.publish(deviceStateTopic.c_str(), "OFF", true);
+    }
+    else if (strcmp(payload.c_str(), "STATEON") == 0) {
+      botsSimulatedStates[aDevice] = true;
+      publishState(aDevice, deviceStateTopic.c_str(), "ON", true);
+      //client.publish(deviceStateTopic.c_str(), "ON", true);
+    }
+  }
+  else {
+    if (pScan->isScanning() || isRescanning) {
+      if (pScan->isScanning()) {
+        pScan->stop();
+      }
+      allSwitchbotsScanned = {};
+      forceRescan = true;
+      lastScanTimes = {};
+    }
+    if (!commandQueue.isFull()) {
+      if (isBotDevice(aDevice)) {
+        std::map<std::string, std::string>::iterator itP = allBots.find(aDevice);
+        if (itP != allBots.end())
+        {
+          std::string aMac = itP->second.c_str();
+          std::map<std::string, bool>::iterator itZ = botsInPressMode.find(aMac);
+          std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
+          if (immediateBotStateUpdate) {
+            if (itZ != botsInPressMode.end() && itE == botsSimulateONOFFinPRESSmode.end())
+            {
+              publishState(aDevice, deviceStateTopic.c_str(), "OFF", true);
+              //client.publish(deviceStateTopic.c_str(), "OFF", true);
+            }
+            else {
+              if ((strcmp(payload.c_str(), "OFF") == 0)) {
+                publishState(aDevice, deviceStateTopic.c_str(), "OFF", true);
+                //client.publish(deviceStateTopic.c_str(), "OFF", true);
+              } else if ((strcmp(payload.c_str(), "ON") == 0)) {
+                publishState(aDevice, deviceStateTopic.c_str(), "ON", true);
+                //client.publish(deviceStateTopic.c_str(), "ON", true);
+              }
+            }
+          }
+
+          int aHold = -1;
+          std::string commandString = "";
+          if (itE != botsSimulateONOFFinPRESSmode.end())
+          {
+            if (strcmp(payload.c_str(), "OFF") == 0) {
+              commandString = "OFF";
+              std::map<std::string, int>::iterator itI = botsSimulatedOFFHoldTimes.find(aDevice);
+              if (itI != botsSimulatedOFFHoldTimes.end())
+              {
+                aHold = itI->second;
+              }
+            }
+
+            else if (strcmp(payload.c_str(), "ON") == 0) {
+              commandString = "ON";
+              std::map<std::string, int>::iterator itI = botsSimulatedONHoldTimes.find(aDevice);
+              if (itI != botsSimulatedONHoldTimes.end())
+              {
+                aHold = itI->second;
+              }
+            }
+          }
+          if (aHold >= 0) {
+            performHoldPressSequence(aDevice, commandString, aHold);
+          }
+          else {
+            struct QueueCommand queueCommand;
+            queueCommand.payload = payload.c_str();
+            queueCommand.topic = ESPMQTTTopic + "/control";
+            queueCommand.device = aDevice;
+            queueCommand.disconnectAfter = true;
+            queueCommand.priority = false;
+            queueCommand.currentTry = 1;
+            commandQueue.enqueue(queueCommand);
+          }
+        }
+      }
+    }
+    else {
+      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+    }
+  }
+
+}
+
 void onConnectionEstablished() {
 
   std::string anAddr;
@@ -3423,62 +3648,7 @@ void onConnectionEstablished() {
     std::string deviceStr ;
     aDevice = it->first.c_str();
     client.subscribe((curtainTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
-      if (printSerialOutputForDebugging) {
-        Serial.println("Control MQTT Received...");
-      }
-      if (pScan->isScanning() || isRescanning) {
-        if (pScan->isScanning()) {
-          pScan->stop();
-        }
-        allSwitchbotsScanned = {};
-        forceRescan = true;
-        lastScanTimes = {};
-      }
-      if (!commandQueue.isFull()) {
-        if (immediateCurtainStateUpdate && isCurtainDevice(aDevice)) {
-          std::string deviceStateTopic = curtainTopic + aDevice + "/state";
-          std::string devicePosTopic = curtainTopic + aDevice + "/position";
-          std::map<std::string, std::string>::iterator itP = allCurtains.find(aDevice);
-          if (itP != allCurtains.end())
-          {
-            std::string aMac = itP->second.c_str();
-            bool isNum = is_number(payload.c_str());
-            if (isNum) {
-              int aVal;
-              sscanf(payload.c_str(), "%d", &aVal);
-              if (aVal < 0) {
-                aVal = 0;
-              }
-              else if (aVal > 100) {
-                aVal = 100;
-              }
-              StaticJsonDocument<50> docPos;
-              //char aBuffer[100];
-              docPos["pos"] = aVal;
-              serializeJson(docPos, aBuffer);
-              client.publish(devicePosTopic.c_str(), aBuffer);
-            }
-            else if ((strcmp(payload.c_str(), "OPEN") == 0))  {
-              client.publish(deviceStateTopic.c_str(), "OPEN", true);
-            } else if ((strcmp(payload.c_str(), "CLOSE") == 0))  {
-              client.publish(deviceStateTopic.c_str(), "CLOSE", true);
-            } else if ((strcmp(payload.c_str(), "PAUSE") == 0)) {
-              client.publish(deviceStateTopic.c_str(), "PAUSE", true);
-            }
-          }
-        }
-        struct QueueCommand queueCommand;
-        queueCommand.payload = payload.c_str();
-        queueCommand.topic = ESPMQTTTopic + "/control";
-        queueCommand.device = aDevice;
-        queueCommand.disconnectAfter = true;
-        queueCommand.priority = false;
-        queueCommand.currentTry = 1;
-        commandQueue.enqueue(queueCommand);
-      }
-      else {
-        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
-      }
+      callONOFFForCurtain(aDevice, payload);
     });
 
     it++;
@@ -3491,95 +3661,7 @@ void onConnectionEstablished() {
     aDevice = it->first.c_str();
 
     client.subscribe((botTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
-      if (printSerialOutputForDebugging) {
-        Serial.println("Control MQTT Received...");
-      }
-
-      std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
-      std::string deviceStateTopic = botTopic + aDevice + "/state";
-      if (itE != botsSimulateONOFFinPRESSmode.end() && ((strcmp(payload.c_str(), "STATEOFF") == 0) || (strcmp(payload.c_str(), "STATEON") == 0))) {
-        if (strcmp(payload.c_str(), "STATEOFF") == 0) {
-          botsSimulatedStates[aDevice] = false;
-          client.publish(deviceStateTopic.c_str(), "OFF", true);
-        }
-        else if (strcmp(payload.c_str(), "STATEON") == 0) {
-          botsSimulatedStates[aDevice] = true;
-          client.publish(deviceStateTopic.c_str(), "ON", true);
-        }
-      }
-      else {
-        if (pScan->isScanning() || isRescanning) {
-          if (pScan->isScanning()) {
-            pScan->stop();
-          }
-          allSwitchbotsScanned = {};
-          forceRescan = true;
-          lastScanTimes = {};
-        }
-        if (!commandQueue.isFull()) {
-          if (isBotDevice(aDevice)) {
-            std::map<std::string, std::string>::iterator itP = allBots.find(aDevice);
-            if (itP != allBots.end())
-            {
-              std::string aMac = itP->second.c_str();
-              std::map<std::string, bool>::iterator itZ = botsInPressMode.find(aMac);
-              std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
-              if (immediateBotStateUpdate) {
-                if (itZ != botsInPressMode.end() && itE == botsSimulateONOFFinPRESSmode.end())
-                {
-                  client.publish(deviceStateTopic.c_str(), "OFF", true);
-                }
-                else {
-                  if ((strcmp(payload.c_str(), "OFF") == 0)) {
-                    client.publish(deviceStateTopic.c_str(), "OFF", true);
-                  } else if ((strcmp(payload.c_str(), "ON") == 0)) {
-                    client.publish(deviceStateTopic.c_str(), "ON", true);
-                  }
-                }
-              }
-
-              int aHold = -1;
-              std::string commandString = "";
-              if (itE != botsSimulateONOFFinPRESSmode.end())
-              {
-                if (strcmp(payload.c_str(), "OFF") == 0) {
-                  commandString = "OFF";
-                  std::map<std::string, int>::iterator itI = botsSimulatedOFFHoldTimes.find(aDevice);
-                  if (itI != botsSimulatedOFFHoldTimes.end())
-                  {
-                    aHold = itI->second;
-                  }
-                }
-
-                else if (strcmp(payload.c_str(), "ON") == 0) {
-                  commandString = "ON";
-                  std::map<std::string, int>::iterator itI = botsSimulatedONHoldTimes.find(aDevice);
-                  if (itI != botsSimulatedONHoldTimes.end())
-                  {
-                    aHold = itI->second;
-                  }
-                }
-              }
-              if (aHold >= 0) {
-                performHoldPressSequence(aDevice, commandString, aHold);
-              }
-              else {
-                struct QueueCommand queueCommand;
-                queueCommand.payload = payload.c_str();
-                queueCommand.topic = ESPMQTTTopic + "/control";
-                queueCommand.device = aDevice;
-                queueCommand.disconnectAfter = true;
-                queueCommand.priority = false;
-                queueCommand.currentTry = 1;
-                commandQueue.enqueue(queueCommand);
-              }
-            }
-          }
-        }
-        else {
-          client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
-        }
-      }
+      callONOFFForBot(aDevice, payload);
     });
 
     it++;
