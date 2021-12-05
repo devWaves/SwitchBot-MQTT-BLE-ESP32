@@ -11,9 +11,9 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v6.4
+  v6.5
 
-    Created: on Sept 30 2021
+    Created: on Dec 5 2021
         Author: devWaves
 
         Contributions from:
@@ -61,8 +61,8 @@
     - Set/Control is prioritized over scanning. While scanning, if a set/control command is received scanning is stopped and resumed later
 
     - ESP32 can simulate ON/OFF for devices when bot is in PRESS mode. (Cannot guarantee it will always be accurate)
-	
-	- If you only have bots/curtain/meters the ESP32 will only scan when needed and requested. If you include motion or contact sensors the ESP32 will scan all the time
+
+  - If you only have bots/curtain/meters the ESP32 will only scan when needed and requested. If you include motion or contact sensors the ESP32 will scan all the time
 
 
   <ESPMQTTTopic> = <mqtt_main_topic>/<host>
@@ -158,15 +158,15 @@
                           - {"rssi":-78,"mode":"Press","state":"OFF","batt":94}
                           - {"rssi":-66,"calib":true,"batt":55,"pos":50,"state":"open","light":1}
                           - {"rssi":-66,"scale":"c","batt":55,"C":"21.5","F":"70.7","hum":"65"}
-						  - {"rssi":-77,"batt":89,"motion":"NO MOTION","led":"OFF","sensedistance":"LONG","light":"DARK"}
-						  - {"rssi":-76,"batt":91,"motion":"NO MOTION","contact":"CLOSED","light":"DARK","incount":1,"outcount":3,"buttoncount":4}
+                          - {"rssi":-77,"batt":89,"motion":"NO MOTION","led":"OFF","sensedistance":"LONG","light":"DARK"}
+                          - {"rssi":-76,"batt":91,"motion":"NO MOTION","contact":"CLOSED","light":"DARK","incount":1,"outcount":3,"buttoncount":4}
 
                         Example attribute responses per device are detected:
                           - <ESPMQTTTopic>/bot/<name>/state
                           - <ESPMQTTTopic>/curtain/<name>/state
                           - <ESPMQTTTopic>/meter/<name>/state
-						  - <ESPMQTTTopic>/contact/<name>/state            (contact sensor has motion and contact. state = contact)
-						  - <ESPMQTTTopic>/motion/<name>/state
+                          - <ESPMQTTTopic>/contact/<name>/state            (contact sensor has motion and contact. state = contact)
+                          - <ESPMQTTTopic>/motion/<name>/state
 
                         Example payload:
                           - "ON"
@@ -181,20 +181,20 @@
                           - {"pos":0}
                           - {"pos":100}
                           - {"pos":50}
-						  
-						Example topic responses specific to motion/contact sensors:
-                          - <ESPMQTTTopic>/motion/<name>/motion						Example response payload: "MOTION", "NO MOTION"
-						  - <ESPMQTTTopic>/motion/<name>/illuminance				Example response payload: "LIGHT", "DARK"
-						  - <ESPMQTTTopic>/contact/<name>/contact					Example response payload: "OPEN", "CLOSED"
-						  - <ESPMQTTTopic>/contact/<name>/motion					Example response payload: "MOTION", "NO MOTION"
-						  - <ESPMQTTTopic>/contact/<name>/illuminance				Example response payload: "LIGHT", "DARK"
-						  - <ESPMQTTTopic>/contact/<name>/in						Example response payload: "IDLE", "ENTERED"
-						  - <ESPMQTTTopic>/contact/<name>/out						Example response payload: "IDLE", "EXITED"
-						  - <ESPMQTTTopic>/contact/<name>/button                   	Example response payload: "IDLE", "PUSHED" 
 
-									Note: 	You can use the button on the contact sensor to trigger other non-switchbot devices from your smarthub
-											When <ESPMQTTTopic>/contact/<name>/button = "PUSHED"
-						  
+                        Example topic responses specific to motion/contact sensors:
+                          - <ESPMQTTTopic>/motion/<name>/motion           Example response payload: "MOTION", "NO MOTION"
+                          - <ESPMQTTTopic>/motion/<name>/illuminance        Example response payload: "LIGHT", "DARK"
+                          - <ESPMQTTTopic>/contact/<name>/contact         Example response payload: "OPEN", "CLOSED"
+                          - <ESPMQTTTopic>/contact/<name>/motion          Example response payload: "MOTION", "NO MOTION"
+                          - <ESPMQTTTopic>/contact/<name>/illuminance       Example response payload: "LIGHT", "DARK"
+                          - <ESPMQTTTopic>/contact/<name>/in            Example response payload: "IDLE", "ENTERED"
+                          - <ESPMQTTTopic>/contact/<name>/out           Example response payload: "IDLE", "EXITED"
+                          - <ESPMQTTTopic>/contact/<name>/button                    Example response payload: "IDLE", "PUSHED"
+
+                        Note:   You can use the button on the contact sensor to trigger other non-switchbot devices from your smarthub
+                                When <ESPMQTTTopic>/contact/<name>/button = "PUSHED"
+
 
   // REQUESTSETTINGS WORKS FOR BOT ONLY - DOCUMENTATION NOT AVAILABLE ONLINE FOR CURTAIN
   ESP32 will Subscribe to MQTT topic for device settings information (requires getBotResponse = true)
@@ -447,7 +447,9 @@ static const int defaultMeterScanSecs = 60;           // Default Scan/MQTT Updat
 static const int defaultMotionScanSecs = 60;          // Default Scan/MQTT Update for motion sensors every X seconds. *override with botScanTime list
 static const int defaultContactScanSecs = 60;         // Default Scan/MQTT Update for contact temp sensors every X seconds. *override with botScanTime list
 static const int waitForMQTTRetainMessages = 5;       // Only for bots in simulated ON/OFF: On boot ESP32 will look for retained MQTT state messages for X secs, otherwise default state is used
+static const int missedDataResend = 120;              // If a motion or contact is somehow missed while controlling bots, send the MQTT messages within X secs of it occuring as a backup. requires sendBackupMotionContact = true
 
+static const bool sendBackupMotionContact = true;         // Compares last contact/motion time value from switchbot contact/motion devices against what the esp32 received. If ESP32 missed one while controlling bots, it will send a motion/contact message after
 static const bool autoRescan = true;                      // perform automatic rescan (uses rescanTime and initialScan).
 static const bool scanAfterControl = true;                // perform requestInfo after successful control command (uses botScanTime).
 static const bool waitBetweenControl = true;              // wait between commands sent to bot/curtain (avoids sending while bot is busy)
@@ -493,7 +495,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v6.4";
+static const String versionNum = "v6.5";
 
 /*
    Server Index Page
@@ -623,6 +625,8 @@ static std::map<std::string, long> lastScanTimes = {};
 static std::map<std::string, bool> botsSimulatedStates = {};
 static std::map<std::string, std::string> motionStates = {};
 static std::map<std::string, std::string> contactStates = {};
+static std::map<std::string, long> lastMotions = {};
+static std::map<std::string, long> lastContacts = {};
 static std::map<std::string, std::string> illuminanceStates = {};
 static std::map<std::string, std::string> ledStates = {};
 static std::map<std::string, int> outCounts = {};
@@ -1036,7 +1040,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string deviceName, std::str
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastmotion\"," +
                  + "\"dev_cla\":\"timestamp\"," +
                  + "\"stat_t\":\"~/attributes\"," +
-                 + "\"value_template\":\"{{ value_json.lastmotion }}\"}").c_str(), true);
+                 + "\"value_template\":\"{{ now() - timedelta( seconds = value_json.lastmotion ) }}\"}").c_str(), true);
 
   client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/lastcontact/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
                  + "\"name\":\"" + deviceName + " LastContact\"," +
@@ -1045,7 +1049,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string deviceName, std::str
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastcontact\"," +
                  + "\"dev_cla\":\"timestamp\"," +
                  + "\"stat_t\":\"~/attributes\"," +
-                 + "\"value_template\":\"{{ value_json.lastcontact }}\"}").c_str(), true);
+                 + "\"value_template\":\"{{ now() - timedelta( seconds = value_json.lastcontact ) }}\"}").c_str(), true);
 
   client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/buttoncount/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
                  + "\"name\":\"" + deviceName + " ButtonCount\"," +
@@ -1137,7 +1141,7 @@ void publishHomeAssistantDiscoveryMotionConfig(std::string deviceName, std::stri
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastmotion\"," +
                  + "\"dev_cla\":\"timestamp\"," +
                  + "\"stat_t\":\"~/attributes\"," +
-                 + "\"value_template\":\"{{ value_json.lastmotion }}\"}").c_str(), true);
+                 + "\"value_template\":\"{{ now() - timedelta( seconds = value_json.lastmotion ) }}\"}").c_str(), true);
 
   client.publish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/sensedistance/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
                  + "\"name\":\"" + deviceName + " SenseDistance\"," +
@@ -1202,6 +1206,14 @@ class ClientCallbacks : public NimBLEClientCallbacks {
       }
     };
 };
+
+int le16_to_cpu_signed(const uint8_t data[2]) {
+  unsigned value = data[0] | ((unsigned)data[1] << 8);
+  if (value & 0x8000)
+    return -(int)(~value) - 1;
+  else
+    return value;
+}
 
 bool unsubscribeToNotify(NimBLEClient* pClient) {
   NimBLERemoteService* pSvc = nullptr;
@@ -1453,7 +1465,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         NimBLEDevice::getScan()->stop();
       }
     };
-  
+    
     bool callForInfoAdvDev(std::string deviceMac, long anRSSI,  std::string aValueString) {
       if (printSerialOutputForDebugging) {
         Serial.println("callForInfoAdvDev");
@@ -1594,7 +1606,35 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         int battLevel = (byte2 & 0b01111111);
         doc["batt"] = battLevel;
 
-        std::string motion = (byte1 & 0b01000000) ? "MOTION" : "NO MOTION";
+        byte data[] = {byte4, byte3};
+        long lastMotionLowSeconds = le16_to_cpu_signed(data);
+        long lastMotionHighSeconds = (byte5 & 0b10000000);
+        long lastMotion = lastMotionHighSeconds + lastMotionLowSeconds;
+        doc["lastmotion"] = lastMotion;
+
+        std::map<std::string, long>::iterator itU = lastMotions.find(aDevice);
+        itU = lastMotions.find(aDevice);
+        if (itU == lastMotions.end())
+        {
+          lastMotions[aDevice] = millis();
+        }
+        bool aMotion = (byte1 & 0b01000000);
+
+        bool missedAMotion = (millis() - lastMotions[aDevice] > (lastMotion * 1000));
+        if (missedAMotion) {
+          shouldPublish = true;
+        }
+
+        if (sendBackupMotionContact) {
+          if ( missedAMotion && (lastMotion < missedDataResend) ) {
+            aMotion = true;
+          }
+        }
+        if (aMotion) {
+          lastMotions[aDevice] = millis();
+        }
+
+        std::string motion = aMotion ? "MOTION" : "NO MOTION";
         doc["motion"] = motion;
         aState = motion;
         std::string ledState = (byte5 & 0b00100000) ? "ON" : "OFF";
@@ -1636,9 +1676,6 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
         doc["light"] = light;
 
-        //TODO
-        //std::string lastmotion;
-
         std::map<std::string, std::string>::iterator itH = motionStates.find(deviceMac);
         if (itH != motionStates.end())
         {
@@ -1679,7 +1716,6 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           }
         }
 
-
         if (shouldPublish) {
           client.publish(deviceMotionTopic.c_str(), motion.c_str(), true);
           client.publish(deviceLightTopic.c_str(), light.c_str(), true);
@@ -1711,23 +1747,77 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         int battLevel = (byte2 & 0b01111111);
         doc["batt"] = battLevel;
 
-        std::string motion = (byte1 & 0b01000000) ? "MOTION" : "NO MOTION";
+        byte data[] = {byte5, byte4};
+        long lastMotionLowSeconds = le16_to_cpu_signed(data);
+        long lastMotionHighSeconds = (byte3 & 0b10000000);
+        long lastMotion = lastMotionHighSeconds + lastMotionLowSeconds;
+        doc["lastmotion"] = lastMotion;
+
+        byte data2[] = {byte7, byte6};
+        long lastContactLowSeconds = le16_to_cpu_signed(data2);
+        long lastContactHighSeconds = (byte3 & 0b01000000);
+        long lastContact = lastContactHighSeconds + lastContactLowSeconds;
+        doc["lastcontact"] = lastContact;
+
+        std::map<std::string, long>::iterator itU = lastContacts.find(aDevice);
+        if (itU == lastContacts.end())
+        {
+          lastContacts[aDevice] = millis();
+        }
+
+        itU = lastMotions.find(aDevice);
+        if (itU == lastMotions.end())
+        {
+          lastMotions[aDevice] = millis();
+        }
+        bool aMotion = (byte1 & 0b01000000);
+
+        bool missedAMotion = (millis() - lastMotions[aDevice] > (lastMotion * 1000));
+        if (missedAMotion) {
+          shouldPublish = true;
+        }
+
+        if (sendBackupMotionContact) {
+          if ( missedAMotion && (lastMotion < missedDataResend) ) {
+            aMotion = true;
+          }
+        }
+
+        std::string motion = aMotion ? "MOTION" : "NO MOTION";
         doc["motion"] = motion;
+
+        if (aMotion) {
+          lastMotions[aDevice] = millis();
+        }
 
         bool contactA = (byte3 & 0b00000100);
         bool contactB = (byte3 & 0b00000010);
+
         std::string contact;
         if (!contactA && !contactB) {
           contact = "CLOSED";
         }
         else if (!contactA && contactB) {
           contact = "OPEN";
+          lastContacts[aDevice] = millis();
         }
         else if (contactA && !contactB) {
           contact = "TIMEOUT";
         }
         else if (contactA && contactB) {
           contact = "RESERVE";
+        }
+
+        bool missedAContact = (millis() - lastContacts[aDevice] > (lastContact * 1000));
+        if (missedAContact) {
+          shouldPublish = true;
+        }
+
+        if (sendBackupMotionContact) {
+          if ( missedAContact && (lastContact < missedDataResend) ) {
+            contact = "OPEN";
+            lastContacts[aDevice] = millis();
+          }
         }
 
         doc["contact"] = contact;
@@ -1751,10 +1841,6 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         int buttonCountD = (byte8 & 0b00000001) ? 1 : 0;
         int buttonCount = buttonCountA + buttonCountB + buttonCountC + buttonCountD;
         doc["buttoncount"] = buttonCount;
-
-        //TODO
-        //std::string lastmotion;
-        //std::string lastcontact;
 
         std::map<std::string, std::string>::iterator itH = motionStates.find(deviceMac);
         if (itH != motionStates.end())
@@ -2057,17 +2143,25 @@ void setup () {
   static std::map<std::string, std::string> allMetersTemp = {};
   static std::map<std::string, std::string> allContactSensorsTemp = {};
   static std::map<std::string, std::string> allMotionSensorsTemp = {};
+  static std::map<std::string, std::string> allPasswordsTemp = {};
+  static std::map<std::string, bool> botsSimulateONOFFinPRESSmodeTemp = {};
+  static std::map<std::string, int> botsSimulatedOFFHoldTimesTemp = {};
+  static std::map<std::string, int> botsSimulatedONHoldTimesTemp = {};
   NimBLEDevice::init("");
+
   std::map<std::string, std::string>::iterator it = allBots.begin();
   std::string anAddr;
+  std::string aName;
   while (it != allBots.end())
   {
+    aName = it->first;
     anAddr = it->second;
     std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
-    allSwitchbotsOpp[anAddr.c_str()] = it->first;
-    allSwitchbots[it->first] = anAddr.c_str();
+    std::replace( aName.begin(), aName.end(), ' ', '_');
+    allSwitchbotsOpp[anAddr.c_str()] = aName;
+    allSwitchbots[aName] = anAddr.c_str();
     deviceTypes[anAddr.c_str()] = botName;
-    allBotsTemp[it->first] = anAddr.c_str();
+    allBotsTemp[aName] = anAddr.c_str();
     NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr));
     it++;
   }
@@ -2076,12 +2170,14 @@ void setup () {
   it = allCurtains.begin();
   while (it != allCurtains.end())
   {
+    aName = it->first;
     anAddr = it->second;
     std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
-    allSwitchbotsOpp[anAddr.c_str()] = it->first;
-    allSwitchbots[it->first] = anAddr.c_str();
+    std::replace( aName.begin(), aName.end(), ' ', '_');
+    allSwitchbotsOpp[anAddr.c_str()] = aName;
+    allSwitchbots[aName] = anAddr.c_str();
     deviceTypes[anAddr.c_str()] = curtainName;
-    allCurtainsTemp[it->first] = anAddr.c_str();
+    allCurtainsTemp[aName] = anAddr.c_str();
     NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr));
     it++;
   }
@@ -2090,12 +2186,14 @@ void setup () {
   it = allMeters.begin();
   while (it != allMeters.end())
   {
+    aName = it->first;
     anAddr = it->second;
     std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
-    allSwitchbotsOpp[anAddr.c_str()] = it->first;
-    allSwitchbots[it->first] = anAddr.c_str();
+    std::replace( aName.begin(), aName.end(), ' ', '_');
+    allSwitchbotsOpp[anAddr.c_str()] = aName;
+    allSwitchbots[aName] = anAddr.c_str();
     deviceTypes[anAddr.c_str()] = meterName;
-    allMetersTemp[it->first] = anAddr.c_str();
+    allMetersTemp[aName] = anAddr.c_str();
     NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr));
     it++;
   }
@@ -2104,12 +2202,14 @@ void setup () {
   it = allContactSensors.begin();
   while (it != allContactSensors.end())
   {
+    aName = it->first;
     anAddr = it->second;
     std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
-    allSwitchbotsOpp[anAddr.c_str()] = it->first;
-    allSwitchbots[it->first] = anAddr.c_str();
+    std::replace( aName.begin(), aName.end(), ' ', '_');
+    allSwitchbotsOpp[anAddr.c_str()] = aName;
+    allSwitchbots[aName] = anAddr.c_str();
     deviceTypes[anAddr.c_str()] = contactName;
-    allContactSensorsTemp[it->first] = anAddr.c_str();
+    allContactSensorsTemp[aName] = anAddr.c_str();
     NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr));
     it++;
   }
@@ -2118,16 +2218,65 @@ void setup () {
   it = allMotionSensors.begin();
   while (it != allMotionSensors.end())
   {
+    aName = it->first;
     anAddr = it->second;
     std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
-    allSwitchbotsOpp[anAddr.c_str()] = it->first;
-    allSwitchbots[it->first] = anAddr.c_str();
+    std::replace( aName.begin(), aName.end(), ' ', '_');
+    allSwitchbotsOpp[anAddr.c_str()] = aName;
+    allSwitchbots[aName] = anAddr.c_str();
     deviceTypes[anAddr.c_str()] = motionName;
-    allMotionSensorsTemp[it->first] = anAddr.c_str();
+    allMotionSensorsTemp[aName] = anAddr.c_str();
     NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr));
     it++;
   }
   allMotionSensors = allMotionSensorsTemp;
+
+  it = allPasswords.begin();
+  std::string aPass;
+  while (it != allPasswords.end())
+  {
+    aName = it->first;
+    aPass = it->second;
+    std::replace( aName.begin(), aName.end(), ' ', '_');
+    allPasswordsTemp[aName] = aPass.c_str();
+    it++;
+  }
+  allPasswords = allPasswordsTemp;
+
+  std::map<std::string, bool>::iterator itT = botsSimulateONOFFinPRESSmode.begin();
+  bool aBool;
+  while (itT != botsSimulateONOFFinPRESSmode.end())
+  {
+    aName = itT->first;
+    aBool = itT->second;
+    std::replace( aName.begin(), aName.end(), ' ', '_');
+    botsSimulateONOFFinPRESSmodeTemp[aName] = aBool;
+    itT++;
+  }
+  botsSimulateONOFFinPRESSmode = botsSimulateONOFFinPRESSmodeTemp;
+
+  std::map<std::string, int>::iterator itY = botsSimulatedOFFHoldTimes.begin();
+  int aInt;
+  while (itY != botsSimulatedOFFHoldTimes.end())
+  {
+    aName = itY->first;
+    aInt = itY->second;
+    std::replace( aName.begin(), aName.end(), ' ', '_');
+    botsSimulatedOFFHoldTimesTemp[aName] = aInt;
+    itY++;
+  }
+  botsSimulatedOFFHoldTimes = botsSimulatedOFFHoldTimesTemp;
+
+  itY = botsSimulatedONHoldTimes.begin();
+  while (itY != botsSimulatedONHoldTimes.end())
+  {
+    aName = itY->first;
+    aInt = itY->second;
+    std::replace( aName.begin(), aName.end(), ' ', '_');
+    botsSimulatedONHoldTimesTemp[aName] = aInt;
+    itY++;
+  }
+  botsSimulatedONHoldTimes = botsSimulatedONHoldTimesTemp;
 
   Serial.begin(115200);
   Serial.println("Switchbot ESP32 starting...");
