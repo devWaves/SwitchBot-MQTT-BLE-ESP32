@@ -11,9 +11,9 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v6.5
+  v6.6
 
-    Created: on Dec 5 2021
+    Created: on Jan 16 2022
         Author: devWaves
 
         Contributions from:
@@ -314,6 +314,8 @@
         {status":"idle"}
         {status":"scanning"}
         {status":"boot"}
+	{status":"controlling"}
+	{status":"getsettings"}
 
   Errors that cannot be linked to a specific device will be published to
       - <ESPMQTTTopic>
@@ -384,6 +386,14 @@ static std::map<std::string, std::string> allPasswords = {     // Set all the bo
     { "switchbottwo", "switchbottwoPassword" }*/
 };
 
+/* Switchbot Bot Device Types - OPTIONAL */
+/* Options include: "switch", "light", "button" */
+static std::map<std::string, std::string> allBotTypes = {     // OPTIONAL - (DEFAULTS to "switch" if bot is not in list) - Will create HA entities for device types
+ /* { "switchbotone", "switch" },
+    { "switchbottwo", "light" },
+    { "switchbotthree", "button" }*/
+};
+
       /*** Bots in PRESS mode to simulate ON/OFF - ESP32 will try to keep track of the ON/OFF state of your device while in PRESS mode***/
       // Add bots while in PRESS mode that will simulate ON/OFF. Default state will be used if no MQTT retained on state topic
       // false = default state = OFF
@@ -412,8 +422,8 @@ static std::map<std::string, std::string> allPasswords = {     // Set all the bo
 
 
 /* ESP32 LED Settings */
-#define LED_PIN LED_BUILTIN                          // If your board doesn't have a defined LED_BUILTIN (You will get a compile error), comment this line out
-//#define LED_PIN 2                                  // If your board doesn't have a defined LED_BUILTIN, uncomment this line out and replace 2 with the LED pin value
+//#define LED_BUILTIN 2                              // If your board doesn't have a defined LED_BUILTIN, uncomment this line and replace 2 with the LED pin value
+#define LED_PIN LED_BUILTIN                          // If your board doesn't have a defined LED_BUILTIN (You will get a compile error), uncomment the line above
 static const bool ledHighEqualsON = true;            // ESP32 board LED ON=HIGH (Default). If your ESP32 LED is turning OFF on scanning and turning ON while IDLE, then set this value to false
 static const bool ledOnBootScan = true;              // Turn on LED during initial boot scan
 static const bool ledOnScan = true;                  // Turn on LED while scanning (non-boot)
@@ -495,7 +505,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v6.5";
+static const String versionNum = "v6.6";
 
 /*
    Server Index Page
@@ -823,15 +833,48 @@ void publishHomeAssistantDiscoveryBotConfig(std::string deviceName, std::string 
     optiString = "false";
   }
 
-  client.publish((home_assistant_mqtt_prefix + "/switch/" + deviceName + "/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\", " +
-                 + "\"name\":\"" + deviceName + " Switch\"," +
-                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
-                 + "\"avty_t\": \"" + lastWill + "\"," +
-                 + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
-                 + "\"stat_t\":\"~/state\", " +
-                 + "\"opt\":" + optiString + ", " +
-                 + "\"cmd_t\": \"~/set\" }").c_str(), true);
+  std::string aType = "switch";
+  std::map<std::string, std::string>::iterator itS = allBotTypes.find(deviceName.c_str());
+  if (itS != allBotTypes.end())
+  {
+    std::string aTypeTemp = itS->second;
+    std::transform(aTypeTemp.begin(), aTypeTemp.end(), aTypeTemp.begin(), to_lower());
+    if (strcmp(aTypeTemp.c_str(), "light") == 0) {
+      aType = "light";
+    }
+    else if (strcmp(aTypeTemp.c_str(), "button") == 0) {
+      aType = "button";
+    }
+  }
 
+  if (strcmp(aType.c_str(), "light") == 0) {
+    client.publish((home_assistant_mqtt_prefix + "/light/" + deviceName + "/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\", " +
+                   + "\"name\":\"" + deviceName + " Light\"," +
+                   + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
+                   + "\"avty_t\": \"" + lastWill + "\"," +
+                   + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
+                   + "\"stat_t\":\"~/state\", " +
+                   + "\"opt\":" + optiString + ", " +
+                   + "\"cmd_t\": \"~/set\" }").c_str(), true);
+  }
+  else if (strcmp(aType.c_str(), "button") == 0) {
+    client.publish((home_assistant_mqtt_prefix + "/button/" + deviceName + "/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\", " +
+                   + "\"name\":\"" + deviceName + " Button\"," +
+                   + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
+                   + "\"avty_t\": \"" + lastWill + "\"," +
+                   + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
+                   + "\"cmd_t\": \"~/set\" }").c_str(), true);
+  }
+  else {
+    client.publish((home_assistant_mqtt_prefix + "/switch/" + deviceName + "/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\", " +
+                   + "\"name\":\"" + deviceName + " Switch\"," +
+                   + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
+                   + "\"avty_t\": \"" + lastWill + "\"," +
+                   + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
+                   + "\"stat_t\":\"~/state\", " +
+                   + "\"opt\":" + optiString + ", " +
+                   + "\"cmd_t\": \"~/set\" }").c_str(), true);
+  }
 }
 
 void publishHomeAssistantDiscoveryCurtainConfig(std::string deviceName, std::string deviceMac) {
@@ -2384,7 +2427,9 @@ void getAllBotSettings() {
     {
       aDevice = itT->first;
       processing = true;
+      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"getsettings\"}");
       controlMQTT(aDevice, "REQUESTSETTINGS", true);
+      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
       processing = false;
       itT++;
     }
@@ -3044,6 +3089,7 @@ bool processQueue() {
             count++;
             shouldContinue = true;
             long timeSent = millis();
+            client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"getsettings\"}");
             controlMQTT(requestDevice, "REQUESTSETTINGS", disconnectAfter);
             while (noResponse && shouldContinue )
             {
@@ -3059,6 +3105,7 @@ bool processQueue() {
         commandQueue.dequeue();
       }
     }
+    client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
   }
   if (ledOnCommand) {
     digitalWrite(LED_PIN, ledOFFValue);
@@ -3207,6 +3254,7 @@ bool is_number(const std::string & s)
 }
 
 bool controlMQTT(std::string device, std::string payload, bool disconnectAfter) {
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"controlling\"}");
   bool isSuccess = false;
   processing = true;
   if (printSerialOutputForDebugging) {
@@ -3327,7 +3375,6 @@ bool controlMQTT(std::string device, std::string payload, bool disconnectAfter) 
   }
 
   delay(100);
-  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
   return isSuccess;
 }
 
@@ -4606,7 +4653,7 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
     std::string deviceAssumedStateTopic = botTopic + aDevice + "/assumedstate";
 
     if (!lastCommandSentPublished) {
-      StaticJsonDocument<50> statDoc;
+      StaticJsonDocument<60> statDoc;
       statDoc["status"] = "commandSent";
       statDoc["command"] = aCommand;
       serializeJson(statDoc, aBuffer);
@@ -4644,7 +4691,7 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       client.publish(deviceStatusTopic.c_str(), aBuffer);
     }
     if (length == 3) {
-      StaticJsonDocument<50> statDoc;
+      StaticJsonDocument<60> statDoc;
       uint8_t byte1 = pData[0];
       if (printSerialOutputForDebugging) {
         Serial.print("The response value from bot action: ");
