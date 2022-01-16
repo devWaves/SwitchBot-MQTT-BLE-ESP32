@@ -4,9 +4,9 @@ Switchbot local control using ESP32. no switchbot hub used/required. works with 
 
 https://github.com/devWaves/SwitchBot-MQTT-BLE-ESP32
 
-v6.5
+v6.6
 
-Created: on Dec 5 2021
+Created: on Jan 16 2022
   Author: devWaves
   
   Contributions from:
@@ -296,6 +296,8 @@ Notes:
         {status":"idle"}
         {status":"scanning"}
         {status":"boot"}
+	{status":"controlling"}
+	{status":"getsettings"}
 
 
   **Errors that cannot be linked to a specific device will be published to**
