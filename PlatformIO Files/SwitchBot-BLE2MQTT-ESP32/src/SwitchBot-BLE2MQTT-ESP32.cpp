@@ -11,9 +11,9 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v6.6
+  v6.7
 
-    Created: on Jan 16 2022
+    Created: on Jan 23 2022
         Author: devWaves
 
         Contributions from:
@@ -456,7 +456,7 @@ static const int defaultScanAfterControlSecs = 10;    // Default How many second
 static const int defaultMeterScanSecs = 60;           // Default Scan/MQTT Update for meter temp sensors every X seconds. *override with botScanTime list
 static const int defaultMotionScanSecs = 60;          // Default Scan/MQTT Update for motion sensors every X seconds. *override with botScanTime list
 static const int defaultContactScanSecs = 60;         // Default Scan/MQTT Update for contact temp sensors every X seconds. *override with botScanTime list
-static const int waitForMQTTRetainMessages = 5;       // Only for bots in simulated ON/OFF: On boot ESP32 will look for retained MQTT state messages for X secs, otherwise default state is used
+static const int waitForMQTTRetainMessages = 10;      // Only for bots in simulated ON/OFF: On boot ESP32 will look for retained MQTT state messages for X secs, otherwise default state is used
 static const int missedDataResend = 120;              // If a motion or contact is somehow missed while controlling bots, send the MQTT messages within X secs of it occuring as a backup. requires sendBackupMotionContact = true
 
 static const bool sendBackupMotionContact = true;         // Compares last contact/motion time value from switchbot contact/motion devices against what the esp32 received. If ESP32 missed one while controlling bots, it will send a motion/contact message after
@@ -505,7 +505,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v6.6";
+static const String versionNum = "v6.7";
 
 /*
    Server Index Page
@@ -649,6 +649,9 @@ static std::map<std::string, bool> discoveredDevices = {};
 static std::map<std::string, bool> botsInPressMode = {};
 static std::map<std::string, bool> botsToWaitFor = {};
 static std::map<std::string, int> botHoldSecs = {};
+static std::map<std::string, const char *> botFirmwares = {};
+static std::map<std::string, int> botNumTimers = {};
+static std::map<std::string, bool> botInverteds = {};
 static std::map<std::string, long> lastCommandSent = {};
 static std::map<std::string, std::string> deviceTypes;
 static NimBLEScan* pScan;
@@ -1034,6 +1037,16 @@ void publishHomeAssistantDiscoveryContactConfig(std::string deviceName, std::str
                  + "\"pl_on\":\"MOTION\"," +
                  + "\"pl_off\":\"NO MOTION\"," +
                  + "\"value_template\":\"{{ value_json.motion }}\"}").c_str(), true);
+
+  client.publish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/bincontact/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
+                 + "\"name\":\"" + deviceName + " BinaryContact\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_bincontact\"," +
+                 + "\"icon\":\"mdi:door\"," +
+                 + "\"stat_t\":\"~/bincontact\"," +
+                 + "\"pl_on\":\"OPEN\"," +
+                 + "\"pl_off\":\"CLOSED\"}").c_str(), true);
 
   client.publish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/in/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
                  + "\"name\":\"" + deviceName + " In\"," +
@@ -1508,7 +1521,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         NimBLEDevice::getScan()->stop();
       }
     };
-    
+
     bool callForInfoAdvDev(std::string deviceMac, long anRSSI,  std::string aValueString) {
       if (printSerialOutputForDebugging) {
         Serial.println("callForInfoAdvDev");
@@ -1772,6 +1785,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
         std::string deviceButtonTopic = contactTopic + aDevice + "/button";
         std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+        std::string deviceBinContactTopic = contactTopic + aDevice + "/bincontact";
         std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
         std::string deviceInTopic = contactTopic + aDevice + "/in";
         std::string deviceOutTopic = contactTopic + aDevice + "/out";
@@ -1837,6 +1851,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         bool contactB = (byte3 & 0b00000010);
 
         std::string contact;
+        std::string binContact;
         if (!contactA && !contactB) {
           contact = "CLOSED";
         }
@@ -1863,6 +1878,14 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           }
         }
 
+        if (strcmp(contact.c_str(), "CLOSED") == 0) {
+          binContact = "CLOSED";
+        }
+        else {
+          binContact = "OPEN";
+        }
+
+        doc["bincontact"] = binContact;
         doc["contact"] = contact;
         aState = contact;
         std::string light = (byte3 & 0b00000001) ? "BRIGHT" : "DARK";
@@ -1964,6 +1987,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         if (shouldPublish) {
           client.publish(deviceMotionTopic.c_str(), motion.c_str(), true);
           client.publish(deviceContactTopic.c_str(), contact.c_str(), true);
+          client.publish(deviceBinContactTopic.c_str(), binContact.c_str(), true);
           client.publish(deviceLightTopic.c_str(), light.c_str(), true);
           client.publish(deviceInTopic.c_str(), "IDLE", false);
           client.publish(deviceOutTopic.c_str(), "IDLE", false);
@@ -2423,13 +2447,46 @@ void getAllBotSettings() {
     gotSettings = true;
     std::map<std::string, std::string>::iterator itT = allBots.begin();
     std::string aDevice;
+    std::string aMac;
     while (itT != allBots.end())
     {
       aDevice = itT->first;
-      processing = true;
-      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"getsettings\"}");
-      controlMQTT(aDevice, "REQUESTSETTINGS", true);
-      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
+      aMac = itT->second;
+      bool hasFirmware = false;
+      bool hasTimers = false;
+      bool hasHold = false;
+      bool hasInverted = false;
+      std::map<std::string, int>::iterator itP = botHoldSecs.find(aMac);
+      if (itP != botHoldSecs.end()) {
+        hasHold = true;
+      }
+      std::map<std::string, int>::iterator itX = botNumTimers.find(aMac);
+      if (itX != botNumTimers.end()) {
+        hasTimers = true;
+      }
+      std::map<std::string, bool>::iterator itU = botInverteds.find(aMac);
+      if (itU != botInverteds.end()) {
+        hasInverted = true;
+      }
+      std::map<std::string, const char *>::iterator itZ = botFirmwares.find(aMac);
+      if (itZ != botFirmwares.end()) {
+        hasFirmware = true;
+      }
+      if ((!hasFirmware) || (!hasTimers) || (!hasHold) || (!hasInverted)) {
+        if (printSerialOutputForDebugging) {
+          Serial.println("get settings");
+        }
+        processing = true;
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"getsettings\"}");
+        controlMQTT(aDevice, "REQUESTSETTINGS", true);
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
+
+      }
+      else {
+        if (printSerialOutputForDebugging) {
+          Serial.println("Skip settings");
+        }
+      }
       processing = false;
       itT++;
     }
@@ -2442,13 +2499,30 @@ void getAllBotSettings() {
   }
 }
 
+long retainStartTime = 0;
+bool waitForRetained = true;
+
 void loop () {
   vTaskDelay(10 / portTICK_PERIOD_MS);
   server.handleClient();
   client.loop();
   publishLastwillOnline();
 
-  if ((!initialScanComplete) && client.isConnected() && (!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning)) {
+  if (waitForRetained && client.isConnected()) {
+    if (retainStartTime == 0) {
+      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"waiting\"}");
+      retainStartTime = millis();
+    }
+    else if ((millis() - retainStartTime) > (waitForMQTTRetainMessages * 1000)) {
+      waitForRetained = false;
+    }
+    if ((botFirmwares.size() >= allBots.size()) && (botInverteds.size() >= allBots.size()) && (botNumTimers.size() >= allBots.size()) && (botHoldSecs.size() >= allBots.size()) && (botsSimulatedStates.size() >= botsSimulateONOFFinPRESSmode.size()))
+    {
+      waitForRetained = false;
+    }
+  }
+
+  if ((!initialScanComplete) && client.isConnected() && (!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning) && (!waitForRetained)) {
     client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"scanning\"}");
     isRescanning = true;
     pScan->start(initialScan, initialScanEndedCB, true);
@@ -3564,7 +3638,7 @@ void onConnectionEstablished() {
     }
     client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"boot\"}");
     delay(100);
-
+    processing = true;
     it = allBots.begin();
     while (it != allBots.end())
     {
@@ -3602,16 +3676,54 @@ void onConnectionEstablished() {
         }
         client.unsubscribe((botTopic + aDevice + "/assumedstate").c_str());
       });
+
+      client.subscribe((botTopic + aDevice + "/settings").c_str(), [aDevice] (const String & payload)  {
+        if (printSerialOutputForDebugging) {
+          Serial.println("settings MQTT Received (from retained)...updating firmware/timers/hold");
+        }
+        StaticJsonDocument<100> docIn;
+        if (isBotDevice(aDevice)) {
+          if (printSerialOutputForDebugging) {
+            Serial.println("going thru bot settings retained");
+          }
+          std::map<std::string, std::string>::iterator itP = allBots.find(aDevice);
+          if (itP != allBots.end())
+          {
+            std::string aMac = itP->second.c_str();
+            deserializeJson(docIn, payload.c_str());
+            if (docIn.containsKey("firmware")) {
+              if (printSerialOutputForDebugging) {
+                Serial.println("contains firmware");
+              }
+              const char * firmware = docIn["firmware"];
+              botFirmwares[aMac] = firmware;
+            }
+            if (docIn.containsKey("timers")) {
+              if (printSerialOutputForDebugging) {
+                Serial.println("contains timers");
+              }
+              botNumTimers[aMac] = docIn["timers"];
+            }
+            if (docIn.containsKey("hold")) {
+              if (printSerialOutputForDebugging) {
+                Serial.println("contains hold");
+              }
+              botHoldSecs[aMac] = docIn["hold"];
+            }
+            if (docIn.containsKey("inverted")) {
+              if (printSerialOutputForDebugging) {
+                Serial.println("contains inverted");
+              }
+              botInverteds[aMac] = docIn["inverted"];
+            }
+          }
+        }
+        client.unsubscribe((botTopic + aDevice + "/settings").c_str());
+      });
       it++;
     }
   }
   client.publish(lastWill, "online", true);
-
-  long startTime = millis();
-  while (((millis() - startTime) > waitForMQTTRetainMessages * 1000) && (botsSimulatedStates.size() != botsSimulateONOFFinPRESSmode.size()))
-  {
-    delay(10);
-  }
 
   it = allCurtains.begin();
   while (it != allCurtains.end())
@@ -4063,6 +4175,7 @@ void onConnectionEstablished() {
 
   publishHomeAssistantDiscoveryESPConfig();
   discoveredDevices = {};
+  processing = false;
 
 }
 
@@ -4800,6 +4913,9 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       client.publish(deviceSettingsTopic.c_str(), aBuffer, true);
 
       botHoldSecs[deviceMac] = holdSecs;
+      botFirmwares[deviceMac] = (String(fwVersion, 1)).c_str();
+      botNumTimers[deviceMac] = timersNumber;
+      botInverteds[deviceMac] = inverted;
     }
   }
 
