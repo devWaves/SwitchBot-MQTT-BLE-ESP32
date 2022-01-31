@@ -375,3 +375,9 @@ by CTech&Media (Language German. based on v1.5. Home Assistant)
 by BangerTech (Language German. based on v6.1. OpenHab)
 <br>
 &nbsp;&nbsp;&nbsp;https://www.youtube.com/watch?v=TmtCwZbDJIU
+
+## Troubleshooting issues
+
+### Reboots on MQTT command
+
+Some users have found that long names (12+ characters) may cause the esp32 to reboot on when issuing a command. Try shortening the names or using the default names to see if this resolves the issue.
