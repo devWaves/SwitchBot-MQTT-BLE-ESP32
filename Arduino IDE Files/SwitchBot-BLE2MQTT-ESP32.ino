@@ -11,9 +11,9 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v6.8
+  v6.9
 
-    Created: on Feb 7 2022
+    Created: on Feb 14 2022
         Author: devWaves
 
         Contributions from:
@@ -505,7 +505,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v6.8";
+static const String versionNum = "v6.9";
 
 /*
    Server Index Page
@@ -1936,9 +1936,9 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         if (itE != entranceCounts.end())
         {
           int eCount = itE->second;
-          if (eCount != entranceCount) {
+          if ((eCount != entranceCount) && (entranceCount != 0)) {
             shouldPublish = true;
-            client.publish(deviceInTopic.c_str(), "ENTERING", false);
+            client.publish(deviceInTopic.c_str(), "ENTERED", false);
           }
         }
         entranceCounts[deviceMac] = entranceCount;
@@ -1947,9 +1947,9 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         if (itO != outCounts.end())
         {
           int oCount = itO->second;
-          if (oCount != outCount) {
+          if ((oCount != outCount) && (outCount != 0)) {
             shouldPublish = true;
-            client.publish(deviceOutTopic.c_str(), "EXITING", false);
+            client.publish(deviceOutTopic.c_str(), "EXITED", false);
           }
         }
         outCounts[deviceMac] = outCount;
@@ -1958,7 +1958,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         if (itBu != buttonCounts.end())
         {
           int bCount = itBu->second;
-          if (bCount != buttonCount) {
+          if ((bCount != buttonCount) && (buttonCount != 0)) {
             shouldPublish = true;
             client.publish(deviceButtonTopic.c_str(), "PUSHED", false);
           }
@@ -3800,13 +3800,16 @@ void onConnectionEstablished() {
       std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
       std::string deviceStateTopic = botTopic + aDevice + "/state";
       if (itE != botsSimulateONOFFinPRESSmode.end() && ((strcmp(payload.c_str(), "STATEOFF") == 0) || (strcmp(payload.c_str(), "STATEON") == 0))) {
+        std::string deviceAssumedStateTopic = botTopic + aDevice + "/assumedstate";
         if (strcmp(payload.c_str(), "STATEOFF") == 0) {
           botsSimulatedStates[aDevice] = false;
           client.publish(deviceStateTopic.c_str(), "OFF", true);
+          client.publish(deviceAssumedStateTopic.c_str(), "OFF", true);
         }
         else if (strcmp(payload.c_str(), "STATEON") == 0) {
           botsSimulatedStates[aDevice] = true;
           client.publish(deviceStateTopic.c_str(), "ON", true);
+          client.publish(deviceAssumedStateTopic.c_str(), "ON", true);
         }
       }
       else {
