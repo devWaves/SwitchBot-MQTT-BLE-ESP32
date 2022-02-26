@@ -1379,6 +1379,8 @@ bool writeSettings(NimBLEAdvertisedDevice* advDeviceToUse) {
     }
     return true;
   }
+
+  return false;
 }
 
 /** Define a class to handle the callbacks when advertisments are received */
@@ -2112,6 +2114,9 @@ void setup () {
   }
   forceRescan = false;
   pinMode (LED_PIN, OUTPUT);
+
+  Serial.begin(115200);
+
   // Connect to WiFi network
   WiFi.begin(ssid, password);
   if (printSerialOutputForDebugging) {
@@ -2336,7 +2341,6 @@ void setup () {
   }
   botsSimulatedONHoldTimes = botsSimulatedONHoldTimesTemp;
 
-  Serial.begin(115200);
   Serial.println("Switchbot ESP32 starting...");
   if (!printSerialOutputForDebugging) {
     Serial.println("Set printSerialOutputForDebugging = true to see more Serial output");
@@ -3149,7 +3153,7 @@ bool processQueue() {
           bool shouldContinue = true;
           int count = 0;
           bool sendInitial = true;
-          while (sendInitial || (lastCommandWasBusy && retryBotOnBusy) || retryBotSetNoResponse && noResponse && (count <= noResponseRetryAmount)) {
+          while (sendInitial || (lastCommandWasBusy && retryBotOnBusy) || (retryBotSetNoResponse && noResponse && (count <= noResponseRetryAmount))) {
             sendInitial = false;
             count++;
             shouldContinue = true;
@@ -3499,7 +3503,7 @@ void rescanMQTT(std::string payload) {
   else {
     int value = docIn["sec"];
     String secString = String(value);
-    if (secString.c_str() != "") {
+    if (strlen(secString.c_str()) != 0) {
       bool isNum = is_number(secString.c_str());
       if (isNum) {
         int aVal;
