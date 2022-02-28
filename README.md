@@ -4,9 +4,9 @@ Switchbot local control using ESP32. no switchbot hub used/required. works with 
 
 https://github.com/devWaves/SwitchBot-MQTT-BLE-ESP32
 
-v6.9
+v6.10
 
-Created: on Feb 14 2022
+Created: on Feb 27 2022
   Author: devWaves
   
   <a href="https://www.buymeacoffee.com/devwaves" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
@@ -14,6 +14,7 @@ Created: on Feb 14 2022
   
   Contributions from:
   	HardcoreWR
+	vin-w
 	
 Code can be installed using Arduino IDE OR using Visual Studio Code PlatformIO
 - For Arduino IDE - Use only the SwitchBot-BLE2MQTT-ESP32.ino file
