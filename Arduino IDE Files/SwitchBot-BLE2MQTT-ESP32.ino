@@ -11,13 +11,14 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v6.9
+  v6.10
 
-    Created: on Feb 14 2022
+    Created: on Feb 27 2022
         Author: devWaves
 
         Contributions from:
                 HardcoreWR
+		vin-w
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
@@ -505,7 +506,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v6.9";
+static const String versionNum = "v6.10";
 
 /*
    Server Index Page
@@ -1401,7 +1402,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       if (itS != allSwitchbotsOpp.end())
       {
         std::string deviceName = itS->second.c_str();
-        if ((advertisedDevice->isAdvertisingService(NimBLEUUID("cba20d00-224d-11e6-9fb8-0002a5d5c51b"))) || isContactDevice(deviceName) || isMotionDevice(deviceName))
+        if ((advertisedDevice->isAdvertisingService(NimBLEUUID("cba20d00-224d-11e6-9fb8-0002a5d5c51b"))) || isContactDevice(deviceName) || isMotionDevice(deviceName) || isMeterDevice(deviceName))
         {
           std::map<std::string, NimBLEAdvertisedDevice*>::iterator itY;
           if ((shouldMQTTUpdateForDevice(advStr) || isContactDevice(deviceName) || isMotionDevice(deviceName)) && initialScanComplete) {
