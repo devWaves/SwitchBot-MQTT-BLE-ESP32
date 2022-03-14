@@ -903,6 +903,7 @@ void publishHomeAssistantDiscoveryCurtainConfig(std::string deviceName, std::str
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "_illuminance\"," +
                  + "\"stat_t\":\"~/attributes\"," +
                  + "\"dev_cla\":\"illuminance\"," +
+                 + "\"unit_of_meas\": \"Level\", " +
                  + "\"value_template\":\"{{ value_json.light }}\"}").c_str(), true);
 
   client.publish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/calibrated/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
