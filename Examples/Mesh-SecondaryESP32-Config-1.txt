@@ -1,7 +1,7 @@
 
 /*
  * 
- * THIS EXAMPLE IS FOR THE PRIMARY ESP32 IN A MESH
+ * THIS EXAMPLE IS FOR THE SECONDARY ESP32 IN A MESH
  * 
  * Choose a balance of settings between active scanning and passive scanning. Active scanning uses more battery of switchbot devices but it required for bot, curtain meter
  * 
