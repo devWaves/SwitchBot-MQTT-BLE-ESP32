@@ -11,9 +11,9 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v7alpha
+  v7beta
 
-    Created: on March 13 2022
+    Created: on April 9 2022
         Author: devWaves
 
         Contributions from:
@@ -164,8 +164,6 @@
                           - {"rssi":-78,"mode":"Press","state":"OFF","batt":94}
                           - {"rssi":-66,"calib":true,"batt":55,"pos":50,"state":"open","light":1}
                           - {"rssi":-66,"scale":"c","batt":55,"C":"21.5","F":"70.7","hum":"65"}
-                          - {"rssi":-77,"batt":89,"motion":"NO MOTION","led":"OFF","sensedist":"LONG","light":"DARK"}
-                          - {"rssi":-76,"batt":91,"motion":"NO MOTION","contact":"CLOSED","light":"DARK","in":1,"out":3,"button":4}
 
                         Example attribute responses per device are detected:
                           - <ESPMQTTTopic>/bot/<name>/state
@@ -343,17 +341,31 @@
 /********** REQUIRED SETTINGS TO CHANGE **********/
 
 /* If using one ESP32 */
-    /* Enter all the switchbot device MAC addresses in the lists below */
+/* Enter all the switchbot device MAC addresses in the lists below */
 
 /* If using multiple ESP32s - ESP32 can be meshed together for better motion/contact performance */
-    /* Bot and Curtains: (CANNOT BE MESHED) Enter the MAC addresses of the switchbot devices on the ESP32 closest to the switchbot device */
-    /* Motion and Contact and Meter: (CAN BE MESHED) Enter the MAC addresses of the switchbot devices into all or most of the ESP32s */
+/* Bot and Curtains: (CANNOT BE MESHED) Enter the MAC addresses of the switchbot devices on the ESP32 closest to the switchbot device */
+/* Motion and Contact and Meter: (CAN BE MESHED) Enter the MAC addresses of the switchbot devices into all or most of the ESP32s */
 
 /* Wifi Settings */
-static const char* host = "esp32";                                  //  Unique name for ESP32. The name detected by your router and MQTT. If you are using more then 1 ESPs to control different switchbots be sure to use unique hostnames. Host is the MQTT Client name and is used in MQTT topics
-static const char* ssid = "SSID";                                   //  WIFI SSID
-static const char* password = "Password";                           //  WIFI Password
-static const char* meshHost = "";                                   //  Ignore if only one ESP32 is used. Ignore if you don't have either meter/contact/motion. Enter the host value of the primary ESP32 if you are using multiple esp32s and you want to mesh them together for better contact/motion
+static const char* host = "esp32";                                    //  Unique name for ESP32. The name detected by your router and MQTT. If you are using more then 1 ESPs to control different switchbots be sure to use unique hostnames. Host is the MQTT Client name and is used in MQTT topics
+static const char* ssid = "SSID";                                     //  WIFI SSID
+static const char* password = "Password";                             //  WIFI Password
+
+/* Mesh Settings */
+/* Ignore if only one ESP32 is used */
+static const bool enableMesh = false;                                 // Ignore if only one ESP32 is used. Set to false
+static const char* meshHost = "";                                     // Ignore if only one ESP32 is used. Ignore if you don't have either meter/contact/motion. Enter the host value of the primary ESP32 if you are using multiple esp32s and you want to mesh them together for better contact/motion
+static const bool meshMeters = true;                                  // Mesh meters together if meshHost is set. The meter values will use the meshHost MQTT topics
+static const bool meshContactSensors = true;                          // Mesh contact sensors together if meshHost is set. The contact values will use the meshHost MQTT topics.
+static const bool meshMotionSensors = true;                           // Mesh motion sensors together if meshHost is set. The motion values will use the meshHost MQTT topics
+static const bool onlyAllowRootESPToPublishContact = true;            // All meshed messages for contact and motions sensors will pass through the root mesh host ESP32. Only the root host will send contact and motion messages
+static const bool onlyAllowRootESPToPublishMotion = false;            // All meshed messages for motion will pass through the root mesh host ESP32. Only the root host will send motion messages
+static const bool onlyAllowRootESPToPublishLight = true;              // All meshed messages for illuminance will pass through the root mesh host ESP32. Only the root host will send illuminance messages
+static const bool countContactToAvoidDuplicates = true;               // count the number of open/close/timeout over all esp32s so that none are duplicated
+static const bool countMotionToAvoidDuplicates = false;               // count the number of motion/no motion over all esp32s so that none are duplicated
+static const bool countLightToAvoidDuplicates = true;                 // count the number of dark/bright over all esp32s so that none are duplicated
+static const int timeToIgnoreDuplicates = 30;                         // if a duplicate is determined, ignore it within X seconds
 
 /* MQTT Settings */
 /* MQTT Client name is set to WIFI host from Wifi Settings*/
@@ -475,7 +487,7 @@ static const int defaultContactScanSecs = 30;                // Default Scan/MQT
 static const int waitForMQTTRetainMessages = 10;             // Only for bots in simulated ON/OFF: On boot ESP32 will look for retained MQTT state messages for X secs, otherwise default state is used
 static const int missedDataResend = 120;                     // If a motion or contact is somehow missed while controlling bots, send the MQTT messages within X secs of it occuring as a backup. requires sendBackupMotionContact = true
 
-static const bool sendBackupMotionContact = true;         // Compares last contact/motion time value from switchbot contact/motion devices against what the esp32 received. If ESP32 missed one while controlling bots, it will send a motion/contact message after
+static const bool sendBackupMotionContact = true;         // Compares last contact/motion time value from switchbot contact/motion devices against what the esp32 received. If ESP32 missed one while controlling bots, it will send a motion/contact message after. Note: Not used if multiple ESP32s are meshed
 static const bool autoRescan = true;                      // perform automatic rescan (uses rescanTime and initialScan).
 static const bool scanAfterControl = true;                // perform requestInfo after successful control command (uses botScanTime).
 static const bool waitBetweenControl = true;              // wait between commands sent to bot/curtain (avoids sending while bot is busy)
@@ -490,16 +502,13 @@ static const bool retryCurtainNoResponse = true;          // Retry if curtain do
 static const bool immediateBotStateUpdate = true;         // ESP32 will send ON/OFF state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
 static const bool immediateCurtainStateUpdate = true;     // ESP32 will send OPEN/CLOSE and Position state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
 static const bool assumeNoResponseMeansSuccess = true;    // Only for bots in simulated ON/OFF: If the ESP32 does not receive a response after sending command (after noResponseRetryAmount reached and retryBotActionNoResponse = true) assume it worked and change state
-static const bool meshMeters = true;                      // Mesh meters together if meshHost is set. The meter values will use the meshHost MQTT topics
-static const bool meshContactSensors = true;              // Mesh contact sensors together if meshHost is set. The contact values will use the meshHost MQTT topics. Note: Not the button topic
-static const bool meshMotionSensors = true;               // Mesh motion sensors together if meshHost is set. The motion values will use the meshHost MQTT topics
 static const bool alwaysMQTTUpdate = true;                // If the ESP32 is scanning, always publish MQTT data instead of using set times
 static const bool onlyActiveScan = false;                 // Active scanning requires more battery from the BLE switchbot devices. If false, passive scanning is used when possible for contact/motion
 static const bool onlyPassiveScan = false;                // If this ESP32 is a mesh ESP32 or you only have motion/contact sensors. Passive scanning uses less battery from BLE switchbot devices. Passive scanning provides less data then active scanning, but uses less battery
 static const bool alwaysActiveScan = false;               // No battery optimizations. If you are using the switchbot hub or app to control devices also and you want immediate state updates in MQTT set to true.
 static const bool scanWhileCurtainIsMoving = true;        // The ESP32 will scan for defaultCurtainScanAfterControlSecs seconds after control to keep the position slider in sync with the actual position
 
-static const bool printSerialOutputForDebugging = false;   // Only set to true when you want to debug an issue from Arduino IDE. Lots of Serial output from scanning can crash the ESP32
+static const bool printSerialOutputForDebugging = true;   // Only set to true when you want to debug an issue from Arduino IDE. Lots of Serial output from scanning can crash the ESP32
 
 /* Switchbot Bot/Meter/Curtain scan interval */
 /* Meters don't support commands so will be scanned every <int> interval automatically if scanAfterControl = true */
@@ -529,7 +538,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v7alpha";
+static const String versionNum = "v7beta";
 
 /*
    Server Index Page
@@ -614,7 +623,7 @@ static EspMQTTClient client(
   mqtt_port
 );
 
-static const uint16_t mqtt_packet_size = 1024;
+static const uint16_t mqtt_packet_size = 1400;
 static const bool home_assistant_discovery_set_up = false;
 static const std::string manufacturer = "WonderLabs SwitchBot";
 static const std::string curtainModel = "Curtain";
@@ -631,6 +640,7 @@ static const std::string motionName = "WoMotion";
 static int ledONValue = HIGH;
 static int ledOFFValue = LOW;
 static bool isActiveScan = true;
+static bool isMeshNode = false;
 void scanEndedCB(NimBLEScanResults results);
 void rescanEndedCB(NimBLEScanResults results);
 void initialScanEndedCB(NimBLEScanResults results);
@@ -658,6 +668,7 @@ std::string getPass(std::string aDevice);
 bool shouldMQTTUpdateForDevice(std::string & anAddr);
 bool shouldMQTTUpdateOrActiveScanForDevice(std::string & anAddr);
 bool shouldActiveScanForDevice(std::string & anAddr);
+void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueString, bool useActiveScan);
 static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsDev = {};
 static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsScanned = {};
 static std::map<std::string, long> rescanTimes = {};
@@ -666,13 +677,51 @@ static std::map<std::string, long> lastActiveScanTimes = {};
 static std::map<std::string, bool> botsSimulatedStates = {};
 static std::map<std::string, std::string> motionStates = {};
 static std::map<std::string, std::string> contactStates = {};
+static std::map<std::string, std::string> contactMeshStates = {};
+static std::map<std::string, std::string> lightMeshStates = {};
+static std::map<std::string, std::string> motionMeshStates = {};
 static std::map<std::string, long> lastMotions = {};
 static std::map<std::string, long> lastContacts = {};
+static std::map<std::string, long> lastButton = {};
+static std::map<std::string, long> lastIn = {};
+static std::map<std::string, long> lastOut = {};
 static std::map<std::string, std::string> illuminanceStates = {};
 static std::map<std::string, std::string> ledStates = {};
 static std::map<std::string, int> outCounts = {};
 static std::map<std::string, int> entranceCounts = {};
 static std::map<std::string, int> buttonCounts = {};
+static std::map<std::string, int> meshOpenCounts = {};
+static std::map<std::string, int> meshClosedCounts = {};
+static std::map<std::string, int> meshDarkCounts = {};
+static std::map<std::string, int> meshBrightCounts = {};
+static std::map<std::string, int> meshTimeoutCounts = {};
+static std::map<std::string, int> meshMotionCounts = {};
+static std::map<std::string, int> meshNoMotionCounts = {};
+
+static std::map<std::string, int> updateMeshOpenCount = {};
+static std::map<std::string, int> updateMeshClosedCount = {};
+static std::map<std::string, int> updateMeshTimeoutCount = {};
+static std::map<std::string, int> updateMeshDarkCount = {};
+static std::map<std::string, int> updateMeshBrightCount = {};
+static std::map<std::string, int> updateMeshMotionCount = {};
+static std::map<std::string, int> updateMeshNoMotionCount = {};
+
+static std::map<std::string, long> updateClosedCount = {};
+static std::map<std::string, long> updateOpenCount = {};
+static std::map<std::string, long> updateTimeoutCount = {};
+
+static std::map<std::string, long> updateMotionCount = {};
+static std::map<std::string, long> updateNoMotionCount = {};
+static std::map<std::string, long> updateDarkCount = {};
+static std::map<std::string, long> updateBrightCount = {};
+
+static std::map<std::string, int> openCounts = {};
+static std::map<std::string, int> closedCounts = {};
+static std::map<std::string, int> darkCounts = {};
+static std::map<std::string, int> brightCounts = {};
+static std::map<std::string, int> timeoutCounts = {};
+static std::map<std::string, int> motionCounts = {};
+static std::map<std::string, int> noMotionCounts = {};
 static std::map<std::string, int> batteryValues = {};
 static std::map<std::string, std::string> lastCommandSentStrings = {};
 static std::map<std::string, std::string> allSwitchbots;
@@ -696,7 +745,7 @@ static bool gotSettings = false;
 static bool lastCommandSentPublished = false;
 static bool forceRescan = false;
 static bool overrideScan = false;
-static char aBuffer[200];
+static char aBuffer[120];
 static const std::string ESPMQTTTopic = mqtt_main_topic + "/" + std::string(hostForControl);
 static const std::string ESPMQTTTopicMesh = mqtt_main_topic + "/" + std::string(hostForScan);
 static const std::string esp32Topic = ESPMQTTTopic + "/esp32";
@@ -710,6 +759,8 @@ static const std::string curtainTopic = ESPMQTTTopic + "/curtain/";
 static std::string meterTopic = ESPMQTTTopic + "/meter/";
 static std::string contactTopic = ESPMQTTTopic + "/contact/";
 static const std::string contactMainTopic = ESPMQTTTopic + "/contact/";
+static const std::string motionMainTopic = ESPMQTTTopic + "/motion/";
+static const std::string meterMainTopic = ESPMQTTTopic + "/meter/";
 static std::string motionTopic = ESPMQTTTopic + "/motion/";
 static const std::string rescanStdStr = ESPMQTTTopic + "/rescan";
 static const std::string requestInfoStdStr = ESPMQTTTopic + "/requestInfo";
@@ -717,6 +768,7 @@ static const std::string requestSettingsStdStr = ESPMQTTTopic + "/requestSetting
 static const std::string setModeStdStr = ESPMQTTTopic + "/setMode";
 static const std::string setHoldStdStr = ESPMQTTTopic + "/setHold";
 static const std::string holdPressStdStr = ESPMQTTTopic + "/holdPress";
+static StaticJsonDocument<120> aJsonDoc;
 
 struct to_lower {
   int operator() ( int ch )
@@ -741,9 +793,28 @@ struct QueuePublish {
   bool retain;
 };
 
+struct QueueAdvData {
+  std::string macAddr;
+  long rssi;
+  std::string aValueString;
+  std::string deviceType;
+  bool useActiveScan;
+};
+
 ArduinoQueue<QueueCommand> commandQueue(queueSize);
 
-ArduinoQueue<QueuePublish> publishQueue(500);
+ArduinoQueue<QueuePublish> publishQueue(200);
+
+ArduinoQueue<QueueAdvData> advDataQueue(200);
+
+void addToAdvDevData(std::string aMac, long anRSSI, std::string aString, bool shouldBeActive) {
+  struct QueueAdvData anAdvData;
+  anAdvData.macAddr = aMac;
+  anAdvData.rssi = anRSSI;
+  anAdvData.aValueString = aString;
+  anAdvData.useActiveScan = shouldBeActive;
+  advDataQueue.enqueue(anAdvData);
+}
 
 void addToPublish(std::string aTopic, std::string aPayload, bool retain) {
   struct QueuePublish aPublish;
@@ -762,6 +833,22 @@ void addToPublish(std::string aTopic, char * aPayload, bool retain) {
   publishQueue.enqueue(aPublish);
 }
 
+void addToPublish(std::string aTopic, int aPayload, bool retain) {
+  struct QueuePublish aPublish;
+  aPublish.payload = (String(aPayload)).c_str();
+  aPublish.topic = aTopic;
+  aPublish.retain = retain;
+  publishQueue.enqueue(aPublish);
+
+}
+
+void addToPublish(std::string aTopic, long aPayload, bool retain) {
+  struct QueuePublish aPublish;
+  aPublish.payload = (String(aPayload)).c_str();
+  aPublish.topic = aTopic;
+  aPublish.retain = retain;
+  publishQueue.enqueue(aPublish);
+}
 
 void addToPublish(std::string aTopic, std::string aPayload) {
   struct QueuePublish aPublish;
@@ -780,6 +867,1440 @@ void addToPublish(std::string aTopic, char * aPayload) {
   publishQueue.enqueue(aPublish);
 }
 
+int le16_to_cpu_signed(const uint8_t data[2]) {
+  unsigned value = data[0] | ((unsigned)data[1] << 8);
+  if (value & 0x8000)
+    return -(int)(~value) - 1;
+  else
+    return value;
+}
+
+void publishContactContact(std::string & aDevice, std::string & aValue) {
+  addToPublish((contactTopic + aDevice + "/contact"), aValue, true);
+}
+void publishContactBinContact(std::string & aDevice, std::string & aValue) {
+  addToPublish((contactTopic + aDevice + "/bin"), aValue, true);
+
+}
+void publishContactState(std::string & aDevice, std::string & aValue) {
+  addToPublish((contactTopic + aDevice + "/state"), aValue, true);
+}
+
+void publishContactLastMotion(std::string & aDevice, long aValue) {
+  addToPublish((contactTopic + aDevice + "/lastmotion"), aValue, true);
+}
+
+void publishContactLastContact(std::string & aDevice, long aValue) {
+  addToPublish((contactTopic + aDevice + "/lastcontact"), aValue, true);
+}
+
+void publishMotionLastMotion(std::string & aDevice, long aValue) {
+  addToPublish((motionTopic + aDevice + "/lastmotion"), aValue, true);
+}
+
+void processMotionMotion(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+
+  bool aMotion = false;
+  long lastMotionHighSeconds = 0;
+  bool shouldPublish = aPublish;
+  long lastMotion = -1;
+  uint8_t byte1 = 0;
+  uint8_t byte3 = 0;
+  uint8_t byte4 = 0;
+  uint8_t byte5 = 0;
+
+  if (isActive) {
+    uint8_t byte1 = (uint8_t) aValueString[1];
+    aMotion = (byte1 & 0b01000000);
+    uint8_t byte3 = (uint8_t) aValueString[3];
+    uint8_t byte4 = (uint8_t) aValueString[4];
+    uint8_t byte5 = (uint8_t) aValueString[5];
+    lastMotionHighSeconds = (byte5 & 0b10000000);
+
+    byte data[] = {byte4, byte3};
+    long lastMotionLowSeconds = le16_to_cpu_signed(data);
+    lastMotion = lastMotionHighSeconds + lastMotionLowSeconds;
+    std::map<std::string, long>::iterator itU = lastMotions.find(aDevice);
+    itU = lastMotions.find(aDevice);
+    if (itU == lastMotions.end())
+    {
+      lastMotions[aDevice] = millis();
+    }
+
+    if (!enableMesh) {
+      bool missedAMotion = ((millis() - lastMotions[aDevice]) > (lastMotion * 1000));
+      if (missedAMotion) {
+        shouldPublish = true;
+      }
+
+      if (sendBackupMotionContact) {
+        if ( missedAMotion && (lastMotion < missedDataResend) ) {
+          aMotion = true;
+        }
+      }
+    }
+  }
+  else {
+    byte1 = (uint8_t) aValueString[7];
+    byte3 = (uint8_t) aValueString[9];
+    byte5 = (uint8_t) aValueString[11];
+    aMotion = (byte3 & 0b01000000);
+    lastMotionHighSeconds = (byte5 & 0b10000000);
+
+    if (aMotion) {
+      lastMotion = 0;
+    }
+
+  }
+
+  if (aMotion) {
+    lastMotions[aDevice] = millis();
+  }
+
+  std::string motion = aMotion ? "MOTION" : "NO MOTION";
+
+  int motionCount = 0;
+  int noMotionCount = 0;
+  int meshMotionCount = 0;
+  int meshNoMotionCount = 0;
+
+  if (meshMotionSensors && enableMesh && countMotionToAvoidDuplicates) {
+    std::map<std::string, int>::iterator itQQ = motionCounts.find(deviceMac);
+    if (itQQ != motionCounts.end())
+    {
+      motionCount = itQQ->second;
+    }
+
+    itQQ = noMotionCounts.find(deviceMac);
+    if (itQQ != noMotionCounts.end())
+    {
+      noMotionCount = itQQ->second;
+    }
+
+    itQQ = meshMotionCounts.find(deviceMac);
+    if (itQQ != meshMotionCounts.end())
+    {
+      meshMotionCount = itQQ->second;
+    }
+
+    itQQ = meshNoMotionCounts.find(deviceMac);
+    if (itQQ != meshNoMotionCounts.end())
+    {
+      meshNoMotionCount = itQQ->second;
+    }
+
+    if ((meshMotionCount == 0) || (meshNoMotionCount == 0)) {
+      if (meshMotionCount == 0) {
+        std::string deviceMotionMeshTopic = motionTopic + aDevice + "/motioncount";
+        meshMotionCount = 1;
+        motionCounts[deviceMac] = meshMotionCount;
+        meshMotionCounts[deviceMac] = meshMotionCount;
+        addToPublish(deviceMotionMeshTopic.c_str(), meshMotionCount, true);
+      }
+      if (meshNoMotionCount == 0) {
+        std::string deviceNoMotionMeshTopic = motionTopic + aDevice + "/nomotioncount";
+        meshNoMotionCount = 1;
+        noMotionCounts[deviceMac] = meshNoMotionCount;
+        meshNoMotionCounts[deviceMac] = meshNoMotionCount;
+        addToPublish(deviceNoMotionMeshTopic.c_str(), meshNoMotionCount, true);
+      }
+    }
+  }
+
+  std::map<std::string, std::string>::iterator itH = motionStates.find(deviceMac.c_str());
+  if (itH != motionStates.end())
+  {
+    std::string motionState = itH->second.c_str();
+    if (strcmp(motionState.c_str(), motion.c_str()) != 0) {
+      shouldPublish = true;
+      if (meshMotionSensors && enableMesh && countMotionToAvoidDuplicates) {
+        if (aMotion) {
+
+          if ((meshMotionCount == motionCount) && (meshMotionCount != 0) && (meshNoMotionCount == noMotionCount)) {
+            meshMotionCount = meshMotionCount + 1;
+            if (meshMotionCount > 50) {
+              meshMotionCount = 1;
+            }
+            meshMotionCounts[deviceMac.c_str()] = meshMotionCount;
+            motionMeshStates[deviceMac.c_str()] = "MOTION";
+            std::map<std::string, long>::iterator itW = updateMotionCount.find(deviceMac.c_str());
+            if (itW != updateMotionCount.end())
+            {
+              updateMotionCount.erase(deviceMac.c_str());
+            }
+          }
+          else {
+            updateMotionCount[deviceMac.c_str()] = millis();
+            updateMeshMotionCount[deviceMac.c_str()] = meshMotionCount;
+            shouldPublish = false;
+          }
+
+          motionCount = motionCount + 1;
+          if (motionCount > 50) {
+            motionCount = 1;
+          }
+          motionCounts[deviceMac.c_str()] = motionCount;
+        }
+        else {
+          if ((meshNoMotionCount == noMotionCount) && (meshNoMotionCount != 0) && (meshMotionCount == motionCount)) {
+            meshNoMotionCount = meshNoMotionCount + 1;
+            if (meshNoMotionCount > 50) {
+              meshNoMotionCount = 1;
+            }
+            meshNoMotionCounts[deviceMac.c_str()] = meshNoMotionCount;
+            motionMeshStates[deviceMac.c_str()] = "NO MOTION";
+            std::map<std::string, long>::iterator itW = updateNoMotionCount.find(deviceMac.c_str());
+            if (itW != updateNoMotionCount.end())
+            {
+              updateNoMotionCount.erase(deviceMac.c_str());
+            }
+          }
+          else {
+            updateNoMotionCount[deviceMac.c_str()] = millis();
+            updateMeshNoMotionCount[deviceMac.c_str()] = meshNoMotionCount;
+            shouldPublish = false;
+          }
+
+          noMotionCount = noMotionCount + 1;
+          if (noMotionCount > 50) {
+            noMotionCount = 1;
+          }
+          noMotionCounts[deviceMac.c_str()] = noMotionCount;
+        }
+      }
+    }
+    else {
+      std::map<std::string, long>::iterator itW = updateMotionCount.find(deviceMac.c_str());
+      if (itW != updateMotionCount.end())
+      {
+        shouldPublish = false;
+      }
+      itW = updateNoMotionCount.find(deviceMac.c_str());
+      if (itW != updateNoMotionCount.end())
+      {
+        shouldPublish = false;
+      }
+    }
+  }
+
+  motionStates[deviceMac] = motion;
+
+  if (((meshNoMotionCount != noMotionCount) || (meshMotionCount != motionCount)) && enableMesh && meshMotionSensors && countMotionToAvoidDuplicates) {
+    shouldPublish = false;
+  }
+
+  if (shouldPublish) {
+    if (meshMotionSensors && enableMesh && countMotionToAvoidDuplicates) {
+      if (aMotion && (meshMotionCount != 0) && (meshMotionCount == motionCount)) {
+        std::string deviceMotionMeshTopic = motionTopic + aDevice + "/motioncount";
+        addToPublish(deviceMotionMeshTopic.c_str(), meshMotionCount, true);
+      }
+      else if (!aMotion && (meshNoMotionCount != 0) && (meshNoMotionCount == noMotionCount)) {
+        std::string deviceNoMotionMeshTopic = motionTopic + aDevice + "/nomotioncount";
+        addToPublish(deviceNoMotionMeshTopic.c_str(), meshNoMotionCount, true);
+      }
+    }
+
+    if (!isMeshNode || !onlyAllowRootESPToPublishMotion) {
+      std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
+      addToPublish(deviceMotionTopic.c_str(), motion.c_str(), true);
+      std::string deviceStateTopic = motionTopic + aDevice + "/state";
+      addToPublish(deviceStateTopic.c_str(), motion.c_str(), true);
+      if (lastMotion >= 0) {
+        publishMotionLastMotion(aDevice, lastMotion);
+      }
+    }
+  }
+}
+
+void processMotionContact(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+
+  bool aMotion = false;
+  long lastMotionHighSeconds = 0;
+  bool shouldPublish = aPublish;
+  long lastMotion = -1;
+  uint8_t byte1 = 0;
+  uint8_t byte3 = 0;
+  uint8_t byte4 = 0;
+  uint8_t byte5 = 0;
+
+  if (isActive) {
+    byte1 = (uint8_t) aValueString[1];
+    byte3 = (uint8_t) aValueString[3];
+    byte4 = (uint8_t) aValueString[4];
+    byte5 = (uint8_t) aValueString[5];
+    aMotion = (byte1 & 0b01000000);
+    lastMotionHighSeconds = (byte3 & 0b10000000);
+    byte data[] = {byte5, byte4};
+    long lastMotionLowSeconds = le16_to_cpu_signed(data);
+
+    lastMotion = lastMotionHighSeconds + lastMotionLowSeconds;
+    std::map<std::string, long>::iterator itU = lastMotions.find(aDevice);
+    itU = lastMotions.find(aDevice);
+    if (itU == lastMotions.end())
+    {
+      lastMotions[aDevice] = millis();
+    }
+    if (!enableMesh) {
+      bool missedAMotion = ((millis() - lastMotions[aDevice]) > (lastMotion * 1000));
+      if (missedAMotion) {
+        shouldPublish = true;
+      }
+
+      if (sendBackupMotionContact) {
+        if ( missedAMotion && (lastMotion < missedDataResend) ) {
+          aMotion = true;
+        }
+      }
+    }
+  }
+  else {
+    byte3 = (uint8_t) aValueString[9];
+    aMotion = (byte3 & 0b10000000);
+    lastMotionHighSeconds = (byte3 & 0b00000010);
+    if (aMotion) {
+      lastMotion = 0;
+    }
+  }
+
+  if (aMotion) {
+    lastMotions[aDevice] = millis();
+  }
+
+  std::string motion = aMotion ? "MOTION" : "NO MOTION";
+
+  int motionCount = 0;
+  int noMotionCount = 0;
+  int meshMotionCount = 0;
+  int meshNoMotionCount = 0;
+
+  if (meshContactSensors && enableMesh && countMotionToAvoidDuplicates) {
+    std::map<std::string, int>::iterator itQQ = motionCounts.find(deviceMac);
+    if (itQQ != motionCounts.end())
+    {
+      motionCount = itQQ->second;
+    }
+
+    itQQ = noMotionCounts.find(deviceMac);
+    if (itQQ != noMotionCounts.end())
+    {
+      noMotionCount = itQQ->second;
+    }
+
+    itQQ = meshMotionCounts.find(deviceMac);
+    if (itQQ != meshMotionCounts.end())
+    {
+      meshMotionCount = itQQ->second;
+    }
+
+    itQQ = meshNoMotionCounts.find(deviceMac);
+    if (itQQ != meshNoMotionCounts.end())
+    {
+      meshNoMotionCount = itQQ->second;
+    }
+
+    if ((meshMotionCount == 0) || (meshNoMotionCount == 0)) {
+      if (meshMotionCount == 0) {
+        std::string deviceMotionMeshTopic = contactTopic + aDevice + "/motioncount";
+        meshMotionCount = 1;
+        motionCounts[deviceMac] = meshMotionCount;
+        meshMotionCounts[deviceMac] = meshMotionCount;
+        addToPublish(deviceMotionMeshTopic.c_str(), meshMotionCount, true);
+      }
+      if (meshNoMotionCount == 0) {
+        std::string deviceNoMotionMeshTopic = contactTopic + aDevice + "/nomotioncount";
+        meshNoMotionCount = 1;
+        noMotionCounts[deviceMac] = meshNoMotionCount;
+        meshNoMotionCounts[deviceMac] = meshNoMotionCount;
+        addToPublish(deviceNoMotionMeshTopic.c_str(), meshNoMotionCount, true);
+      }
+    }
+  }
+
+  std::map<std::string, std::string>::iterator itH = motionStates.find(deviceMac.c_str());
+  if (itH != motionStates.end())
+  {
+    std::string motionState = itH->second.c_str();
+    if (strcmp(motionState.c_str(), motion.c_str()) != 0) {
+      shouldPublish = true;
+      if (meshContactSensors && enableMesh && countMotionToAvoidDuplicates) {
+        if (aMotion) {
+
+          if ((meshMotionCount == motionCount) && (meshMotionCount != 0) && (meshNoMotionCount == noMotionCount)) {
+            meshMotionCount = meshMotionCount + 1;
+            if (meshMotionCount > 50) {
+              meshMotionCount = 1;
+            }
+            meshMotionCounts[deviceMac.c_str()] = meshMotionCount;
+            motionMeshStates[deviceMac.c_str()] = "MOTION";
+            std::map<std::string, long>::iterator itW = updateMotionCount.find(deviceMac.c_str());
+            if (itW != updateMotionCount.end())
+            {
+              updateMotionCount.erase(deviceMac.c_str());
+            }
+          }
+          else {
+            updateMotionCount[deviceMac.c_str()] = millis();
+            updateMeshMotionCount[deviceMac.c_str()] = meshMotionCount;
+            shouldPublish = false;
+          }
+
+          motionCount = motionCount + 1;
+          if (motionCount > 50) {
+            motionCount = 1;
+          }
+          motionCounts[deviceMac.c_str()] = motionCount;
+        }
+        else {
+          if ((meshNoMotionCount == noMotionCount) && (meshNoMotionCount != 0) && (meshMotionCount == motionCount)) {
+            meshNoMotionCount = meshNoMotionCount + 1;
+            if (meshNoMotionCount > 50) {
+              meshNoMotionCount = 1;
+            }
+            meshNoMotionCounts[deviceMac.c_str()] = meshNoMotionCount;
+            motionMeshStates[deviceMac.c_str()] = "NO MOTION";
+            std::map<std::string, long>::iterator itW = updateNoMotionCount.find(deviceMac.c_str());
+            if (itW != updateNoMotionCount.end())
+            {
+              updateNoMotionCount.erase(deviceMac.c_str());
+            }
+          }
+          else {
+            updateNoMotionCount[deviceMac.c_str()] = millis();
+            updateMeshNoMotionCount[deviceMac.c_str()] = meshNoMotionCount;
+            shouldPublish = false;
+          }
+
+          noMotionCount = noMotionCount + 1;
+          if (noMotionCount > 50) {
+            noMotionCount = 1;
+          }
+          noMotionCounts[deviceMac.c_str()] = noMotionCount;
+        }
+      }
+    }
+    else {
+      std::map<std::string, long>::iterator itW = updateMotionCount.find(deviceMac.c_str());
+      if (itW != updateMotionCount.end())
+      {
+        shouldPublish = false;
+      }
+      itW = updateNoMotionCount.find(deviceMac.c_str());
+      if (itW != updateNoMotionCount.end())
+      {
+        shouldPublish = false;
+      }
+    }
+  }
+
+  motionStates[deviceMac] = motion;
+
+  if (((meshNoMotionCount != noMotionCount) || (meshMotionCount != motionCount)) && enableMesh && meshContactSensors && countMotionToAvoidDuplicates) {
+    shouldPublish = false;
+  }
+
+  if (shouldPublish) {
+    if (meshContactSensors && enableMesh && countMotionToAvoidDuplicates) {
+      if (aMotion && (meshMotionCount != 0) && (meshMotionCount == motionCount)) {
+        std::string deviceMotionMeshTopic = contactTopic + aDevice + "/motioncount";
+        addToPublish(deviceMotionMeshTopic.c_str(), meshMotionCount, true);
+      }
+      else if (!aMotion && (meshNoMotionCount != 0) && (meshNoMotionCount == noMotionCount)) {
+        std::string deviceNoMotionMeshTopic = contactTopic + aDevice + "/nomotioncount";
+        addToPublish(deviceNoMotionMeshTopic.c_str(), meshNoMotionCount, true);
+      }
+    }
+
+    if (!isMeshNode || !onlyAllowRootESPToPublishMotion) {
+      std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
+      addToPublish(deviceMotionTopic.c_str(), motion.c_str(), true);
+      if (lastMotion >= 0) {
+        publishContactLastMotion(aDevice, lastMotion);
+      }
+    }
+  }
+}
+
+
+void processLightMotion(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+
+  bool shouldPublish = aPublish;
+  bool lightA = false;
+  bool lightB = false;
+  if (isActive) {
+    uint8_t byte5 = (uint8_t) aValueString[5];
+    lightA = (byte5 & 0b00000010);
+    lightB = (byte5 & 0b00000001);
+  }
+  else {
+    uint8_t byte3 = (uint8_t) aValueString[9];
+    lightA = (byte3 & 0b00100000);
+    lightB = (byte3 & 0b00010000);
+  }
+
+  std::string light;
+  if (!lightA && !lightB) {
+    light = "RESERVE";
+  }
+  else if (!lightA && lightB) {
+    light = "DARK";
+  }
+  else if (lightA && !lightB) {
+    light = "BRIGHT";
+  }
+  else if (lightA && lightB) {
+    light = "RESERVE";
+  }
+
+  int darkCount = 0;
+  int brightCount = 0;
+  int meshDarkCount = 0;
+  int meshBrightCount = 0;
+
+  if (meshMotionSensors && enableMesh && countLightToAvoidDuplicates) {
+    std::map<std::string, int>::iterator itQQ = darkCounts.find(deviceMac);
+    if (itQQ != darkCounts.end())
+    {
+      darkCount = itQQ->second;
+    }
+
+    itQQ = brightCounts.find(deviceMac);
+    if (itQQ != brightCounts.end())
+    {
+      brightCount = itQQ->second;
+    }
+
+    itQQ = meshDarkCounts.find(deviceMac);
+    if (itQQ != meshDarkCounts.end())
+    {
+      meshDarkCount = itQQ->second;
+    }
+
+    itQQ = meshBrightCounts.find(deviceMac);
+    if (itQQ != meshBrightCounts.end())
+    {
+      meshBrightCount = itQQ->second;
+    }
+
+    if ((meshDarkCount == 0) || (meshBrightCount == 0)) {
+      if (meshDarkCount == 0) {
+        std::string deviceDarkMeshTopic = motionTopic + aDevice + "/darkcount";
+        meshDarkCount = 1;
+        darkCounts[deviceMac] = meshDarkCount;
+        meshDarkCounts[deviceMac] = meshDarkCount;
+        addToPublish(deviceDarkMeshTopic.c_str(), meshDarkCount, true);
+      }
+      if (meshBrightCount == 0) {
+        std::string deviceBrightMeshTopic = motionTopic + aDevice + "/brightcount";
+        meshBrightCount = 1;
+        brightCounts[deviceMac] = meshBrightCount;
+        meshBrightCounts[deviceMac] = meshBrightCount;
+        addToPublish(deviceBrightMeshTopic.c_str(), meshBrightCount, true);
+      }
+    }
+  }
+
+  std::map<std::string, std::string>::iterator itH = illuminanceStates.find(deviceMac.c_str());
+  if (itH != illuminanceStates.end())
+  {
+    std::string illuminanceState = itH->second.c_str();
+    if (strcmp(illuminanceState.c_str(), light.c_str()) != 0) {
+      shouldPublish = true;
+      if (meshMotionSensors && enableMesh && countLightToAvoidDuplicates) {
+        if (strcmp(light.c_str(), "DARK") == 0) {
+
+          if ((meshDarkCount == darkCount) && (meshDarkCount != 0) && (meshBrightCount == brightCount)) {
+            meshDarkCount = meshDarkCount + 1;
+            if (meshDarkCount > 50) {
+              meshDarkCount = 1;
+            }
+            meshDarkCounts[deviceMac.c_str()] = meshDarkCount;
+            lightMeshStates[deviceMac.c_str()] = "DARK";
+            std::map<std::string, long>::iterator itW = updateDarkCount.find(deviceMac.c_str());
+            if (itW != updateDarkCount.end())
+            {
+              updateDarkCount.erase(deviceMac.c_str());
+            }
+          }
+          else {
+            updateDarkCount[deviceMac.c_str()] = millis();
+            updateMeshDarkCount[deviceMac.c_str()] = meshDarkCount;
+            shouldPublish = false;
+          }
+
+          darkCount = darkCount + 1;
+          if (darkCount > 50) {
+            darkCount = 1;
+          }
+          darkCounts[deviceMac.c_str()] = darkCount;
+        }
+        else if (strcmp(light.c_str(), "BRIGHT") == 0) {
+          if ((meshBrightCount == brightCount) && (meshBrightCount != 0) && (meshDarkCount == darkCount)) {
+            meshBrightCount = meshBrightCount + 1;
+            if (meshBrightCount > 50) {
+              meshBrightCount = 1;
+            }
+            meshBrightCounts[deviceMac.c_str()] = meshBrightCount;
+            lightMeshStates[deviceMac.c_str()] = "BRIGHT";
+            std::map<std::string, long>::iterator itW = updateBrightCount.find(deviceMac.c_str());
+            if (itW != updateBrightCount.end())
+            {
+              updateBrightCount.erase(deviceMac.c_str());
+            }
+          }
+          else {
+            updateBrightCount[deviceMac.c_str()] = millis();
+            updateMeshBrightCount[deviceMac.c_str()] = meshBrightCount;
+            shouldPublish = false;
+          }
+
+          brightCount = brightCount + 1;
+          if (brightCount > 50) {
+            brightCount = 1;
+          }
+          brightCounts[deviceMac.c_str()] = brightCount;
+        }
+      }
+    }
+    else {
+      std::map<std::string, long>::iterator itW = updateDarkCount.find(deviceMac.c_str());
+      if (itW != updateDarkCount.end())
+      {
+        shouldPublish = false;
+      }
+      itW = updateBrightCount.find(deviceMac.c_str());
+      if (itW != updateBrightCount.end())
+      {
+        shouldPublish = false;
+      }
+    }
+  }
+
+  illuminanceStates[deviceMac] = light;
+
+  if (((meshBrightCount != brightCount) || (meshDarkCount != darkCount)) && enableMesh && meshMotionSensors && countLightToAvoidDuplicates) {
+    shouldPublish = false;
+  }
+
+  if (shouldPublish) {
+    if (meshMotionSensors && enableMesh && countLightToAvoidDuplicates) {
+      if ((strcmp(light.c_str(), "DARK") == 0) && (meshDarkCount != 0) && (meshDarkCount == darkCount)) {
+        std::string deviceDarkMeshTopic = motionTopic + aDevice + "/darkcount";
+        addToPublish(deviceDarkMeshTopic.c_str(), meshDarkCount, true);
+      }
+      else if ((strcmp(light.c_str(), "BRIGHT") == 0) && (meshBrightCount != 0) && (meshBrightCount == brightCount)) {
+        std::string deviceBrightMeshTopic = motionTopic + aDevice + "/brightcount";
+        addToPublish(deviceBrightMeshTopic.c_str(), meshBrightCount, true);
+      }
+    }
+
+    if (!isMeshNode || !onlyAllowRootESPToPublishLight) {
+      std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
+      addToPublish(deviceLightTopic.c_str(), light.c_str(), true);
+    }
+  }
+}
+
+
+void processLightContact(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+  bool shouldPublish = aPublish;
+  std::string light = "";
+  int battLevel = 0;
+  uint8_t byte3 = 0;
+  if (isActiveScan) {
+    byte3 = (uint8_t) aValueString[3];
+    light = (byte3 & 0b00000001) ? "BRIGHT" : "DARK";
+  }
+  else
+  {
+    byte3 = (uint8_t) aValueString[9];
+    light = (byte3 & 0b01000000) ? "BRIGHT" : "DARK";
+
+  }
+
+  int darkCount = 0;
+  int brightCount = 0;
+  int meshDarkCount = 0;
+  int meshBrightCount = 0;
+
+  if (meshContactSensors && enableMesh && countLightToAvoidDuplicates) {
+    std::map<std::string, int>::iterator itQQ = darkCounts.find(deviceMac);
+    if (itQQ != darkCounts.end())
+    {
+      darkCount = itQQ->second;
+    }
+
+    itQQ = brightCounts.find(deviceMac);
+    if (itQQ != brightCounts.end())
+    {
+      brightCount = itQQ->second;
+    }
+
+    itQQ = meshDarkCounts.find(deviceMac);
+    if (itQQ != meshDarkCounts.end())
+    {
+      meshDarkCount = itQQ->second;
+    }
+
+    itQQ = meshBrightCounts.find(deviceMac);
+    if (itQQ != meshBrightCounts.end())
+    {
+      meshBrightCount = itQQ->second;
+    }
+
+    if ((meshDarkCount == 0) || (meshBrightCount == 0)) {
+      if (meshDarkCount == 0) {
+        std::string deviceDarkMeshTopic = contactTopic + aDevice + "/darkcount";
+        meshDarkCount = 1;
+        darkCounts[deviceMac] = meshDarkCount;
+        meshDarkCounts[deviceMac] = meshDarkCount;
+        addToPublish(deviceDarkMeshTopic.c_str(), meshDarkCount, true);
+      }
+      if (meshBrightCount == 0) {
+        std::string deviceBrightMeshTopic = contactTopic + aDevice + "/brightcount";
+        meshBrightCount = 1;
+        brightCounts[deviceMac] = meshBrightCount;
+        meshBrightCounts[deviceMac] = meshBrightCount;
+        addToPublish(deviceBrightMeshTopic.c_str(), meshBrightCount, true);
+      }
+    }
+  }
+
+  std::map<std::string, std::string>::iterator itH = illuminanceStates.find(deviceMac.c_str());
+  if (itH != illuminanceStates.end())
+  {
+    std::string illuminanceState = itH->second.c_str();
+    if (strcmp(illuminanceState.c_str(), light.c_str()) != 0) {
+      shouldPublish = true;
+      if (meshContactSensors && enableMesh && countLightToAvoidDuplicates) {
+        if (strcmp(light.c_str(), "DARK") == 0) {
+
+          if ((meshDarkCount == darkCount) && (meshDarkCount != 0) && (meshBrightCount == brightCount)) {
+            meshDarkCount = meshDarkCount + 1;
+            if (meshDarkCount > 50) {
+              meshDarkCount = 1;
+            }
+            meshDarkCounts[deviceMac.c_str()] = meshDarkCount;
+            lightMeshStates[deviceMac.c_str()] = "DARK";
+            std::map<std::string, long>::iterator itW = updateDarkCount.find(deviceMac.c_str());
+            if (itW != updateDarkCount.end())
+            {
+              updateDarkCount.erase(deviceMac.c_str());
+            }
+          }
+          else {
+            updateDarkCount[deviceMac.c_str()] = millis();
+            updateMeshDarkCount[deviceMac.c_str()] = meshDarkCount;
+            shouldPublish = false;
+          }
+
+          darkCount = darkCount + 1;
+          if (darkCount > 50) {
+            darkCount = 1;
+          }
+          darkCounts[deviceMac.c_str()] = darkCount;
+        }
+        else if (strcmp(light.c_str(), "BRIGHT") == 0) {
+          if ((meshBrightCount == brightCount) && (meshBrightCount != 0) && (meshDarkCount == darkCount)) {
+            meshBrightCount = meshBrightCount + 1;
+            if (meshBrightCount > 50) {
+              meshBrightCount = 1;
+            }
+            meshBrightCounts[deviceMac.c_str()] = meshBrightCount;
+            lightMeshStates[deviceMac.c_str()] = "BRIGHT";
+            std::map<std::string, long>::iterator itW = updateBrightCount.find(deviceMac.c_str());
+            if (itW != updateBrightCount.end())
+            {
+              updateBrightCount.erase(deviceMac.c_str());
+            }
+          }
+          else {
+            updateBrightCount[deviceMac.c_str()] = millis();
+            updateMeshBrightCount[deviceMac.c_str()] = meshBrightCount;
+            shouldPublish = false;
+          }
+
+          brightCount = brightCount + 1;
+          if (brightCount > 50) {
+            brightCount = 1;
+          }
+          brightCounts[deviceMac.c_str()] = brightCount;
+        }
+      }
+    }
+    else {
+      std::map<std::string, long>::iterator itW = updateDarkCount.find(deviceMac.c_str());
+      if (itW != updateDarkCount.end())
+      {
+        shouldPublish = false;
+      }
+      itW = updateBrightCount.find(deviceMac.c_str());
+      if (itW != updateBrightCount.end())
+      {
+        shouldPublish = false;
+      }
+    }
+  }
+
+  illuminanceStates[deviceMac] = light;
+
+  if (((meshBrightCount != brightCount) || (meshDarkCount != darkCount)) && enableMesh && meshContactSensors && countLightToAvoidDuplicates) {
+    shouldPublish = false;
+  }
+
+  if (shouldPublish) {
+    if (meshContactSensors && enableMesh && countLightToAvoidDuplicates) {
+      if ((strcmp(light.c_str(), "DARK") == 0) && (meshDarkCount != 0) && (meshDarkCount == darkCount)) {
+        std::string deviceDarkMeshTopic = contactTopic + aDevice + "/darkcount";
+        addToPublish(deviceDarkMeshTopic.c_str(), meshDarkCount, true);
+      }
+      else if ((strcmp(light.c_str(), "BRIGHT") == 0) && (meshBrightCount != 0) && (meshBrightCount == brightCount)) {
+        std::string deviceBrightMeshTopic = contactTopic + aDevice + "/brightcount";
+        addToPublish(deviceBrightMeshTopic.c_str(), meshBrightCount, true);
+      }
+    }
+
+    if (!isMeshNode || !onlyAllowRootESPToPublishLight) {
+      std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
+      addToPublish(deviceLightTopic.c_str(), light.c_str(), true);
+    }
+  }
+}
+
+void processSenseDistance(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+
+  if (!isActive) {
+    return;
+  }
+  bool shouldPublish = aPublish;
+  uint8_t byte5 = (uint8_t) aValueString[5];
+  bool sensingDistanceA = (byte5 & 0b00001000);
+  bool sensingDistanceB = (byte5 & 0b00000100);
+  std::string sensingDistance;
+  if (!sensingDistanceA && !sensingDistanceB) {
+    sensingDistance = "LONG";
+  }
+  else if (!sensingDistanceA && sensingDistanceB) {
+    sensingDistance = "MIDDLE";
+  }
+  else if (sensingDistanceA && !sensingDistanceB) {
+    sensingDistance = "SHORT";
+  }
+  else if (sensingDistanceA && sensingDistanceB) {
+    sensingDistance = "RESERVE";
+  }
+  //aJsonDoc["sensedist"] = sensingDistance;
+  if (shouldPublish) {
+    std::string deviceSenseTopic = motionTopic + aDevice + "/sensedist";
+    addToPublish(deviceSenseTopic.c_str(), sensingDistance.c_str(), true);
+  }
+}
+
+
+void processLED(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+  if (!isActive) {
+    return;
+  }
+  bool shouldPublish = aPublish;
+  uint8_t byte5 = (uint8_t) aValueString[5];
+  std::string ledState = (byte5 & 0b00100000) ? "ON" : "OFF";
+  aJsonDoc["led"] = ledState;
+
+  std::map<std::string, std::string>::iterator itL = ledStates.find(deviceMac);
+  if (itL != ledStates.end())
+  {
+    std::string aLED = itL->second.c_str();
+    if (strcmp(aLED.c_str(), ledState.c_str()) != 0) {
+      shouldPublish = true;
+    }
+  }
+  ledStates[deviceMac] = ledState;
+
+  if (shouldPublish) {
+    std::string deviceLEDTopic = motionTopic + aDevice + "/led";
+    addToPublish(deviceLEDTopic.c_str(), ledState.c_str(), true);
+  }
+}
+
+void processContact(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+  bool contactA = false;
+  bool contactB = false;
+  long lastContactHighSeconds = 0;
+  bool shouldPublish = aPublish;
+  uint8_t byte3 = 0;
+  uint8_t byte6 = 0;
+  uint8_t byte7 = 0;
+  std::string light = "";
+  int battLevel = 0;
+
+  if ( isActiveScan) {
+    byte3 = (uint8_t) aValueString[3];
+    byte6 = (uint8_t) aValueString[6];
+    byte7 = (uint8_t) aValueString[7];
+    contactA = (byte3 & 0b00000100);
+    contactB = (byte3 & 0b00000010);
+    lastContactHighSeconds = (byte3 & 0b01000000);
+  }
+  else
+  {
+    byte3 = (uint8_t) aValueString[9];
+    byte6 = (uint8_t) aValueString[12];
+    byte7 = (uint8_t) aValueString[13];
+    contactA = (byte3 & 0b00100000);
+    contactB = (byte3 & 0b00010000);
+    lastContactHighSeconds = (byte3 & 0b00000001);
+  }
+
+  byte data2[] = {byte7, byte6};
+  long lastContactLowSeconds = le16_to_cpu_signed(data2);
+
+  long lastContact = lastContactHighSeconds + lastContactLowSeconds;
+
+  std::map<std::string, long>::iterator itU = lastContacts.find(aDevice.c_str());
+  if (itU == lastContacts.end())
+  {
+    lastContacts[aDevice.c_str()] = millis();
+  }
+
+  std::string contact;
+  std::string binContact;
+  if (!contactA && !contactB) {
+    contact = "CLOSED";
+  }
+  else if (!contactA && contactB) {
+    contact = "OPEN";
+    lastContacts[aDevice] = millis();
+  }
+  else if (contactA && !contactB) {
+    contact = "TIMEOUT";
+    lastContacts[aDevice] = millis();
+  }
+  else if (contactA && contactB) {
+    contact = "RESERVE";
+  }
+
+  if (!enableMesh) {
+    bool missedAContact = ((millis() - lastContacts[aDevice.c_str()]) > (lastContact * 1000));
+    if (missedAContact) {
+      shouldPublish = true;
+    }
+
+    if (sendBackupMotionContact) {
+      if ( missedAContact && (lastContact < missedDataResend) ) {
+        contact = "OPEN";
+        lastContacts[aDevice.c_str()] = millis();
+      }
+    }
+  }
+
+  if (strcmp(contact.c_str(), "CLOSED") == 0) {
+    binContact = "CLOSED";
+  }
+  else {
+    binContact = "OPEN";
+  }
+
+  int openCount = 0;
+  int closedCount = 0;
+  int timeoutCount = 0;
+  int meshOpenCount = 0;
+  int meshClosedCount = 0;
+  int meshTimeoutCount = 0;
+
+  if (meshContactSensors && enableMesh && countContactToAvoidDuplicates) {
+    std::map<std::string, int>::iterator itQQ = openCounts.find(deviceMac.c_str());
+    if (itQQ != openCounts.end())
+    {
+      openCount = itQQ->second;
+    }
+
+    itQQ = closedCounts.find(deviceMac.c_str());
+    if (itQQ != closedCounts.end())
+    {
+      closedCount = itQQ->second;
+    }
+
+    itQQ = timeoutCounts.find(deviceMac.c_str());
+    if (itQQ != timeoutCounts.end())
+    {
+      timeoutCount = itQQ->second;
+    }
+
+    itQQ = meshOpenCounts.find(deviceMac.c_str());
+    if (itQQ != meshOpenCounts.end())
+    {
+      meshOpenCount = itQQ->second;
+    }
+
+    itQQ = meshClosedCounts.find(deviceMac.c_str());
+    if (itQQ != meshClosedCounts.end())
+    {
+      meshClosedCount = itQQ->second;
+    }
+
+    itQQ = meshTimeoutCounts.find(deviceMac.c_str());
+    if (itQQ != meshTimeoutCounts.end())
+    {
+      meshTimeoutCount = itQQ->second;
+    }
+
+    if ((meshOpenCount == 0) || (meshClosedCount == 0) || (meshTimeoutCount == 0)) {
+      if (meshOpenCount == 0) {
+        std::string deviceOpenMeshTopic = contactTopic + aDevice + "/opencount";
+        meshOpenCount = 1;
+        openCounts[deviceMac.c_str()] = meshOpenCount;
+        meshOpenCounts[deviceMac.c_str()] = meshOpenCount;
+        addToPublish(deviceOpenMeshTopic.c_str(), meshOpenCount, true);
+      }
+      if (meshClosedCount == 0) {
+        std::string deviceClosedMeshTopic = contactTopic + aDevice + "/closedcount";
+        meshClosedCount = 1;
+        closedCounts[deviceMac.c_str()] = meshClosedCount;
+        meshClosedCounts[deviceMac.c_str()] = meshClosedCount;
+        addToPublish(deviceClosedMeshTopic.c_str(), meshClosedCount, true);
+      }
+      if (meshTimeoutCount == 0) {
+        std::string deviceTimeoutMeshTopic = contactTopic + aDevice + "/timeoutcount";
+        meshTimeoutCount = 1;
+        timeoutCounts[deviceMac.c_str()] = meshTimeoutCount;
+        meshTimeoutCounts[deviceMac.c_str()] = meshTimeoutCount;
+        addToPublish(deviceTimeoutMeshTopic.c_str(), meshTimeoutCount, true);
+      }
+    }
+  }
+
+  std::map<std::string, std::string>::iterator itH = contactStates.find(deviceMac.c_str());
+  if (itH != contactStates.end())
+  {
+    std::string contactState = itH->second.c_str();
+    if (strcmp(contactState.c_str(), contact.c_str()) != 0) {
+      shouldPublish = true;
+      if (meshContactSensors && enableMesh && countContactToAvoidDuplicates) {
+        if (strcmp(contact.c_str(), "OPEN") == 0) {
+
+          if ((meshOpenCount == openCount) && (meshOpenCount != 0) && (meshTimeoutCount == timeoutCount) && (meshClosedCount == closedCount)) {
+            meshOpenCount = meshOpenCount + 1;
+            if (meshOpenCount > 50) {
+              meshOpenCount = 1;
+            }
+            meshOpenCounts[deviceMac.c_str()] = meshOpenCount;
+            contactMeshStates[deviceMac.c_str()] = "OPEN";
+            std::map<std::string, long>::iterator itW = updateOpenCount.find(deviceMac.c_str());
+            if (itW != updateOpenCount.end())
+            {
+              updateOpenCount.erase(deviceMac.c_str());
+            }
+          }
+          else {
+            updateOpenCount[deviceMac.c_str()] = millis();
+            updateMeshOpenCount[deviceMac.c_str()] = meshOpenCount;
+            shouldPublish = false;
+          }
+
+          openCount = openCount + 1;
+          if (openCount > 50) {
+            openCount = 1;
+          }
+          openCounts[deviceMac.c_str()] = openCount;
+        }
+        else if (strcmp(contact.c_str(), "CLOSED") == 0) {
+          if ((meshClosedCount == closedCount) && (meshClosedCount != 0) && (meshTimeoutCount == timeoutCount) && (meshOpenCount == openCount)) {
+            meshClosedCount = meshClosedCount + 1;
+            if (meshClosedCount > 50) {
+              meshClosedCount = 1;
+            }
+            meshClosedCounts[deviceMac.c_str()] = meshClosedCount;
+            contactMeshStates[deviceMac.c_str()] = "CLOSED";
+            std::map<std::string, long>::iterator itW = updateClosedCount.find(deviceMac.c_str());
+            if (itW != updateClosedCount.end())
+            {
+              updateClosedCount.erase(deviceMac.c_str());
+            }
+          }
+          else {
+            updateClosedCount[deviceMac.c_str()] = millis();
+            updateMeshClosedCount[deviceMac.c_str()] = meshClosedCount;
+            shouldPublish = false;
+          }
+
+          closedCount = closedCount + 1;
+          if (closedCount > 50) {
+            closedCount = 1;
+          }
+          closedCounts[deviceMac.c_str()] = closedCount;
+        }
+        else if (strcmp(contact.c_str(), "TIMEOUT") == 0) {
+
+          if ((meshTimeoutCount == timeoutCount) && (meshTimeoutCount != 0) && (meshOpenCount == openCount) && (meshClosedCount == closedCount)) {
+            meshTimeoutCount = meshTimeoutCount + 1;
+            if (meshTimeoutCount > 50) {
+              meshTimeoutCount = 1;
+            }
+            meshTimeoutCounts[deviceMac.c_str()] = meshTimeoutCount;
+            contactMeshStates[deviceMac.c_str()] = "TIMEOUT";
+            std::map<std::string, long>::iterator itW = updateTimeoutCount.find(deviceMac.c_str());
+            if (itW != updateTimeoutCount.end())
+            {
+              updateTimeoutCount.erase(deviceMac.c_str());
+            }
+          }
+          else {
+            updateTimeoutCount[deviceMac.c_str()] = millis();
+            updateMeshTimeoutCount[deviceMac.c_str()] = meshTimeoutCount;
+            shouldPublish = false;
+          }
+
+          timeoutCount = timeoutCount + 1;
+
+          if (timeoutCount > 50) {
+            timeoutCount = 1;
+          }
+
+          timeoutCounts[deviceMac.c_str()] = timeoutCount;
+        }
+      }
+    }
+    else {
+
+      std::map<std::string, long>::iterator itW = updateOpenCount.find(deviceMac.c_str());
+      if (itW != updateOpenCount.end())
+      {
+        shouldPublish = false;
+      }
+      itW = updateClosedCount.find(deviceMac.c_str());
+      if (itW != updateClosedCount.end())
+      {
+        shouldPublish = false;
+      }
+      itW = updateTimeoutCount.find(deviceMac.c_str());
+      if (itW != updateTimeoutCount.end())
+      {
+        shouldPublish = false;
+      }
+    }
+  }
+
+  contactStates[deviceMac.c_str()] = contact;
+
+  if (((meshClosedCount != closedCount) || (meshTimeoutCount != timeoutCount) || (meshOpenCount != openCount)) && enableMesh && meshContactSensors && countContactToAvoidDuplicates) {
+    shouldPublish = false;
+  }
+
+  if (shouldPublish) {
+    if (meshContactSensors && enableMesh && countContactToAvoidDuplicates) {
+      if ((strcmp(contact.c_str(), "OPEN") == 0) && (meshOpenCount != 0) && (meshOpenCount == openCount)) {
+        std::string deviceOpenMeshTopic = contactTopic + aDevice + "/opencount";
+        addToPublish(deviceOpenMeshTopic.c_str(), meshOpenCount, true);
+      }
+      else if ((strcmp(contact.c_str(), "CLOSED") == 0) && (meshClosedCount != 0) && (meshClosedCount == closedCount)) {
+        std::string deviceClosedMeshTopic = contactTopic + aDevice + "/closedcount";
+        addToPublish(deviceClosedMeshTopic.c_str(), meshClosedCount, true);
+      }
+      else if ((strcmp(contact.c_str(), "TIMEOUT") == 0) && (meshTimeoutCount != 0) && (meshTimeoutCount == timeoutCount)) {
+        std::string deviceTimeoutMeshTopic = contactTopic + aDevice + "/timeoutcount";
+        addToPublish(deviceTimeoutMeshTopic.c_str(), meshTimeoutCount, true);
+      }
+    }
+
+    if (!isMeshNode || !onlyAllowRootESPToPublishContact) {
+      std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+      std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
+      std::string deviceStateTopic = contactTopic + aDevice + "/state";
+      addToPublish(deviceBinContactTopic.c_str(), binContact.c_str(), true);
+      addToPublish(deviceContactTopic.c_str(), contact.c_str(), true);
+      addToPublish(deviceStateTopic.c_str(), contact, true);
+      if (lastContact >= 0) {
+        publishContactLastContact(aDevice, lastContact);
+      }
+    }
+  }
+}
+
+void processButton(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+  uint8_t byte8 = 0;
+  bool shouldPublish = aPublish;
+  bool publishButton = false;
+  if (isActive) {
+    byte8 = (uint8_t) aValueString[8];
+  }
+  else {
+    byte8 = (uint8_t) aValueString[14];
+  }
+
+  int buttonCountA = (byte8 & 0b00001000) ? 8 : 0;
+  int buttonCountB = (byte8 & 0b00000100) ? 4 : 0;
+  int buttonCountC = (byte8 & 0b00000010) ? 2 : 0;
+  int buttonCountD = (byte8 & 0b00000001) ? 1 : 0;
+  int buttonCount = buttonCountA + buttonCountB + buttonCountC + buttonCountD;
+
+  std::string deviceButtonTopic = contactTopic + aDevice + "/button";
+
+  std::map<std::string, int>::iterator itE = buttonCounts.find(deviceMac);
+  if (itE != buttonCounts.end())
+  {
+    int bCount = itE->second;
+    if (((bCount < buttonCount) ||  ((bCount > 10) && (buttonCount < 5))) && (buttonCount != 0)) {
+      shouldPublish = true;
+    }
+    else {
+      shouldPublish = false;
+    }
+  }
+  else {
+    buttonCounts[deviceMac] = buttonCount;
+    shouldPublish = false;
+  }
+
+  if (shouldPublish) {
+    buttonCounts[deviceMac] = buttonCount;
+
+    if (isMeshNode) {
+      std::string deviceButtonMeshTopic = contactTopic + aDevice + "/buttoncount";
+      addToPublish(deviceButtonMeshTopic.c_str(), buttonCount, false);
+
+    }
+    else {
+      //addToPublish(deviceButtonTopic.c_str(), "PUSHED", false);
+      client.publish(deviceButtonTopic.c_str(), "PUSHED", false);
+      lastButton[deviceMac] = millis();
+    }
+  }
+}
+
+void processEntrance(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+  uint8_t byte8 = 0;
+  bool shouldPublish = aPublish;
+  if (isActive) {
+    byte8 = (uint8_t) aValueString[8];
+  }
+  else {
+    byte8 = (uint8_t) aValueString[14];
+  }
+  int entranceCountA = (byte8 & 0b10000000) ? 2 : 0;
+  int entranceCountB = (byte8 & 0b01000000) ? 1 : 0;
+  int entranceCount = entranceCountA + entranceCountB;
+  std::string deviceInTopic = contactTopic + aDevice + "/in";
+  std::map<std::string, int>::iterator itE = entranceCounts.find(deviceMac);
+  if (itE != entranceCounts.end())
+  {
+    int eCount = itE->second;
+    if (((eCount < entranceCount) ||  ((eCount == 3) && (entranceCount == 1))) && (entranceCount != 0)) {
+      shouldPublish = true;
+    }
+    else {
+      shouldPublish = false;
+    }
+  }
+  else {
+    entranceCounts[deviceMac] = entranceCount;
+    shouldPublish = false;
+  }
+
+  if (shouldPublish) {
+    entranceCounts[deviceMac] = entranceCount;
+
+    if (isMeshNode) {
+      std::string deviceInMeshTopic = contactTopic + aDevice + "/incount";
+      addToPublish(deviceInMeshTopic.c_str(), entranceCount, false);
+    }
+    else {
+      //addToPublish(deviceInTopic.c_str(), "ENTERED", false);
+      client.publish(deviceInTopic.c_str(), "ENTERED", false);
+      lastIn[deviceMac] = millis();
+    }
+  }
+}
+
+void processExit(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+  uint8_t byte8 = 0;
+  bool shouldPublish = aPublish;
+  if (isActive) {
+    byte8 = (uint8_t) aValueString[8];
+  }
+  else {
+    byte8 = (uint8_t) aValueString[14];
+  }
+  std::string deviceOutTopic = contactTopic + aDevice + "/out";
+  int outCountA = (byte8 & 0b00100000) ? 2 : 0;
+  int outCountB = (byte8 & 0b00010000) ? 1 : 0;
+  int outCount = outCountA + outCountB;
+  std::map<std::string, int>::iterator itE = outCounts.find(deviceMac.c_str());
+  if (itE != outCounts.end())
+  {
+    int oCount = itE->second;
+    if (((oCount < outCount) ||  ((oCount == 3) && (outCount == 1))) && (outCount != 0)) {
+      shouldPublish = true;
+    }
+    else {
+      shouldPublish = false;
+    }
+  }
+  else {
+    outCounts[deviceMac.c_str()] = outCount;
+    shouldPublish = false;
+  }
+
+  if (shouldPublish) {
+    outCounts[deviceMac.c_str()] = outCount;
+
+    if (isMeshNode) {
+      std::string deviceOutMeshTopic = contactTopic + aDevice + "/outcount";
+      addToPublish(deviceOutMeshTopic.c_str(), outCount, false);
+    }
+    else {
+      //addToPublish(deviceOutTopic.c_str(), "EXITED", false);
+      client.publish(deviceOutTopic.c_str(), "EXITED", false);
+      lastOut[deviceMac] = millis();
+    }
+  }
+}
+
+
+void processBotBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+  int battLevel = 0;
+  bool shouldPublish = aPublish;
+  if (isActive) {
+    uint8_t byte2 = (uint8_t) aValueString[2];
+    battLevel = (byte2 & 0b01111111);
+    batteryValues[aDevice] = battLevel;
+    aJsonDoc["batt"] = battLevel;
+  }
+  else {
+    battLevel = batteryValues[aDevice];
+  }
+  if (shouldPublish) {
+    //std::string deviceBatteryTopic = ;
+    addToPublish(botTopic + aDevice + "/battery", battLevel, true);
+  }
+}
+void processCurtainBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+  int battLevel = 0;
+  bool shouldPublish = aPublish;
+  if (isActive) {
+    uint8_t byte2 = (uint8_t) aValueString[2];
+    battLevel = (byte2 & 0b01111111);
+    batteryValues[aDevice] = battLevel;
+    aJsonDoc["batt"] = battLevel;
+  }
+  else {
+    battLevel = batteryValues[aDevice];
+  }
+  if (shouldPublish) {
+    //std::string deviceBatteryTopic = ;
+    addToPublish(curtainTopic + aDevice + "/battery", battLevel, true);
+  }
+}
+void processMeterBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+  int battLevel = 0;
+  bool shouldPublish = aPublish;
+  if (isActive) {
+    uint8_t byte2 = (uint8_t) aValueString[2];
+    battLevel = (byte2 & 0b01111111);
+    batteryValues[aDevice] = battLevel;
+    aJsonDoc["batt"] = battLevel;
+  }
+  else {
+    battLevel = batteryValues[aDevice];
+  }
+  if (shouldPublish) {
+    //std::string deviceBatteryTopic = ;
+    addToPublish(meterTopic + aDevice + "/battery", battLevel, true);
+  }
+}
+void processContactBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+  int battLevel = 0;
+  bool shouldPublish = aPublish;
+  if (isActive) {
+    uint8_t byte2 = (uint8_t) aValueString[2];
+    battLevel = (byte2 & 0b01111111);
+    batteryValues[aDevice] = battLevel;
+    // aJsonDoc["batt"] = battLevel;
+  }
+  else {
+    battLevel = batteryValues[aDevice];
+  }
+  if (shouldPublish) {
+    //std::string deviceBatteryTopic = ;
+    addToPublish(contactTopic + aDevice + "/battery", battLevel, true);
+  }
+}
+void processMotionBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+  int battLevel = 0;
+  bool shouldPublish = aPublish;
+  if (isActive) {
+    uint8_t byte2 = (uint8_t) aValueString[2];
+    battLevel = (byte2 & 0b01111111);
+    batteryValues[aDevice] = battLevel;
+    //aJsonDoc["batt"] = battLevel;
+  }
+  else {
+    battLevel = batteryValues[aDevice];
+  }
+  if (shouldPublish) {
+    //std::string deviceBatteryTopic = ;
+    addToPublish(motionTopic + aDevice + "/battery", battLevel, true);
+  }
+}
+
+void processBotRSSI(std::string & aDevice, std::string & deviceMac, long anRSSI, bool isActive, bool aPublish) {
+  bool shouldPublish = aPublish;
+  aJsonDoc["rssi"] = anRSSI;
+  if (shouldPublish) {
+    //std::string deviceRSSITopic = ;
+    addToPublish(botTopic + aDevice + "/rssi", anRSSI, true);
+  }
+}
+
+void processCurtainRSSI(std::string & aDevice, std::string & deviceMac, long anRSSI, bool isActive, bool aPublish) {
+  bool shouldPublish = aPublish;
+  aJsonDoc["rssi"] = anRSSI;
+  if (shouldPublish) {
+    //std::string deviceRSSITopic = curtainTopic + aDevice + "/rssi";
+    addToPublish(curtainTopic + aDevice + "/rssi", anRSSI, true);
+  }
+}
+
+void processContactRSSI(std::string & aDevice, std::string & deviceMac, long anRSSI, bool isActive, bool aPublish) {
+  bool shouldPublish = aPublish;
+  //aJsonDoc["rssi"] = anRSSI;
+
+  if (shouldPublish) {
+    //std::string deviceRSSITopic = ;
+    addToPublish(contactTopic + aDevice + "/rssi", anRSSI, true);
+    if (meshContactSensors && enableMesh) {
+      //deviceRSSITopic = ;
+      addToPublish(contactMainTopic + aDevice + "/rssi", anRSSI, true);
+    }
+  }
+}
+
+void processMotionRSSI(std::string & aDevice, std::string & deviceMac, long anRSSI, bool isActive, bool aPublish) {
+  bool shouldPublish = aPublish;
+  //aJsonDoc["rssi"] = anRSSI;
+
+  if (shouldPublish) {
+    //std::string deviceRSSITopic = ;
+    addToPublish(motionTopic + aDevice + "/rssi", anRSSI, true);
+    if (meshMotionSensors && enableMesh) {
+      //deviceRSSITopic = motionMainTopic + aDevice + "/rssi";
+      addToPublish(motionMainTopic + aDevice + "/rssi", anRSSI, true);
+    }
+  }
+}
+
+void processMeterRSSI(std::string & aDevice, std::string & deviceMac, long anRSSI, bool isActive, bool aPublish) {
+  bool shouldPublish = aPublish;
+  aJsonDoc["rssi"] = anRSSI;
+
+  if (shouldPublish) {
+    //std::string deviceRSSITopic = ;
+    addToPublish(meterTopic + aDevice + "/rssi", anRSSI, true);
+    if (meshMeters && enableMesh) {
+      //deviceRSSITopic = ;
+      addToPublish(meterMainTopic + aDevice + "/rssi", anRSSI, true);
+    }
+  }
+}
 static long lastOnlinePublished = 0;
 static long lastRescan = 0;
 static long lastScanCheck = 0;
@@ -818,6 +2339,218 @@ bool publishMQTT(std::string topic, char * payload) {
   return publishMQTT(topic, payload, false);
 }
 
+void processContactSensorTasks() {
+  std::string anAddr;
+  std::string aDevice;
+  long aTime = 0;
+  std::map<std::string, std::string>::iterator itT = allContactSensors.begin();
+  while (itT != allContactSensors.end())
+  {
+    anAddr = itT->second;
+    aDevice = itT->first;
+    std::map<std::string, long>::iterator itW = lastButton.find(anAddr.c_str());
+    if (itW != lastButton.end())
+    {
+      aTime = itW->second;
+      if ((millis() - aTime) > 1000) {
+        std::string deviceButtonTopic = contactTopic + aDevice + "/button";
+        addToPublish(deviceButtonTopic.c_str(), "IDLE", false);
+        lastButton.erase(anAddr.c_str());
+      }
+    }
+
+    itW = lastIn.find(anAddr.c_str());
+    if (itW != lastIn.end())
+    {
+      aTime = itW->second;
+      if ((millis() - aTime) > 1000) {
+        std::string deviceInTopic = contactTopic + aDevice + "/in";
+        addToPublish(deviceInTopic.c_str(), "IDLE", false);
+        lastIn.erase(anAddr.c_str());
+      }
+    }
+
+    itW = lastOut.find(anAddr.c_str());
+    if (itW != lastOut.end())
+    {
+      aTime = itW->second;
+      if ((millis() - aTime) > 1000) {
+        std::string deviceOutTopic = contactTopic + aDevice + "/out";
+        addToPublish(deviceOutTopic.c_str(), "IDLE", false);
+        lastOut.erase(anAddr.c_str());
+      }
+    }
+
+    itW = updateOpenCount.find(anAddr.c_str());
+    if (itW != updateOpenCount.end())
+    {
+      aTime = itW->second;
+      if ((millis() - aTime) > (timeToIgnoreDuplicates * 1000)) {
+        std::map<std::string, int>::iterator itQQ = updateMeshOpenCount.find(anAddr.c_str());
+        if (itQQ != updateMeshOpenCount.end())
+        {
+          openCounts[anAddr.c_str()] = itQQ->second;
+          updateOpenCount.erase(anAddr.c_str());
+        }
+      }
+    }
+
+    itW = updateClosedCount.find(anAddr.c_str());
+    if (itW != updateClosedCount.end())
+    {
+      aTime = itW->second;
+      if ((millis() - aTime) > (timeToIgnoreDuplicates * 1000)) {
+        std::map<std::string, int>::iterator itQQ = updateMeshClosedCount.find(anAddr.c_str());
+        if (itQQ != updateMeshClosedCount.end())
+        {
+          closedCounts[anAddr.c_str()] = itQQ->second;
+          updateClosedCount.erase(anAddr.c_str());
+        }
+      }
+    }
+
+    itW = updateTimeoutCount.find(anAddr.c_str());
+    if (itW != updateTimeoutCount.end())
+    {
+      aTime = itW->second;
+      if ((millis() - aTime) > (timeToIgnoreDuplicates * 1000)) {
+        std::map<std::string, int>::iterator itQQ = updateMeshTimeoutCount.find(anAddr.c_str());
+        if (itQQ != updateMeshTimeoutCount.end())
+        {
+          timeoutCounts[anAddr.c_str()] = itQQ->second;
+          updateTimeoutCount.erase(anAddr.c_str());
+        }
+      }
+    }
+
+    itW = updateMotionCount.find(anAddr.c_str());
+    if (itW != updateMotionCount.end())
+    {
+      aTime = itW->second;
+      if ((millis() - aTime) > (timeToIgnoreDuplicates * 1000)) {
+        std::map<std::string, int>::iterator itQQ = meshMotionCounts.find(anAddr.c_str());
+        if (itQQ != meshMotionCounts.end())
+        {
+          motionCounts[anAddr.c_str()] = itQQ->second;
+          updateMotionCount.erase(anAddr.c_str());
+        }
+      }
+    }
+
+    itW = updateNoMotionCount.find(anAddr.c_str());
+    if (itW != updateNoMotionCount.end())
+    {
+      aTime = itW->second;
+      if ((millis() - aTime) > (timeToIgnoreDuplicates * 1000)) {
+        std::map<std::string, int>::iterator itQQ = meshNoMotionCounts.find(anAddr.c_str());
+        if (itQQ != meshNoMotionCounts.end())
+        {
+          noMotionCounts[anAddr.c_str()] = itQQ->second;
+          updateNoMotionCount.erase(anAddr.c_str());
+        }
+      }
+    }
+
+    itW = updateDarkCount.find(anAddr.c_str());
+    if (itW != updateDarkCount.end())
+    {
+      aTime = itW->second;
+      if ((millis() - aTime) > (timeToIgnoreDuplicates * 1000)) {
+        std::map<std::string, int>::iterator itQQ = meshDarkCounts.find(anAddr.c_str());
+        if (itQQ != meshDarkCounts.end())
+        {
+          darkCounts[anAddr.c_str()] = itQQ->second;
+          updateDarkCount.erase(anAddr.c_str());
+        }
+      }
+    }
+
+    itW = updateBrightCount.find(anAddr.c_str());
+    if (itW != updateBrightCount.end())
+    {
+      aTime = itW->second;
+      if ((millis() - aTime) > (timeToIgnoreDuplicates * 1000)) {
+        std::map<std::string, int>::iterator itQQ = meshBrightCounts.find(anAddr.c_str());
+        if (itQQ != meshBrightCounts.end())
+        {
+          brightCounts[anAddr.c_str()] = itQQ->second;
+          updateBrightCount.erase(anAddr.c_str());
+        }
+      }
+    }
+    itT++;
+  }
+}
+
+void processMotionSensorTasks() {
+  std::string anAddr;
+  std::string aDevice;
+  long aTime = 0;
+  std::map<std::string, std::string>::iterator itT = allMotionSensors.begin();
+  while (itT != allMotionSensors.end())
+  {
+    anAddr = itT->second;
+    aDevice = itT->first;
+
+    std::map<std::string, long>::iterator itW = updateMotionCount.find(anAddr.c_str());
+    if (itW != updateMotionCount.end())
+    {
+      aTime = itW->second;
+      if ((millis() - aTime) > (timeToIgnoreDuplicates * 1000)) {
+        std::map<std::string, int>::iterator itQQ = meshMotionCounts.find(anAddr.c_str());
+        if (itQQ != meshMotionCounts.end())
+        {
+          motionCounts[anAddr.c_str()] = itQQ->second;
+          updateMotionCount.erase(anAddr.c_str());
+        }
+      }
+    }
+
+    itW = updateNoMotionCount.find(anAddr.c_str());
+    if (itW != updateNoMotionCount.end())
+    {
+      aTime = itW->second;
+      if ((millis() - aTime) > (timeToIgnoreDuplicates * 1000)) {
+        std::map<std::string, int>::iterator itQQ = meshNoMotionCounts.find(anAddr.c_str());
+        if (itQQ != meshNoMotionCounts.end())
+        {
+          noMotionCounts[anAddr.c_str()] = itQQ->second;
+          updateNoMotionCount.erase(anAddr.c_str());
+        }
+      }
+    }
+
+    itW = updateDarkCount.find(anAddr.c_str());
+    if (itW != updateDarkCount.end())
+    {
+      aTime = itW->second;
+      if ((millis() - aTime) > (timeToIgnoreDuplicates * 1000)) {
+        std::map<std::string, int>::iterator itQQ = meshDarkCounts.find(anAddr.c_str());
+        if (itQQ != meshDarkCounts.end())
+        {
+          darkCounts[anAddr.c_str()] = itQQ->second;
+          updateDarkCount.erase(anAddr.c_str());
+        }
+      }
+    }
+
+    itW = updateBrightCount.find(anAddr.c_str());
+    if (itW != updateBrightCount.end())
+    {
+      aTime = itW->second;
+      if ((millis() - aTime) > (timeToIgnoreDuplicates * 1000)) {
+        std::map<std::string, int>::iterator itQQ = meshBrightCounts.find(anAddr.c_str());
+        if (itQQ != meshBrightCounts.end())
+        {
+          brightCounts[anAddr.c_str()] = itQQ->second;
+          updateBrightCount.erase(anAddr.c_str());
+        }
+      }
+    }
+    itT++;
+  }
+}
+
 void publishAllMQTT() {
   while (!(publishQueue.isEmpty())) {
     bool success = false;
@@ -827,9 +2560,224 @@ void publishAllMQTT() {
       publishQueue.dequeue();
     }
   }
-
 }
 
+void processAllAdvData() {
+  while (!(advDataQueue.isEmpty())) {
+    bool success = false;
+    QueueAdvData aAdvData = advDataQueue.getHead();
+    processAdvData(aAdvData.macAddr, aAdvData.rssi, aAdvData.aValueString, aAdvData.useActiveScan);
+    advDataQueue.dequeue();
+  }
+}
+
+void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueString, bool useActiveScan) {
+  yield();
+
+  aJsonDoc.clear();
+
+  bool shouldPublish = false;
+  std::string aDevice;
+  std::string aState = "";
+  std::string deviceStateTopic;
+  std::string deviceAttrTopic;
+
+  std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(deviceMac);
+  if (itS != allSwitchbotsOpp.end())
+  {
+    aDevice = itS->second.c_str();
+  }
+  else {
+    return;
+  }
+  std::string deviceName;
+  itS = deviceTypes.find(deviceMac);
+  if (itS != deviceTypes.end())
+  {
+    deviceName = itS->second.c_str();
+  }
+
+  int aLength = aValueString.length();
+  if (deviceName == botName) {
+
+    shouldPublish = true;
+    processBotBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processBotRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish);
+
+    uint8_t byte1 = (uint8_t) aValueString[1];
+    uint8_t byte2 = (uint8_t) aValueString[2];
+    bool isSwitch = (byte1 & 0b10000000);
+    deviceStateTopic = botTopic + aDevice + "/state";
+    deviceAttrTopic = botTopic + aDevice + "/attributes";
+
+    std::string aMode = isSwitch ? "Switch" : "Press"; // Whether the light switch Add-on is used or not
+    std::string deviceAssumedStateTopic = botTopic + aDevice + "/assumedstate";
+
+    if (isSwitch) {
+      std::map<std::string, bool>::iterator itP = botsInPressMode.find(deviceMac);
+      if (itP != botsInPressMode.end())
+      {
+        botsInPressMode.erase(deviceMac);
+      }
+      aState = (byte1 & 0b01000000) ? "OFF" : "ON"; // Mine is opposite, not sure why
+      addToPublish(deviceAssumedStateTopic.c_str(), aState.c_str(), true);
+    }
+    else {
+      botsInPressMode[deviceMac] = true;
+      std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
+
+      if (itE != botsSimulateONOFFinPRESSmode.end())
+      {
+        aMode = "PressOnOff";
+        std::map<std::string, bool>::iterator itF = botsSimulatedStates.find(aDevice);
+        bool boolState = false;
+        if (itF != botsSimulatedStates.end())
+        {
+          boolState = itF->second;
+        }
+        else {
+          boolState = itE->second;
+        }
+        if (boolState) {
+          aState = "ON";
+        } else {
+          aState = "OFF";
+        }
+        addToPublish(deviceAssumedStateTopic.c_str(), aState.c_str(), true);
+      }
+      else {
+        aState = "OFF";
+      }
+    }
+    //int battLevel = byte2 & 0b01111111; // %
+    aJsonDoc["mode"] = aMode;
+    aJsonDoc["state"] = aState;
+    //aJsonDoc["batt"] = battLevel;
+
+  }
+  else if (deviceName == meterName) {
+    shouldPublish = true;
+
+    processMeterBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processMeterRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish);
+
+    deviceStateTopic = meterTopic + aDevice + "/state";
+    deviceAttrTopic = meterTopic + aDevice + "/attributes";
+
+    uint8_t byte2 = (uint8_t) aValueString[2];
+    uint8_t byte3 = (uint8_t) aValueString[3];
+    uint8_t byte4 = (uint8_t) aValueString[4];
+    uint8_t byte5 = (uint8_t) aValueString[5];
+
+    int tempSign = (byte4 & 0b10000000) ? 1 : -1;
+    float tempC = tempSign * ((byte4 & 0b01111111) + ((byte3 & 0b00001111) / 10.0));
+    float tempF = (tempC * 9 / 5.0) + 32;
+    tempF = round(tempF * 10) / 10.0;
+    bool tempScale = (byte5 & 0b10000000) ;
+    std::string str1 = (tempScale == true) ? "f" : "c";
+    aJsonDoc["scale"] = str1;
+    //int battLevel = (byte2 & 0b01111111);
+    //aJsonDoc["batt"] = battLevel;
+    aJsonDoc["C"] = serialized(String(tempC, 1));
+    aJsonDoc["F"] = serialized(String(tempF, 1));
+    int humidity = byte5 & 0b01111111;
+    aJsonDoc["hum"] = humidity;
+    aState = String(tempC, 1).c_str();
+
+  }
+  else if (deviceName == motionName) {
+    if (!initialScanComplete) {
+      shouldPublish = true;
+    }
+
+    if (!shouldPublish) {
+      if (shouldMQTTUpdateOrActiveScanForDevice(deviceMac)) {
+        shouldPublish = true;
+      }
+    }
+
+    processMotionMotion(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processLightMotion(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processLED(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processSenseDistance(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processMotionBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processMotionRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish);
+  }
+
+  else if (deviceName == contactName) {
+    if (!initialScanComplete) {
+      shouldPublish = true;
+    }
+
+    if (!shouldPublish) {
+      if (shouldMQTTUpdateOrActiveScanForDevice(deviceMac)) {
+        shouldPublish = true;
+      }
+    }
+    processContact(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processMotionContact(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processLightContact(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processButton(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processEntrance(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processExit(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processContactBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processContactRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish);
+  }
+
+  else if (deviceName == curtainName) {
+
+    shouldPublish = true;
+
+    processCurtainBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
+    processCurtainRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish);
+
+    std::string devicePosTopic = curtainTopic + aDevice + "/position";
+    deviceStateTopic = curtainTopic + aDevice + "/state";
+    deviceAttrTopic = curtainTopic + aDevice + "/attributes";
+
+    uint8_t byte1 = (uint8_t) aValueString[1];
+    uint8_t byte2 = (uint8_t) aValueString[2];
+    uint8_t byte3 = (uint8_t) aValueString[3];
+    uint8_t byte4 = (uint8_t) aValueString[4];
+
+    bool calibrated = byte1 & 0b01000000;;
+    //int battLevel = byte2 & 0b01111111;
+    int currentPosition = 100 - (byte3 & 0b01111111);
+    int lightLevel = (byte4 >> 4) & 0b00001111;
+    aState = "OPEN";
+
+    aJsonDoc["calib"] = calibrated;
+    //aJsonDoc["batt"] = battLevel;
+    aJsonDoc["pos"] = currentPosition;
+    if (currentPosition <= curtainClosedPosition)
+      aState = "CLOSE";
+    aJsonDoc["state"] = aState;
+    aJsonDoc["light"] = lightLevel;
+
+    StaticJsonDocument<50> docPos;
+    docPos["pos"] = currentPosition;
+    serializeJson(docPos, aBuffer);
+    addToPublish(devicePosTopic.c_str(), aBuffer, true);
+  }
+
+  yield();
+
+  if (shouldPublish) {
+    if ((deviceName != motionName) && (deviceName != contactName)) {
+      if (useActiveScan) {
+        delay(50);
+        serializeJson(aJsonDoc, aBuffer);
+        addToPublish(deviceAttrTopic.c_str(), aBuffer, true);
+        delay(50);
+        addToPublish(deviceStateTopic.c_str(), aState.c_str(), true);
+      }
+    }
+    lastUpdateTimes[deviceMac] = millis();
+  }
+  aJsonDoc.clear();
+  yield();
+
+}
 void publishLastwillOnline() {
   if ((millis() - lastOnlinePublished) > 30000) {
     if (client.isConnected()) {
@@ -860,20 +2808,18 @@ void publishHomeAssistantDiscoveryBotConfig(std::string & deviceName, std::strin
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
-               + "\"stat_t\":\"~/attributes\"," +
                + "\"dev_cla\":\"battery\"," +
                + "\"unit_of_meas\": \"%\", " +
-               + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/battery\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " Linkquality\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
-               + "\"stat_t\":\"~/attributes\"," +
                + "\"icon\":\"mdi:signal\"," +
                + "\"unit_of_meas\": \"rssi\", " +
-               + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/rssi\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/inverted/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " Inverted\"," +
@@ -981,30 +2927,28 @@ void publishHomeAssistantDiscoveryCurtainConfig(std::string & deviceName, std::s
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
-               + "\"stat_t\":\"~/attributes\"," +
                + "\"dev_cla\":\"battery\"," +
                + "\"unit_of_meas\": \"%\", " +
-               + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/battery\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " Linkquality\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
-               + "\"stat_t\":\"~/attributes\"," +
                + "\"icon\":\"mdi:signal\"," +
                + "\"unit_of_meas\": \"rssi\", " +
-               + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/rssi\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/illuminance/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
-                 + "\"name\":\"" + deviceName + " Illuminance\"," +
-                 + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
-                 + "\"avty_t\": \"" + lastWill + "\"," +
-                 + "\"uniq_id\":\"switchbot_" + deviceMac + "_illuminance\"," +
-                 + "\"stat_t\":\"~/attributes\"," +
-                 + "\"dev_cla\":\"illuminance\"," +
-                 + "\"unit_of_meas\": \"Level\", " +
-                 + "\"value_template\":\"{{ value_json.light }}\"}").c_str(), true);
+               + "\"name\":\"" + deviceName + " Illuminance\"," +
+               + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
+               + "\"avty_t\": \"" + lastWill + "\"," +
+               + "\"uniq_id\":\"switchbot_" + deviceMac + "_illuminance\"," +
+               + "\"stat_t\":\"~/attributes\"," +
+               + "\"dev_cla\":\"illuminance\"," +
+               + "\"unit_of_meas\": \"Level\", " +
+               + "\"value_template\":\"{{ value_json.light }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/calibrated/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " Calibrated\"," +
@@ -1061,20 +3005,18 @@ void publishHomeAssistantDiscoveryMeterConfig(std::string & deviceName, std::str
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
-               + "\"stat_t\":\"~/attributes\"," +
                + "\"dev_cla\":\"battery\"," +
                + "\"unit_of_meas\": \"%\", " +
-               + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/battery\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (meterTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " Linkquality\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
-               + "\"stat_t\":\"~/attributes\"," +
                + "\"icon\":\"mdi:signal\"," +
                + "\"unit_of_meas\": \"rssi\", " +
-               + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/rssi\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/temperature/config").c_str(), ("{\"~\":\"" + (meterTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " Temperature\"," +
@@ -1112,20 +3054,18 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
-               + "\"stat_t\":\"~/attributes\"," +
                + "\"dev_cla\":\"battery\"," +
                + "\"unit_of_meas\": \"%\", " +
-               + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/battery\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " Linkquality\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
-               + "\"stat_t\":\"~/attributes\"," +
                + "\"icon\":\"mdi:signal\"," +
                + "\"unit_of_meas\": \"rssi\", " +
-               + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/rssi\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/contact/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " Contact\"," +
@@ -1201,8 +3141,8 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastmotion\"," +
                + "\"dev_cla\":\"timestamp\"," +
-               + "\"stat_t\":\"~/attributes\"," +
-               + "\"value_template\":\"{{ now() - timedelta( seconds = value_json.lastm ) }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/lastmotion\"," +
+               + "\"value_template\":\"{{ now() - timedelta( seconds = value ) }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/lastcontact/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " LastContact\"," +
@@ -1210,8 +3150,8 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastcontact\"," +
                + "\"dev_cla\":\"timestamp\"," +
-               + "\"stat_t\":\"~/attributes\"," +
-               + "\"value_template\":\"{{ now() - timedelta( seconds = value_json.lastc ) }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/lastcontact\"," +
+               + "\"value_template\":\"{{ now() - timedelta( seconds = value ) }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/buttoncount/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " ButtonCount\"," +
@@ -1219,8 +3159,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_buttoncount\"," +
                + "\"icon\":\"mdi:counter\"," +
-               + "\"stat_t\":\"~/attributes\"," +
-               + "\"value_template\":\"{{ value_json.button }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/buttoncount\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/incount/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " InCount\"," +
@@ -1228,8 +3167,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_entrancecount\"," +
                + "\"icon\":\"mdi:counter\"," +
-               + "\"stat_t\":\"~/attributes\"," +
-               + "\"value_template\":\"{{ value_json.in }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/incount\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/outcount/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " OutCount\"," +
@@ -1237,8 +3175,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_outcount\"," +
                + "\"icon\":\"mdi:counter\"," +
-               + "\"stat_t\":\"~/attributes\"," +
-               + "\"value_template\":\"{{ value_json.out }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/outcount\"}").c_str(), true);;
 }
 
 void publishHomeAssistantDiscoveryMotionConfig(std::string & deviceName, std::string deviceMac) {
@@ -1255,21 +3192,18 @@ void publishHomeAssistantDiscoveryMotionConfig(std::string & deviceName, std::st
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
-               + "\"stat_t\":\"~/attributes\"," +
                + "\"dev_cla\":\"battery\"," +
                + "\"unit_of_meas\": \"%\", " +
-               + "\"value_template\":\"{{ value_json.batt }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/battery\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " Linkquality\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
-               + "\"stat_t\":\"~/attributes\"," +
                + "\"icon\":\"mdi:signal\"," +
                + "\"unit_of_meas\": \"rssi\", " +
-               + "\"value_template\":\"{{ value_json.rssi }}\"}").c_str(), true);
-
+               + "\"stat_t\":\"~/rssi\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/motion/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " Motion\"," +
@@ -1297,10 +3231,9 @@ void publishHomeAssistantDiscoveryMotionConfig(std::string & deviceName, std::st
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_led\"," +
                + "\"icon\":\"mdi:led-on\"," +
-               + "\"stat_t\":\"~/attributes\"," +
                + "\"pl_on\":\"ON\"," +
                + "\"pl_off\":\"OFF\"," +
-               + "\"value_template\":\"{{ value_json.led }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/led\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/lastmotion/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " LastMotion\"," +
@@ -1308,8 +3241,8 @@ void publishHomeAssistantDiscoveryMotionConfig(std::string & deviceName, std::st
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastmotion\"," +
                + "\"dev_cla\":\"timestamp\"," +
-               + "\"stat_t\":\"~/attributes\"," +
-               + "\"value_template\":\"{{ now() - timedelta( seconds = value_json.lastm ) }}\"}").c_str(), true);
+               + "\"stat_t\":\"~/lastmotion\"," +
+               + "\"value_template\":\"{{ now() - timedelta( seconds = value ) }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/sensedistance/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " SenseDistance\"," +
@@ -1317,9 +3250,7 @@ void publishHomeAssistantDiscoveryMotionConfig(std::string & deviceName, std::st
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_sensedistance\"," +
                + "\"icon\":\"mdi:cog\"," +
-               + "\"stat_t\":\"~/attributes\"," +
-               + "\"value_template\":\"{{ value_json.sensedist }}\"}").c_str(), true);
-
+               + "\"stat_t\":\"~/sensedist\"}").c_str(), true);
 }
 
 
@@ -1374,14 +3305,6 @@ class ClientCallbacks : public NimBLEClientCallbacks {
       }
     };
 };
-
-int le16_to_cpu_signed(const uint8_t data[2]) {
-  unsigned value = data[0] | ((unsigned)data[1] << 8);
-  if (value & 0x8000)
-    return -(int)(~value) - 1;
-  else
-    return value;
-}
 
 bool unsubscribeToNotify(NimBLEClient* pClient) {
   NimBLERemoteService* pSvc = nullptr;
@@ -1503,10 +3426,87 @@ bool writeSettings(NimBLEAdvertisedDevice* advDeviceToUse) {
 }
 
 
-static StaticJsonDocument<180> aJsonDoc;
+
+
+
 
 /** Define a class to handle the callbacks when advertisments are received */
 class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
+
+    void checkToContinueScan() {
+      bool stopScan = false;
+      if (client.isConnected()) {
+        if (((allContactSensors.size() + allMotionSensors.size()) != 0) || alwaysActiveScan ) {
+          if (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) {
+            if (!initialScanComplete) {
+              initialScanComplete = true;
+              stopScan = true;
+            }
+            else if (overrideScan) {
+              stopScan = true;
+            }
+          }
+          if (!(commandQueue.isEmpty()) && initialScanComplete && !overrideScan) {
+            stopScan = true;
+            forceRescan = true;
+            lastUpdateTimes = {};
+            allSwitchbotsScanned = {};
+          }
+        }
+        else {
+          if ((allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) && (allSwitchbotsScanned.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())))  {
+            stopScan = true;
+            forceRescan = false;
+            allSwitchbotsScanned = {};
+          }
+          else if (!(commandQueue.isEmpty()) && initialScanComplete && !overrideScan) {
+            forceRescan = true;
+            lastUpdateTimes = {};
+            stopScan = true;
+            allSwitchbotsScanned = {};
+          }
+          else if (overrideScan && (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size()))) {
+            stopScan = true;
+            allSwitchbotsScanned = {};
+          }
+
+        }
+      }
+
+      if (stopScan) {
+        if (printSerialOutputForDebugging) {
+          Serial.println("Stopping Scan found devices ... ");
+        }
+        NimBLEDevice::getScan()->stop();
+      }
+      else {
+
+        bool shouldActiveScan = false;
+        if (allSwitchbotsDev.size() != (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size()))
+        {
+          shouldActiveScan = true;
+        }
+        std::string anAddr;
+        std::map<std::string, std::string>::iterator itT = allSwitchbotsOpp.begin();
+        while ((itT != allSwitchbotsOpp.end()) && !shouldActiveScan)
+        {
+          anAddr = itT->first;
+          shouldActiveScan = shouldActiveScanForDevice(anAddr);
+          itT++;
+        }
+
+        if (!alwaysActiveScan && !onlyActiveScan) {
+          if ( shouldActiveScan && !isActiveScan)   {
+            isActiveScan = true;
+            NimBLEDevice::getScan()->stop();
+          }
+          else if (!shouldActiveScan && isActiveScan) {
+            isActiveScan = false;
+            NimBLEDevice::getScan()->stop();
+          }
+        }
+      }
+    }
     void onResult(NimBLEAdvertisedDevice* advertisedDevice) {
       //client.loop();
       // server.handleClient();
@@ -1629,94 +3629,15 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       }
       //waitForDeviceCreation = false;
 
-      bool stopScan = false;
+      checkToContinueScan();
 
-
-      if (client.isConnected()) {
-        if (((allContactSensors.size() + allMotionSensors.size()) != 0) || alwaysActiveScan ) {
-          if (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) {
-            if (!initialScanComplete) {
-              initialScanComplete = true;
-              stopScan = true;
-            }
-            else if (overrideScan) {
-              stopScan = true;
-            }
-          }
-          if (!(commandQueue.isEmpty()) && initialScanComplete && !overrideScan) {
-            stopScan = true;
-            forceRescan = true;
-            lastUpdateTimes = {};
-            allSwitchbotsScanned = {};
-          }
-        }
-        else {
-          if ((allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) && (allSwitchbotsScanned.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())))  {
-            stopScan = true;
-            forceRescan = false;
-            allSwitchbotsScanned = {};
-          }
-          else if (!(commandQueue.isEmpty()) && initialScanComplete && !overrideScan) {
-            forceRescan = true;
-            lastUpdateTimes = {};
-            stopScan = true;
-            allSwitchbotsScanned = {};
-          }
-          else if (overrideScan && (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size()))) {
-            stopScan = true;
-            allSwitchbotsScanned = {};
-          }
-
-        }
-      }
-      else {
-        forceRescan = true;
-        lastUpdateTimes = {};
-        stopScan = true;
-        allSwitchbotsScanned = {};
-      }
-
-      if (stopScan) {
-        if (printSerialOutputForDebugging) {
-          Serial.println("Stopping Scan found devices ... ");
-        }
-        NimBLEDevice::getScan()->stop();
-        delay(50);
-      }
-      else {
-        std::string anAddr;
-        std::map<std::string, std::string>::iterator itT = allSwitchbotsOpp.begin();
-        bool shouldActiveScan = false;
-        while ((itT != allSwitchbotsOpp.end()) && !shouldActiveScan)
-        {
-          anAddr = itT->first;
-          shouldActiveScan = shouldActiveScanForDevice(anAddr);
-          itT++;
-        }
-
-        if (!alwaysActiveScan && !onlyActiveScan) {
-          if ( shouldActiveScan && !isActiveScan)   {
-            isActiveScan = true;
-            delay(10);
-            Serial.println("Stopping Scan found devices 1 ... ");
-            NimBLEDevice::getScan()->stop();
-            delay(50);
-          }
-          else if (!shouldActiveScan && isActiveScan) {
-            isActiveScan = false;
-            delay(10);
-            Serial.println("Stopping Scan found devices 2 ... ");
-            NimBLEDevice::getScan()->stop();
-            delay(10);
-          }
-        }
-      }
     };
+
+
 
     bool callForInfoAdvDev(std::string deviceMac, long anRSSI,  std::string & aValueString) {
       yield();
-      //client.loop();
-      aJsonDoc.clear();
+
       if (printSerialOutputForDebugging) {
         Serial.println("callForInfoAdvDev");
       }
@@ -1726,20 +3647,13 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       if ((strcmp(aValueString.c_str(), "") == 0)) {
         return false;
       }
-      bool shouldPublish = false;
-      std::string aDevice;
-      std::string aState = "";
-      std::string deviceStateTopic;
-      std::string deviceAttrTopic;
 
       std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(deviceMac);
-      if (itS != allSwitchbotsOpp.end())
+      if (itS == allSwitchbotsOpp.end())
       {
-        aDevice = itS->second.c_str();
-      }
-      else {
         return false;
       }
+
       std::string deviceName;
       itS = deviceTypes.find(deviceMac);
       if (itS != deviceTypes.end())
@@ -1747,97 +3661,19 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         deviceName = itS->second.c_str();
       }
 
-
-      //char aBuffer[200];
-      if ( isActiveScan) {
-        aJsonDoc["rssi"] = anRSSI;
-      }
       int aLength = aValueString.length();
       if (deviceName == botName) {
         if (aLength < 3) {
           return false;
         }
-        shouldPublish = true;
-        uint8_t byte1 = (uint8_t) aValueString[1];
-        uint8_t byte2 = (uint8_t) aValueString[2];
-        bool isSwitch = (byte1 & 0b10000000);
-        deviceStateTopic = botTopic + aDevice + "/state";
-        deviceAttrTopic = botTopic + aDevice + "/attributes";
-
-        std::string aMode = isSwitch ? "Switch" : "Press"; // Whether the light switch Add-on is used or not
-        std::string deviceAssumedStateTopic = botTopic + aDevice + "/assumedstate";
-
-        if (isSwitch) {
-          std::map<std::string, bool>::iterator itP = botsInPressMode.find(deviceMac);
-          if (itP != botsInPressMode.end())
-          {
-            botsInPressMode.erase(deviceMac);
-          }
-          aState = (byte1 & 0b01000000) ? "OFF" : "ON"; // Mine is opposite, not sure why
-          addToPublish(deviceAssumedStateTopic.c_str(), aState.c_str(), true);
-        }
-        else {
-          botsInPressMode[deviceMac] = true;
-          std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
-
-          if (itE != botsSimulateONOFFinPRESSmode.end())
-          {
-            aMode = "PressOnOff";
-            std::map<std::string, bool>::iterator itF = botsSimulatedStates.find(aDevice);
-            bool boolState = false;
-            if (itF != botsSimulatedStates.end())
-            {
-              boolState = itF->second;
-            }
-            else {
-              boolState = itE->second;
-            }
-            if (boolState) {
-              aState = "ON";
-            } else {
-              aState = "OFF";
-            }
-            addToPublish(deviceAssumedStateTopic.c_str(), aState.c_str(), true);
-          }
-          else {
-            aState = "OFF";
-          }
-        }
-        int battLevel = byte2 & 0b01111111; // %
-        aJsonDoc["mode"] = aMode;
-        aJsonDoc["state"] = aState;
-        aJsonDoc["batt"] = battLevel;
-
+        addToAdvDevData(deviceMac, anRSSI,  aValueString, isActiveScan);
       }
       else if (deviceName == meterName) {
         if (aLength < 6) {
           return false;
         }
-        shouldPublish = true;
 
-        deviceStateTopic = meterTopic + aDevice + "/state";
-        deviceAttrTopic = meterTopic + aDevice + "/attributes";
-
-        uint8_t byte2 = (uint8_t) aValueString[2];
-        uint8_t byte3 = (uint8_t) aValueString[3];
-        uint8_t byte4 = (uint8_t) aValueString[4];
-        uint8_t byte5 = (uint8_t) aValueString[5];
-
-        int tempSign = (byte4 & 0b10000000) ? 1 : -1;
-        float tempC = tempSign * ((byte4 & 0b01111111) + ((byte3 & 0b00001111) / 10.0));
-        float tempF = (tempC * 9 / 5.0) + 32;
-        tempF = round(tempF * 10) / 10.0;
-        bool tempScale = (byte5 & 0b10000000) ;
-        std::string str1 = (tempScale == true) ? "f" : "c";
-        aJsonDoc["scale"] = str1;
-        int battLevel = (byte2 & 0b01111111);
-        aJsonDoc["batt"] = battLevel;
-        aJsonDoc["C"] = serialized(String(tempC, 1));
-        aJsonDoc["F"] = serialized(String(tempF, 1));
-        int humidity = byte5 & 0b01111111;
-        aJsonDoc["hum"] = humidity;
-        aState = String(tempC, 1).c_str();
-
+        addToAdvDevData(deviceMac, anRSSI,  aValueString, isActiveScan);
       }
       else if (deviceName == motionName) {
 
@@ -1845,494 +3681,32 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           return false;
         }
 
-        uint8_t byte1 = 0;
-        uint8_t byte2 = 0;
-        uint8_t byte3 = 0;
-        uint8_t byte4 = 0;
-        uint8_t byte5 = 0;
-        bool aMotion = false;
-        long lastMotionHighSeconds = 0;
-        int battLevel = 0;
-        bool lightA = false;
-        bool lightB = false;
-        long lastMotion = 0;
-        if (aLength == 6 && isActiveScan) {
-          deviceAttrTopic = motionTopic + aDevice + "/attributes";
-
-          byte1 = (uint8_t) aValueString[1];
-          byte2 = (uint8_t) aValueString[2];
-          byte3 = (uint8_t) aValueString[3];
-          byte4 = (uint8_t) aValueString[4];
-          byte5 = (uint8_t) aValueString[5];
-
-          aMotion = (byte1 & 0b01000000);
-          lastMotionHighSeconds = (byte5 & 0b10000000);
-          battLevel = (byte2 & 0b01111111);
-          batteryValues[aDevice] = battLevel;
-          aJsonDoc["batt"] = battLevel;
-          lightA = (byte5 & 0b00000010);
-          lightB = (byte5 & 0b00000001);
-
-          byte data[] = {byte4, byte3};
-          long lastMotionLowSeconds = le16_to_cpu_signed(data);
-
-          long lastMotion = lastMotionHighSeconds + lastMotionLowSeconds;
-
-          std::map<std::string, long>::iterator itU = lastMotions.find(aDevice);
-          itU = lastMotions.find(aDevice);
-          if (itU == lastMotions.end())
-          {
-          lastMotions[aDevice] = millis();
-          }
-
-          bool missedAMotion = (millis() - lastMotions[aDevice] > (lastMotion * 1000));
-          if (missedAMotion) {
-          shouldPublish = true;
-          }
-
-          if (sendBackupMotionContact) {
-          if ( missedAMotion && (lastMotion < missedDataResend) ) {
-            aMotion = true;
-          }
-          }
-        }
-        else if (!isActiveScan && aLength == 12)
-        {
-          byte1 = (uint8_t) aValueString[7];
-          byte2 = (uint8_t) aValueString[8];
-          byte3 = (uint8_t) aValueString[9];
-          byte4 = (uint8_t) aValueString[10];
-          byte5 = (uint8_t) aValueString[11];
-
-          aMotion = (byte3 & 0b01000000);
-          lastMotionHighSeconds = (byte5 & 0b10000000);
-          battLevel = batteryValues[aDevice];
-
-          lightA = (byte3 & 0b00100000);
-          lightB = (byte3 & 0b00010000);
-
+        if (((aLength < 6) && isActiveScan) || (!isActiveScan && (aLength < 12))) {
+          return false;
         }
 
-        if (aMotion) {
-          lastMotions[aDevice] = millis();
-          }
-          
-        deviceStateTopic = motionTopic + aDevice + "/state";
-
-        std::string motion = aMotion ? "MOTION" : "NO MOTION";
-        aState = motion;
-        std::string light;
-        if (!lightA && !lightB) {
-          light = "RESERVE";
-        }
-        else if (!lightA && lightB) {
-          light = "DARK";
-        }
-        else if (lightA && !lightB) {
-          light = "BRIGHT";
-        }
-        else if (lightA && lightB) {
-          light = "RESERVE";
-        }
-
-        std::map<std::string, std::string>::iterator itH = motionStates.find(deviceMac);
-        if (itH != motionStates.end())
-        {
-          std::string motionState = itH->second.c_str();
-          if (strcmp(motionState.c_str(), motion.c_str()) != 0) {
-            shouldPublish = true;
-          }
-        }
-        motionStates[deviceMac] = motion;
-
-        std::map<std::string, std::string>::iterator itI = illuminanceStates.find(deviceMac);
-        if (itI != illuminanceStates.end())
-        {
-          std::string illuminanceState = itI->second.c_str();
-          if (strcmp(illuminanceState.c_str(), light.c_str()) != 0) {
-            shouldPublish = true;
-          }
-        }
-        illuminanceStates[deviceMac] = light;
-
-        if (isActiveScan) {
-          aJsonDoc["light"] = light;
-          aJsonDoc["lastm"] = lastMotion;
-          aJsonDoc["motion"] = motion;
-
-          std::string ledState = (byte5 & 0b00100000) ? "ON" : "OFF";
-          aJsonDoc["led"] = ledState;
-
-          std::map<std::string, std::string>::iterator itL = ledStates.find(deviceMac);
-          if (itL != ledStates.end())
-          {
-            std::string aLED = itL->second.c_str();
-            if (strcmp(aLED.c_str(), ledState.c_str()) != 0) {
-              shouldPublish = true;
-            }
-          }
-          ledStates[deviceMac] = ledState;
-
-          bool sensingDistanceA = (byte5 & 0b00001000);
-          bool sensingDistanceB = (byte5 & 0b00000100);
-          std::string sensingDistance;
-          if (!sensingDistanceA && !sensingDistanceB) {
-            sensingDistance = "LONG";
-          }
-          else if (!sensingDistanceA && sensingDistanceB) {
-            sensingDistance = "MIDDLE";
-          }
-          else if (sensingDistanceA && !sensingDistanceB) {
-            sensingDistance = "SHORT";
-          }
-          else if (sensingDistanceA && sensingDistanceB) {
-            sensingDistance = "RESERVE";
-          }
-          aJsonDoc["sensedist"] = sensingDistance;
-        }
-
-        if (!initialScanComplete) {
-          shouldPublish = true;
-        }
-
-        if (!shouldPublish) {
-          if (shouldMQTTUpdateOrActiveScanForDevice(deviceMac)) {
-            shouldPublish = true;
-          }
-        }
-
-        if (shouldPublish) {
-          std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
-          std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
-          addToPublish(deviceMotionTopic.c_str(), motion.c_str(), true);
-          addToPublish(deviceLightTopic.c_str(), light.c_str(), true);
-        }
+        addToAdvDevData(deviceMac, anRSSI,  aValueString, isActiveScan);
       }
-
       else if (deviceName == contactName) {
         if (aLength < 9) {
           return false;
         }
 
-        uint8_t byte1 = 0;
-        uint8_t byte2 = 0;
-        uint8_t byte3 = 0;
-        uint8_t byte4 = 0;
-        uint8_t byte5 = 0;
-        uint8_t byte6 = 0;
-        uint8_t byte7 = 0;
-        uint8_t byte8 = 0;
-
-        bool aMotion = false;
-        bool contactA = false;
-        bool contactB = false;
-        long lastContactHighSeconds = 0;
-        long lastMotionHighSeconds = 0;
-
-        std::string light = "";
-        int battLevel = 0;
-
-        if (aLength >= 9 && isActiveScan) {
-          byte1 = (uint8_t) aValueString[1];
-          byte2 = (uint8_t) aValueString[2];
-          byte3 = (uint8_t) aValueString[3];
-          byte4 = (uint8_t) aValueString[4];
-          byte5 = (uint8_t) aValueString[5];
-          byte6 = (uint8_t) aValueString[6];
-          byte7 = (uint8_t) aValueString[7];
-          byte8 = (uint8_t) aValueString[8];
-
-          battLevel = (byte2 & 0b01111111);
-          aMotion = (byte1 & 0b01000000);
-          contactA = (byte3 & 0b00000100);
-          contactB = (byte3 & 0b00000010);
-          lastContactHighSeconds = (byte3 & 0b01000000);
-          lastMotionHighSeconds = (byte3 & 0b10000000);
-
-          light = (byte3 & 0b00000001) ? "BRIGHT" : "DARK";
-
-          battLevel = (byte2 & 0b01111111);
-
-          batteryValues[aDevice] = battLevel;
-
+        if (((aLength < 9) && isActiveScan) || (!isActiveScan && (aLength < 15))) {
+          return false;
         }
-        else if (!isActiveScan && aLength >= 15)
-        {
-          byte1 = (uint8_t) aValueString[7];
-          byte2 = (uint8_t) aValueString[8];
-          byte3 = (uint8_t) aValueString[9];
-          byte4 = (uint8_t) aValueString[10];
-          byte5 = (uint8_t) aValueString[11];
-          byte6 = (uint8_t) aValueString[12];
-          byte7 = (uint8_t) aValueString[13];
-          byte8 = (uint8_t) aValueString[14];
-
-          aMotion = (byte3 & 0b10000000);
-          contactA = (byte3 & 0b00100000);
-          contactB = (byte3 & 0b00010000);
-          lastContactHighSeconds = (byte3 & 0b00000001);
-          lastMotionHighSeconds = (byte3 & 0b00000010);
-
-          light = (byte3 & 0b01000000) ? "BRIGHT" : "DARK";
-
-          battLevel = batteryValues[aDevice];
-        }
-
-
-        byte data[] = {byte5, byte4};
-        long lastMotionLowSeconds = le16_to_cpu_signed(data);
-
-        long lastMotion = lastMotionHighSeconds + lastMotionLowSeconds;
-
-        byte data2[] = {byte7, byte6};
-        long lastContactLowSeconds = le16_to_cpu_signed(data2);
-
-        long lastContact = lastContactHighSeconds + lastContactLowSeconds;
-
-        std::map<std::string, long>::iterator itU = lastContacts.find(aDevice);
-        if (itU == lastContacts.end())
-        {
-          lastContacts[aDevice] = millis();
-        }
-
-        itU = lastMotions.find(aDevice);
-        if (itU == lastMotions.end())
-        {
-          lastMotions[aDevice] = millis();
-        }
-        // bool aMotion = (byte1 & 0b01000000);
-
-        bool missedAMotion = (millis() - lastMotions[aDevice] > (lastMotion * 1000));
-        if (missedAMotion) {
-          shouldPublish = true;
-        }
-
-        if (sendBackupMotionContact) {
-          if ( missedAMotion && (lastMotion < missedDataResend) ) {
-            aMotion = true;
-          }
-        }
-
-        std::string motion = aMotion ? "MOTION" : "NO MOTION";
-
-        if (aMotion) {
-          lastMotions[aDevice] = millis();
-        }
-
-        std::string contact;
-        std::string binContact;
-        if (!contactA && !contactB) {
-          contact = "CLOSED";
-        }
-        else if (!contactA && contactB) {
-          contact = "OPEN";
-          lastContacts[aDevice] = millis();
-        }
-        else if (contactA && !contactB) {
-          contact = "TIMEOUT";
-        }
-        else if (contactA && contactB) {
-          contact = "RESERVE";
-        }
-
-        bool missedAContact = (millis() - lastContacts[aDevice] > (lastContact * 1000));
-        if (missedAContact) {
-          shouldPublish = true;
-        }
-
-        if (sendBackupMotionContact) {
-          if ( missedAContact && (lastContact < missedDataResend) ) {
-            contact = "OPEN";
-            lastContacts[aDevice] = millis();
-          }
-        }
-
-        if (strcmp(contact.c_str(), "CLOSED") == 0) {
-          binContact = "CLOSED";
-        }
-        else {
-          binContact = "OPEN";
-        }
-
-        aState = contact;
-
-        int entranceCountA = (byte8 & 0b10000000) ? 2 : 0;
-        int entranceCountB = (byte8 & 0b01000000) ? 1 : 0;
-        int entranceCount = entranceCountA + entranceCountB;
-
-        int outCountA = (byte8 & 0b00100000) ? 2 : 0;
-        int outCountB = (byte8 & 0b00010000) ? 1 : 0;
-        int outCount = outCountA + outCountB;
-
-        int buttonCountA = (byte8 & 0b00001000) ? 8 : 0;
-        int buttonCountB = (byte8 & 0b00000100) ? 4 : 0;
-        int buttonCountC = (byte8 & 0b00000010) ? 2 : 0;
-        int buttonCountD = (byte8 & 0b00000001) ? 1 : 0;
-        int buttonCount = buttonCountA + buttonCountB + buttonCountC + buttonCountD;
-
-        std::map<std::string, std::string>::iterator itH = motionStates.find(deviceMac);
-        if (itH != motionStates.end())
-        {
-          std::string motionState = itH->second.c_str();
-          if (strcmp(motionState.c_str(), motion.c_str()) != 0) {
-            shouldPublish = true;
-          }
-
-        }
-        motionStates[deviceMac] = motion;
-
-        itH = contactStates.find(deviceMac);
-        if (itH != contactStates.end())
-        {
-          std::string contactState = itH->second.c_str();
-          if (strcmp(contactState.c_str(), contact.c_str()) != 0) {
-            shouldPublish = true;
-          }
-
-        }
-        contactStates[deviceMac] = contact;
-
-        itH = illuminanceStates.find(deviceMac);
-        if (itH != illuminanceStates.end())
-        {
-          std::string illuminanceState = itH->second.c_str();
-          if (strcmp(illuminanceState.c_str(), light.c_str()) != 0) {
-            shouldPublish = true;
-          }
-
-        }
-        illuminanceStates[deviceMac] = light;
-
-        std::string deviceButtonTopic = contactMainTopic + aDevice + "/button";
-        std::string deviceInTopic = contactMainTopic + aDevice + "/in";
-        std::string deviceOutTopic = contactMainTopic + aDevice + "/out";
-
-        if (strcmp(hostForScan, hostForControl) == 0) {
-          std::map<std::string, int>::iterator itE = entranceCounts.find(deviceMac);
-          if (itE != entranceCounts.end())
-          {
-            int eCount = itE->second;
-            if ((eCount != entranceCount) && (entranceCount != 0)) {
-              shouldPublish = true;
-              addToPublish(deviceInTopic.c_str(), "ENTERED", false);
-            }
-          }
-          entranceCounts[deviceMac] = entranceCount;
-
-          itE = outCounts.find(deviceMac);
-          if (itE != outCounts.end())
-          {
-            int oCount = itE->second;
-            if ((oCount != outCount) && (outCount != 0)) {
-              shouldPublish = true;
-              addToPublish(deviceOutTopic.c_str(), "EXITED", false);
-            }
-          }
-          outCounts[deviceMac] = outCount;
-
-          itE = buttonCounts.find(deviceMac);
-          if (itE != buttonCounts.end())
-          {
-            int bCount = itE->second;
-            if ((bCount != buttonCount) && (buttonCount != 0)) {
-              shouldPublish = true;
-              addToPublish(deviceButtonTopic.c_str(), "PUSHED", false);
-            }
-          }
-          buttonCounts[deviceMac] = buttonCount;
-        }
-
-        if (isActiveScan) {
-          aJsonDoc["bin"] = binContact;
-          aJsonDoc["contact"] = contact;
-          aJsonDoc["light"] = light;
-          aJsonDoc["in"] = entranceCount;
-          aJsonDoc["out"] = outCount;
-          aJsonDoc["button"] = buttonCount;
-          aJsonDoc["batt"] = battLevel;
-          aJsonDoc["lastm"] = lastMotion;
-          aJsonDoc["lastc"] = lastContact;
-          aJsonDoc["motion"] = motion;
-        }
-
-        if (!initialScanComplete) {
-          shouldPublish = true;
-        }
-
-        if (!shouldPublish) {
-          if (shouldMQTTUpdateOrActiveScanForDevice(deviceMac)) {
-            shouldPublish = true;
-          }
-        }
-
-        if (shouldPublish) {
-          std::string deviceContactTopic = contactTopic + aDevice + "/contact";
-          std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
-          std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
-          std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
-          deviceStateTopic = contactTopic + aDevice + "/state";
-          deviceAttrTopic = contactTopic + aDevice + "/attributes";
-
-          addToPublish(deviceMotionTopic.c_str(), motion.c_str(), true);
-          addToPublish(deviceContactTopic.c_str(), contact.c_str(), true);
-          addToPublish(deviceBinContactTopic.c_str(), binContact.c_str(), true);
-          addToPublish(deviceLightTopic.c_str(), light.c_str(), true);
-          addToPublish(deviceInTopic.c_str(), "IDLE", false);
-          addToPublish(deviceOutTopic.c_str(), "IDLE", false);
-          addToPublish(deviceButtonTopic.c_str(), "IDLE", false);
-        }
-
+        addToAdvDevData(deviceMac, anRSSI,  aValueString, isActiveScan);
       }
 
       else if (deviceName == curtainName) {
         if (aLength < 5) {
           return false;
         }
-
-        shouldPublish = true;
-        std::string devicePosTopic = curtainTopic + aDevice + "/position";
-        deviceStateTopic = curtainTopic + aDevice + "/state";
-        deviceAttrTopic = curtainTopic + aDevice + "/attributes";
-
-        uint8_t byte1 = (uint8_t) aValueString[1];
-        uint8_t byte2 = (uint8_t) aValueString[2];
-        uint8_t byte3 = (uint8_t) aValueString[3];
-        uint8_t byte4 = (uint8_t) aValueString[4];
-
-        bool calibrated = byte1 & 0b01000000;;
-        int battLevel = byte2 & 0b01111111;
-        int currentPosition = 100 - (byte3 & 0b01111111);
-        int lightLevel = (byte4 >> 4) & 0b00001111;
-        aState = "OPEN";
-
-        aJsonDoc["calib"] = calibrated;
-        aJsonDoc["batt"] = battLevel;
-        aJsonDoc["pos"] = currentPosition;
-        if (currentPosition <= curtainClosedPosition)
-          aState = "CLOSE";
-        aJsonDoc["state"] = aState;
-        aJsonDoc["light"] = lightLevel;
-
-        StaticJsonDocument<50> docPos;
-        docPos["pos"] = currentPosition;
-        serializeJson(docPos, aBuffer);
-        addToPublish(devicePosTopic.c_str(), aBuffer, true);
+        addToAdvDevData(deviceMac, anRSSI,  aValueString, isActiveScan);
       }
       else {
         return false;
       }
-      yield();
-      if (shouldPublish) {
-        if (isActiveScan) {
-          delay(50);
-          serializeJson(aJsonDoc, aBuffer);
-          addToPublish(deviceAttrTopic.c_str(), aBuffer, true);
-          delay(50);
-        }
-        lastUpdateTimes[deviceMac] = millis();
-        addToPublish(deviceStateTopic.c_str(), aState.c_str(), true);
-      }
-      aJsonDoc.clear();
       yield();
       return true;
 
@@ -2366,7 +3740,7 @@ void initialScanEndedCB(NimBLEScanResults results) {
     pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
     } */
 
-  addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
 }
 
 void scanEndedCB(NimBLEScanResults results) {
@@ -2389,7 +3763,7 @@ void scanEndedCB(NimBLEScanResults results) {
       pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
     } */
 
-  addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
 }
 
 void rescanEndedCB(NimBLEScanResults results) {
@@ -2414,7 +3788,7 @@ void rescanEndedCB(NimBLEScanResults results) {
 
       pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
     } */
-  addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
 }
 
 void scanForeverEnded(NimBLEScanResults results) {
@@ -2436,7 +3810,7 @@ void scanForeverEnded(NimBLEScanResults results) {
 
     pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
     } */
-  addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
 }
 
 std::string getPass(std::string aDevice) {
@@ -2463,6 +3837,7 @@ uint32_t getPassCRC(std::string & aDevice) {
 static ClientCallbacks clientCB;
 
 void setup () {
+
   if (ledHighEqualsON) {
     ledONValue = HIGH;
     ledOFFValue = LOW;
@@ -2472,21 +3847,25 @@ void setup () {
     ledOFFValue = HIGH;
   }
 
-  if (meshMeters) {
-    meterTopic = ESPMQTTTopicMesh + "/meter/";
+  if (strcmp(hostForScan, hostForControl) != 0) {
+    isMeshNode = true;
   }
-  if (meshContactSensors) {
-    contactTopic = ESPMQTTTopicMesh + "/contact/";
-  }
-  if (meshMotionSensors) {
-    motionTopic = ESPMQTTTopicMesh + "/motion/";
+
+  if (isMeshNode) {
+    if (meshMeters) {
+      meterTopic = ESPMQTTTopicMesh + "/meter/";
+    }
+    if (meshContactSensors) {
+      contactTopic = ESPMQTTTopicMesh + "/contact/";
+    }
+    if (meshMotionSensors) {
+      motionTopic = ESPMQTTTopicMesh + "/motion/";
+    }
   }
 
   forceRescan = false;
   pinMode (LED_PIN, OUTPUT);
-
   Serial.begin(115200);
-
   // Connect to WiFi network
   WiFi.begin(ssid, password);
   if (printSerialOutputForDebugging) {
@@ -2567,7 +3946,7 @@ void setup () {
   server.begin();
 
   client.setMqttReconnectionAttemptDelay(10);
-  client.enableLastWillMessage(lastWill, "offline");
+  client.enableLastWillMessage(lastWill, "offline", true);
   client.setKeepAlive(60);
   client.setMaxPacketSize(mqtt_packet_size);
   //client.enableMQTTPersistence();
@@ -2720,12 +4099,12 @@ void setup () {
   //NimBLEDevice::setScanFilterMode(2);
   pScan = NimBLEDevice::getScan();
   pScan->setAdvertisedDeviceCallbacks(new AdvertisedDeviceCallbacks());
-  pScan->setInterval(60);
-  pScan->setWindow(30);
+  pScan->setInterval(70);
+  pScan->setWindow(40);
   pScan->setDuplicateFilter(false);
   isActiveScan = true;
   pScan->setActiveScan(isActiveScan);
-  pScan->setMaxResults(50);
+  pScan->setMaxResults(100);
   //pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
 
 }
@@ -2768,8 +4147,6 @@ void scanForever() {
     isActiveScan = false;
   }
 
-  pScan->setActiveScan(isActiveScan);
-  delay(50);
   if (isActiveScan) {
     lastRescan = millis();
     isRescanning = true;
@@ -2779,6 +4156,7 @@ void scanForever() {
     addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"passivescanning\"}");
   }
   delay(50);
+  pScan->setActiveScan(isActiveScan);
   if (ledOnScan) {
     digitalWrite(LED_PIN, ledONValue);
   }
@@ -2867,9 +4245,9 @@ void getAllBotSettings() {
           Serial.println("get settings");
         }
         processing = true;
-        addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"getsettings\"}");
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"getsettings\"}");
         controlMQTT(aDevice, "REQUESTSETTINGS", true);
-        addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
 
       }
       else {
@@ -2907,20 +4285,23 @@ void loop () {
   checkWebServer();
   server.handleClient();
   publishLastwillOnline();
+  processAllAdvData();
   publishAllMQTT();
+  processContactSensorTasks();
+  processMotionSensorTasks();
 
   if (waitForRetained && client.isConnected()) {
     if (retainStartTime == 0) {
-      addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"waiting\"}");
+      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"waiting\"}");
       retainStartTime = millis();
     }
     else if ((millis() - retainStartTime) > (waitForMQTTRetainMessages * 1000)) {
       waitForRetained = false;
     }
-    if ((botFirmwares.size() >= allBots.size()) && (botInverteds.size() >= allBots.size()) && (botNumTimers.size() >= allBots.size()) && (botHoldSecs.size() >= allBots.size()) && (botsSimulatedStates.size() >= botsSimulateONOFFinPRESSmode.size()))
-    {
-      waitForRetained = false;
-    }
+    /* if ((botFirmwares.size() >= allBots.size()) && (botInverteds.size() >= allBots.size()) && (botNumTimers.size() >= allBots.size()) && (botHoldSecs.size() >= allBots.size()) && (botsSimulatedStates.size() >= botsSimulateONOFFinPRESSmode.size()))
+      {
+       waitForRetained = false;
+      }*/
   }
 
   if ((!initialScanComplete) && client.isConnected() && (!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning) && (!waitForRetained)) {
@@ -3647,7 +5028,7 @@ bool processQueue() {
             count++;
             shouldContinue = true;
             long timeSent = millis();
-            addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"getsettings\"}");
+            client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"getsettings\"}");
             controlMQTT(requestDevice, "REQUESTSETTINGS", disconnectAfter);
             while (noResponse && shouldContinue )
             {
@@ -3663,7 +5044,7 @@ bool processQueue() {
         commandQueue.dequeue();
       }
     }
-    addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
+    client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
   }
   if (ledOnCommand) {
     digitalWrite(LED_PIN, ledOFFValue);
@@ -3819,7 +5200,7 @@ bool is_number(const std::string & s)
 }
 
 bool controlMQTT(std::string & device, std::string payload, bool disconnectAfter) {
-  addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"controlling\"}");
+  client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"controlling\"}");
   bool isSuccess = false;
   processing = true;
   if (printSerialOutputForDebugging) {
@@ -4128,6 +5509,7 @@ void onConnectionEstablished() {
   if (!MDNS.begin(host)) {
     Serial.println("Error starting mDNS");
   }
+  Serial.println("Reconnected to WIFI/MQTT");
   server.close();
   server.begin();
   std::string anAddr;
@@ -4139,7 +5521,7 @@ void onConnectionEstablished() {
     if (ledOnBootScan) {
       digitalWrite(LED_PIN, ledONValue);
     }
-    addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"boot\"}");
+    client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"boot\"}");
     delay(100);
     it = allBots.begin();
     while (it != allBots.end())
@@ -4300,7 +5682,7 @@ void onConnectionEstablished() {
           commandQueue.enqueue(queueCommand);
         }
         else {
-          addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+          client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
         }
       }
     });
@@ -4405,7 +5787,7 @@ void onConnectionEstablished() {
             }
           }
           else {
-            addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+            client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
           }
         }
       }
@@ -4450,7 +5832,7 @@ void onConnectionEstablished() {
             commandQueue.enqueue(queueCommand);
           }
           else {
-            addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+            client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
           }
         }
       }
@@ -4495,11 +5877,767 @@ void onConnectionEstablished() {
             commandQueue.enqueue(queueCommand);
           }
           else {
-            addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+            client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
           }
         }
       }
     });
+
+
+
+    if (!isMeshNode && meshContactSensors && enableMesh) {
+      client.subscribe((contactTopic + aDevice + "/buttoncount").c_str(), [aDevice] (const String & payload)  {
+        if ((payload != NULL) && !(payload.isEmpty())) {
+          /*if (printSerialOutputForDebugging) {
+            Serial.println("MQTT meshButtonCount received...");
+            }*/
+          std::string anAddr;
+          std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+          if (itY != allSwitchbots.end())
+          {
+            anAddr = itY->second;
+            bool isNum = is_number(payload.c_str());
+            if (isNum) {
+              int buttonCount;
+              sscanf(payload.c_str(), "%d", &buttonCount);
+              if (buttonCount != 0) {
+                std::map<std::string, int>::iterator itE = buttonCounts.find(anAddr);
+                if (itE != buttonCounts.end())
+                {
+                  int bCount = itE->second;
+
+                  if ((bCount < buttonCount) ||  ((bCount > 10) && (buttonCount < 5))) {
+                    buttonCounts[anAddr] = buttonCount;
+                    std::string deviceButtonTopic = contactTopic + aDevice + "/button";
+                    //addToPublish(deviceButtonTopic.c_str(), "PUSHED", false);
+                    client.publish(deviceButtonTopic.c_str(), "PUSHED", false);
+                    lastButton[anAddr] = millis();
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      client.subscribe((contactTopic + aDevice + "/outcount").c_str(), [aDevice] (const String & payload)  {
+        if ((payload != NULL) && !(payload.isEmpty())) {
+          /*if (printSerialOutputForDebugging) {
+            Serial.println("MQTT meshOutCount received...");
+            }*/
+          std::string anAddr;
+          std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+          if (itY != allSwitchbots.end())
+          {
+            anAddr = itY->second;
+            bool isNum = is_number(payload.c_str());
+            if (isNum) {
+              int outCount;
+              sscanf(payload.c_str(), "%d", &outCount);
+              if (outCount != 0) {
+                std::map<std::string, int>::iterator itE = outCounts.find(anAddr);
+                if (itE != outCounts.end())
+                {
+                  int bCount = itE->second;
+
+                  if ((bCount < outCount) ||  ((bCount == 3) && (outCount == 1))) {
+                    outCounts[anAddr] = outCount;
+                    std::string deviceOutTopic = contactTopic + aDevice + "/out";
+                    //addToPublish(deviceOutTopic.c_str(), "EXITED", false);
+                    client.publish(deviceOutTopic.c_str(), "EXITED", false);
+                    lastOut[anAddr] = millis();
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      client.subscribe((contactTopic + aDevice + "/incount").c_str(), [aDevice] (const String & payload)  {
+        if ((payload != NULL) && !(payload.isEmpty())) {
+          /*if (printSerialOutputForDebugging) {
+            Serial.println("MQTT meshInCount received...");
+            }*/
+          std::string anAddr;
+          std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+          if (itY != allSwitchbots.end())
+          {
+            anAddr = itY->second;
+            bool isNum = is_number(payload.c_str());
+            if (isNum) {
+              int inCount;
+              sscanf(payload.c_str(), "%d", &inCount);
+              if (inCount != 0) {
+                std::map<std::string, int>::iterator itE = entranceCounts.find(anAddr);
+                if (itE != entranceCounts.end())
+                {
+                  int bCount = itE->second;
+                  if ((bCount < inCount) ||  ((bCount == 3) && (inCount == 1))) {
+                    entranceCounts[anAddr] = inCount;
+                    std::string deviceInTopic = contactTopic + aDevice + "/in";
+                    //addToPublish(deviceInTopic.c_str(), "ENTERED", false);
+                    client.publish(deviceInTopic.c_str(), "ENTERED", false);
+                    lastIn[anAddr] = millis();
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+    }
+
+    if (meshContactSensors && enableMesh) {
+      if (countMotionToAvoidDuplicates) {
+        client.subscribe((contactTopic + aDevice + "/motioncount").c_str(), [aDevice] (const String & payload)  {
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            /* if (printSerialOutputForDebugging) {
+               Serial.println("MQTT meshMotionCount received...");
+              }*/
+            std::string anAddr;
+            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+            if (itY != allSwitchbots.end())
+            {
+              anAddr = itY->second;
+              bool isNum = is_number(payload.c_str());
+              if (isNum) {
+                int newMeshMotionCount;
+                sscanf(payload.c_str(), "%d", &newMeshMotionCount);
+                if (newMeshMotionCount != 0) {
+                  std::map<std::string, int>::iterator itWE = motionCounts.find(anAddr.c_str());
+                  int motionCount = 0;
+                  if (itWE != motionCounts.end())
+                  {
+                    motionCount = itWE->second;
+                  }
+
+                  itWE = meshMotionCounts.find(anAddr.c_str());
+                  int meshMotionCount = 0;
+                  if (itWE != meshMotionCounts.end())
+                  {
+                    meshMotionCount = itWE->second;
+                  }
+
+                  itWE = noMotionCounts.find(anAddr.c_str());
+                  int noMotionCount = 0;
+                  if (itWE != noMotionCounts.end())
+                  {
+                    noMotionCount = itWE->second;
+                  }
+
+                  itWE = meshNoMotionCounts.find(anAddr.c_str());
+                  int meshNoMotionCount = 0;
+                  if (itWE != meshNoMotionCounts.end())
+                  {
+                    meshNoMotionCount = itWE->second;
+                  }
+
+                  if ((motionCount == 0) && (meshMotionCount == 0)) {
+                    meshMotionCounts[anAddr.c_str()] = newMeshMotionCount;
+                    motionCounts[anAddr.c_str()] = newMeshMotionCount;
+                  }
+                  else if (meshMotionCount != 0)
+                  {
+                    if ((meshMotionCount < newMeshMotionCount) ||  ((meshMotionCount > 40) && (newMeshMotionCount < 10))) {
+                      motionMeshStates[anAddr.c_str()] = "MOTION";
+                      meshMotionCounts[anAddr.c_str()] = newMeshMotionCount;
+                      if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                        std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
+                        addToPublish(deviceMotionTopic.c_str(), "MOTION", true);
+                      }
+                      if (motionCount != newMeshMotionCount) {
+                        updateMotionCount[anAddr.c_str()] = millis();
+                        updateMeshMotionCount[anAddr.c_str()] = newMeshMotionCount;
+                      }
+                    }
+                    else if ((meshMotionCount == newMeshMotionCount) && (noMotionCount == meshNoMotionCount)) {
+                      std::map<std::string, std::string>::iterator itH = motionMeshStates.find(anAddr.c_str());
+                      if (itH != motionMeshStates.end())
+                      {
+                        std::string motionState = itH->second.c_str();
+                        if (strcmp(motionState.c_str(), "MOTION") == 0) {
+                          if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                            std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
+                            addToPublish(deviceMotionTopic.c_str(), "MOTION", true);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        client.subscribe((contactTopic + aDevice + "/nomotioncount").c_str(), [aDevice] (const String & payload)  {
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            /*if (printSerialOutputForDebugging) {
+              Serial.println("MQTT meshNoMotionCount received...");
+              }*/
+            std::string anAddr;
+            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+            if (itY != allSwitchbots.end())
+            {
+              anAddr = itY->second;
+              bool isNum = is_number(payload.c_str());
+              if (isNum) {
+                int newMeshNoMotionCount;
+                sscanf(payload.c_str(), "%d", &newMeshNoMotionCount);
+                if (newMeshNoMotionCount != 0) {
+                  std::map<std::string, int>::iterator itWE = noMotionCounts.find(anAddr.c_str());
+                  int noMotionCount = 0;
+                  if (itWE != noMotionCounts.end())
+                  {
+                    noMotionCount = itWE->second;
+                  }
+
+                  itWE = meshNoMotionCounts.find(anAddr.c_str());
+                  int meshNoMotionCount = 0;
+                  if (itWE != meshNoMotionCounts.end())
+                  {
+                    meshNoMotionCount = itWE->second;
+                  }
+
+                  itWE = motionCounts.find(anAddr.c_str());
+                  int motionCount = 0;
+                  if (itWE != motionCounts.end())
+                  {
+                    motionCount = itWE->second;
+                  }
+
+                  itWE = meshMotionCounts.find(anAddr.c_str());
+                  int meshMotionCount = 0;
+                  if (itWE != meshMotionCounts.end())
+                  {
+                    meshMotionCount = itWE->second;
+                  }
+
+                  if ((noMotionCount == 0) && (meshNoMotionCount == 0)) {
+                    meshNoMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
+                    noMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
+                  }
+                  else if (meshNoMotionCount != 0)
+                  {
+                    if ((meshNoMotionCount < newMeshNoMotionCount) ||  ((meshNoMotionCount > 40) && (newMeshNoMotionCount < 10))) {
+                      motionMeshStates[anAddr.c_str()] = "NO MOTION";
+                      meshNoMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
+                      if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                        std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
+                        addToPublish(deviceMotionTopic.c_str(), "NO MOTION", true);
+                      }
+                      if (noMotionCount != newMeshNoMotionCount) {
+                        updateNoMotionCount[anAddr.c_str()] = millis();
+                        updateMeshNoMotionCount[anAddr.c_str()] = newMeshNoMotionCount;
+                      }
+                    }
+                    else if ((meshNoMotionCount == newMeshNoMotionCount) && (motionCount == meshMotionCount)) {
+                      std::map<std::string, std::string>::iterator itH = motionMeshStates.find(anAddr.c_str());
+                      if (itH != motionMeshStates.end())
+                      {
+                        std::string motionState = itH->second.c_str();
+                        if (strcmp(motionState.c_str(), "NO MOTION") == 0) {
+                          if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                            std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
+                            addToPublish(deviceMotionTopic.c_str(), "NO MOTION", true);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+
+      }
+
+      if (countContactToAvoidDuplicates) {
+        client.subscribe((contactTopic + aDevice + "/closedcount").c_str(), [aDevice] (const String & payload)  {
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            /*if (printSerialOutputForDebugging) {
+              Serial.println("MQTT meshClosedCount received...");
+              }*/
+            std::string anAddr;
+            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+            if (itY != allSwitchbots.end())
+            {
+              anAddr = itY->second;
+              bool isNum = is_number(payload.c_str());
+              if (isNum) {
+                int newMeshClosedCount;
+                sscanf(payload.c_str(), "%d", &newMeshClosedCount);
+                if (newMeshClosedCount != 0) {
+                  std::map<std::string, int>::iterator itWE = closedCounts.find(anAddr.c_str());
+                  int closedCount = 0;
+                  if (itWE != closedCounts.end())
+                  {
+                    closedCount = itWE->second;
+                  }
+
+                  itWE = meshClosedCounts.find(anAddr.c_str());
+                  int meshClosedCount = 0;
+                  if (itWE != meshClosedCounts.end())
+                  {
+                    meshClosedCount = itWE->second;
+                  }
+
+                  itWE = openCounts.find(anAddr.c_str());
+                  int openCount = 0;
+                  if (itWE != openCounts.end())
+                  {
+                    openCount = itWE->second;
+                  }
+
+                  itWE = meshOpenCounts.find(anAddr.c_str());
+                  int meshOpenCount = 0;
+                  if (itWE != meshOpenCounts.end())
+                  {
+                    meshOpenCount = itWE->second;
+                  }
+
+                  itWE = timeoutCounts.find(anAddr.c_str());
+                  int timeoutCount = 0;
+                  if (itWE != timeoutCounts.end())
+                  {
+                    timeoutCount = itWE->second;
+                  }
+
+                  itWE = meshTimeoutCounts.find(anAddr.c_str());
+                  int meshTimeoutCount = 0;
+                  if (itWE != meshTimeoutCounts.end())
+                  {
+                    meshTimeoutCount = itWE->second;
+                  }
+
+                  if ((closedCount == 0) && (meshClosedCount == 0)) {
+                    meshClosedCounts[anAddr.c_str()] = newMeshClosedCount;
+                    closedCounts[anAddr.c_str()] = newMeshClosedCount;
+                  }
+                  else if (meshClosedCount != 0)
+                  {
+                    if ((meshClosedCount < newMeshClosedCount) ||  ((meshClosedCount > 40) && (newMeshClosedCount < 10))) {
+                      contactMeshStates[anAddr.c_str()] = "CLOSED";
+                      meshClosedCounts[anAddr.c_str()] = newMeshClosedCount;
+                      if (!isMeshNode && onlyAllowRootESPToPublishContact) {
+                        std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+                        std::string deviceStateTopic = contactTopic + aDevice + "/state";
+                        std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
+                        addToPublish(deviceContactTopic.c_str(), "CLOSED", true);
+                        addToPublish(deviceStateTopic.c_str(), "CLOSED", true);
+                        addToPublish(deviceBinContactTopic.c_str(), "CLOSED", true);
+                      }
+                      if (closedCount != newMeshClosedCount) {
+                        updateClosedCount[anAddr.c_str()] = millis();
+                        updateMeshClosedCount[anAddr.c_str()] = newMeshClosedCount;
+                      }
+                    }
+                    else if ((meshClosedCount == newMeshClosedCount) && (openCount == meshOpenCount) && (timeoutCount == meshTimeoutCount)) {
+                      std::map<std::string, std::string>::iterator itH = contactMeshStates.find(anAddr.c_str());
+                      if (itH != contactMeshStates.end())
+                      {
+                        std::string contactState = itH->second.c_str();
+                        if (strcmp(contactState.c_str(), "CLOSED") == 0) {
+                          if (!isMeshNode && onlyAllowRootESPToPublishContact) {
+                            std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+                            std::string deviceStateTopic = contactTopic + aDevice + "/state";
+                            std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
+                            addToPublish(deviceContactTopic.c_str(), "CLOSED", true);
+                            addToPublish(deviceStateTopic.c_str(), "CLOSED", true);
+                            addToPublish(deviceBinContactTopic.c_str(), "CLOSED", true);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        client.subscribe((contactTopic + aDevice + "/opencount").c_str(), [aDevice] (const String & payload)  {
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            /*if (printSerialOutputForDebugging) {
+              Serial.println("MQTT meshOpenCount received...");
+              }*/
+            std::string anAddr;
+            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+            if (itY != allSwitchbots.end())
+            {
+              anAddr = itY->second;
+              bool isNum = is_number(payload.c_str());
+              if (isNum) {
+                int newMeshOpenCount;
+                sscanf(payload.c_str(), "%d", &newMeshOpenCount);
+                if (newMeshOpenCount != 0) {
+                  std::map<std::string, int>::iterator itWE = closedCounts.find(anAddr.c_str());
+                  int closedCount = 0;
+                  if (itWE != closedCounts.end())
+                  {
+                    closedCount = itWE->second;
+                  }
+
+                  itWE = meshClosedCounts.find(anAddr.c_str());
+                  int meshClosedCount = 0;
+                  if (itWE != meshClosedCounts.end())
+                  {
+                    meshClosedCount = itWE->second;
+                  }
+
+                  itWE = openCounts.find(anAddr.c_str());
+                  int openCount = 0;
+                  if (itWE != openCounts.end())
+                  {
+                    openCount = itWE->second;
+                  }
+
+                  itWE = meshOpenCounts.find(anAddr.c_str());
+                  int meshOpenCount = 0;
+                  if (itWE != meshOpenCounts.end())
+                  {
+                    meshOpenCount = itWE->second;
+                  }
+
+                  itWE = timeoutCounts.find(anAddr.c_str());
+                  int timeoutCount = 0;
+                  if (itWE != timeoutCounts.end())
+                  {
+                    timeoutCount = itWE->second;
+                  }
+
+                  itWE = meshTimeoutCounts.find(anAddr.c_str());
+                  int meshTimeoutCount = 0;
+                  if (itWE != meshTimeoutCounts.end())
+                  {
+                    meshTimeoutCount = itWE->second;
+                  }
+
+                  if ((openCount == 0) && (meshOpenCount == 0)) {
+                    meshOpenCounts[anAddr.c_str()] = newMeshOpenCount;
+                    openCounts[anAddr.c_str()] = newMeshOpenCount;
+                  }
+                  else if (meshOpenCount != 0)
+                  {
+                    if ((meshOpenCount < newMeshOpenCount) || ((meshOpenCount > 40) && (newMeshOpenCount < 10)))  {
+                      contactMeshStates[anAddr.c_str()] = "OPEN";
+                      meshOpenCounts[anAddr.c_str()] = newMeshOpenCount;
+                      lastContacts[aDevice.c_str()] = millis();
+                      if (!isMeshNode && onlyAllowRootESPToPublishContact) {
+                        // addToPublish("esp32mesh1/" + aDevice + "/contact", "OPENFROMMESH+", true);
+                        std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+                        std::string deviceStateTopic = contactTopic + aDevice + "/state";
+                        std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
+                        addToPublish(deviceContactTopic.c_str(), "OPEN", true);
+                        addToPublish(deviceStateTopic.c_str(), "OPEN", true);
+                        addToPublish(deviceBinContactTopic.c_str(), "OPEN", true);
+                        addToPublish((contactTopic + aDevice + "/lastcontact"), 0, true);
+                      }
+
+                      if (openCount != newMeshOpenCount) {
+                        updateOpenCount[anAddr.c_str()] = millis();
+                        updateMeshOpenCount[anAddr.c_str()] = newMeshOpenCount;
+                      }
+                    }
+                    else if ((meshOpenCount == newMeshOpenCount) && (closedCount == meshClosedCount) && (timeoutCount == meshTimeoutCount)) {
+                      std::map<std::string, std::string>::iterator itH = contactMeshStates.find(anAddr.c_str());
+                      if (itH != contactMeshStates.end())
+                      {
+                        std::string contactState = itH->second.c_str();
+                        if (strcmp(contactState.c_str(), "OPEN") == 0) {
+                          lastContacts[aDevice.c_str()] = millis();
+                          if (!isMeshNode && onlyAllowRootESPToPublishContact) {
+                            std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+                            std::string deviceStateTopic = contactTopic + aDevice + "/state";
+                            std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
+                            addToPublish(deviceContactTopic.c_str(), "OPEN", true);
+                            addToPublish(deviceStateTopic.c_str(), "OPEN", true);
+                            addToPublish(deviceBinContactTopic.c_str(), "OPEN", true);
+                            addToPublish((contactTopic + aDevice + "/lastcontact"), 0, true);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        client.subscribe((contactTopic + aDevice + "/timeoutcount").c_str(), [aDevice] (const String & payload)  {
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            /*if (printSerialOutputForDebugging) {
+              Serial.println("MQTT meshTimeoutCount received...");
+              }*/
+            std::string anAddr;
+            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+            if (itY != allSwitchbots.end())
+            {
+              anAddr = itY->second;
+              bool isNum = is_number(payload.c_str());
+              if (isNum) {
+                int newMeshTimeoutCount;
+                sscanf(payload.c_str(), "%d", &newMeshTimeoutCount);
+                if (newMeshTimeoutCount != 0) {
+                  std::map<std::string, int>::iterator itWE = closedCounts.find(anAddr.c_str());
+                  int closedCount = 0;
+                  if (itWE != closedCounts.end())
+                  {
+                    closedCount = itWE->second;
+                  }
+
+                  itWE = meshClosedCounts.find(anAddr.c_str());
+                  int meshClosedCount = 0;
+                  if (itWE != meshClosedCounts.end())
+                  {
+                    meshClosedCount = itWE->second;
+                  }
+
+                  itWE = openCounts.find(anAddr.c_str());
+                  int openCount = 0;
+                  if (itWE != openCounts.end())
+                  {
+                    openCount = itWE->second;
+                  }
+
+                  itWE = meshOpenCounts.find(anAddr.c_str());
+                  int meshOpenCount = 0;
+                  if (itWE != meshOpenCounts.end())
+                  {
+                    meshOpenCount = itWE->second;
+                  }
+
+                  itWE = timeoutCounts.find(anAddr.c_str());
+                  int timeoutCount = 0;
+                  if (itWE != timeoutCounts.end())
+                  {
+                    timeoutCount = itWE->second;
+                  }
+
+                  itWE = meshTimeoutCounts.find(anAddr.c_str());
+                  int meshTimeoutCount = 0;
+                  if (itWE != meshTimeoutCounts.end())
+                  {
+                    meshTimeoutCount = itWE->second;
+                  }
+
+                  if ((timeoutCount == 0) && (meshTimeoutCount == 0)) {
+                    meshTimeoutCounts[anAddr.c_str()] = newMeshTimeoutCount;
+                    timeoutCounts[anAddr.c_str()] = newMeshTimeoutCount;
+                  }
+                  else if (meshTimeoutCount != 0)
+                  {
+                    if ((meshTimeoutCount < newMeshTimeoutCount) ||  ((meshTimeoutCount > 40) && (newMeshTimeoutCount < 10))) {
+                      contactMeshStates[anAddr.c_str()] = "TIMEOUT";
+                      meshTimeoutCounts[anAddr.c_str()] = newMeshTimeoutCount;
+                      lastContacts[aDevice.c_str()] = millis();
+                      if (!isMeshNode && onlyAllowRootESPToPublishContact) {
+                        std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+                        std::string deviceStateTopic = contactTopic + aDevice + "/state";
+                        std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
+                        addToPublish(deviceContactTopic.c_str(), "TIMEOUT", true);
+                        addToPublish(deviceStateTopic.c_str(), "TIMEOUT", true);
+                        addToPublish(deviceBinContactTopic.c_str(), "OPEN", true);
+                      }
+                      if (timeoutCount != newMeshTimeoutCount) {
+                        updateTimeoutCount[anAddr.c_str()] = millis();
+                        updateMeshTimeoutCount[anAddr.c_str()] = newMeshTimeoutCount;
+                      }
+                    }
+                    else if ((meshTimeoutCount == newMeshTimeoutCount) && (openCount == meshOpenCount) && (closedCount == meshClosedCount)) {
+                      std::map<std::string, std::string>::iterator itH = contactMeshStates.find(anAddr.c_str());
+                      if (itH != contactMeshStates.end())
+                      {
+                        std::string contactState = itH->second.c_str();
+                        if (strcmp(contactState.c_str(), "TIMEOUT") == 0) {
+                          lastContacts[aDevice.c_str()] = millis();
+                          if (!isMeshNode && onlyAllowRootESPToPublishContact) {
+                            std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+                            std::string deviceStateTopic = contactTopic + aDevice + "/state";
+                            std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
+                            addToPublish(deviceContactTopic.c_str(), "TIMEOUT", true);
+                            addToPublish(deviceStateTopic.c_str(), "TIMEOUT", true);
+                            addToPublish(deviceBinContactTopic.c_str(), "OPEN", true);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+
+      if (countLightToAvoidDuplicates) {
+        client.subscribe((contactTopic + aDevice + "/darkcount").c_str(), [aDevice] (const String & payload)  {
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            /*if (printSerialOutputForDebugging) {
+              Serial.println("MQTT meshDarkCount received...");
+              }*/
+            std::string anAddr;
+            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+            if (itY != allSwitchbots.end())
+            {
+              anAddr = itY->second;
+              bool isNum = is_number(payload.c_str());
+              if (isNum) {
+                int newMeshDarkCount;
+                sscanf(payload.c_str(), "%d", &newMeshDarkCount);
+                if (newMeshDarkCount != 0) {
+                  std::map<std::string, int>::iterator itWE = darkCounts.find(anAddr.c_str());
+                  int darkCount = 0;
+                  if (itWE != darkCounts.end())
+                  {
+                    darkCount = itWE->second;
+                  }
+
+                  itWE = meshDarkCounts.find(anAddr.c_str());
+                  int meshDarkCount = 0;
+                  if (itWE != meshDarkCounts.end())
+                  {
+                    meshDarkCount = itWE->second;
+                  }
+
+                  itWE = brightCounts.find(anAddr.c_str());
+                  int brightCount = 0;
+                  if (itWE != brightCounts.end())
+                  {
+                    brightCount = itWE->second;
+                  }
+
+                  itWE = meshBrightCounts.find(anAddr.c_str());
+                  int meshBrightCount = 0;
+                  if (itWE != meshBrightCounts.end())
+                  {
+                    meshBrightCount = itWE->second;
+                  }
+
+                  if ((darkCount == 0) && (meshDarkCount == 0)) {
+                    meshDarkCounts[anAddr.c_str()] = newMeshDarkCount;
+                    darkCounts[anAddr.c_str()] = newMeshDarkCount;
+                  }
+                  else if (meshDarkCount != 0)
+                  {
+                    if ((meshDarkCount < newMeshDarkCount) ||  ((meshDarkCount > 40) && (newMeshDarkCount < 10))) {
+                      lightMeshStates[anAddr.c_str()] = "DARK";
+                      meshDarkCounts[anAddr.c_str()] = newMeshDarkCount;
+                      if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                        std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
+                        addToPublish(deviceLightTopic.c_str(), "DARK", true);
+                      }
+                      if (darkCount != newMeshDarkCount) {
+                        updateDarkCount[anAddr.c_str()] = millis();
+                        updateMeshDarkCount[anAddr.c_str()] = newMeshDarkCount;
+                      }
+                    }
+                    else if ((meshDarkCount == newMeshDarkCount) && (brightCount == meshBrightCount)) {
+                      std::map<std::string, std::string>::iterator itH = lightMeshStates.find(anAddr.c_str());
+                      if (itH != lightMeshStates.end())
+                      {
+                        std::string illuminanceState = itH->second.c_str();
+                        if (strcmp(illuminanceState.c_str(), "DARK") == 0) {
+                          if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                            std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
+                            addToPublish(deviceLightTopic.c_str(), "DARK", true);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        client.subscribe((contactTopic + aDevice + "/brightcount").c_str(), [aDevice] (const String & payload)  {
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            /*if (printSerialOutputForDebugging) {
+              Serial.println("MQTT meshBrightCount received...");
+              }*/
+            std::string anAddr;
+            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+            if (itY != allSwitchbots.end())
+            {
+              anAddr = itY->second;
+              bool isNum = is_number(payload.c_str());
+              if (isNum) {
+                int newMeshBrightCount;
+                sscanf(payload.c_str(), "%d", &newMeshBrightCount);
+                if (newMeshBrightCount != 0) {
+                  std::map<std::string, int>::iterator itWE = brightCounts.find(anAddr.c_str());
+                  int brightCount = 0;
+                  if (itWE != brightCounts.end())
+                  {
+                    brightCount = itWE->second;
+                  }
+
+                  itWE = meshBrightCounts.find(anAddr.c_str());
+                  int meshBrightCount = 0;
+                  if (itWE != meshBrightCounts.end())
+                  {
+                    meshBrightCount = itWE->second;
+                  }
+
+                  itWE = darkCounts.find(anAddr.c_str());
+                  int darkCount = 0;
+                  if (itWE != darkCounts.end())
+                  {
+                    darkCount = itWE->second;
+                  }
+
+                  itWE = meshDarkCounts.find(anAddr.c_str());
+                  int meshDarkCount = 0;
+                  if (itWE != meshDarkCounts.end())
+                  {
+                    meshDarkCount = itWE->second;
+                  }
+
+                  if ((brightCount == 0) && (meshBrightCount == 0)) {
+                    meshBrightCounts[anAddr.c_str()] = newMeshBrightCount;
+                    brightCounts[anAddr.c_str()] = newMeshBrightCount;
+                  }
+                  else if (meshBrightCount != 0)
+                  {
+                    if ((meshBrightCount < newMeshBrightCount) ||  ((meshBrightCount > 40) && (newMeshBrightCount < 10))) {
+                      lightMeshStates[anAddr.c_str()] = "BRIGHT";
+                      meshBrightCounts[anAddr.c_str()] = newMeshBrightCount;
+                      if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                        std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
+                        addToPublish(deviceLightTopic.c_str(), "BRIGHT", true);
+                      }
+                      if (brightCount != newMeshBrightCount) {
+                        updateBrightCount[anAddr.c_str()] = millis();
+                        updateMeshBrightCount[anAddr.c_str()] = newMeshBrightCount;
+                      }
+                    }
+                    else if ((meshBrightCount == newMeshBrightCount) && (darkCount == meshDarkCount)) {
+                      std::map<std::string, std::string>::iterator itH = lightMeshStates.find(anAddr.c_str());
+                      if (itH != lightMeshStates.end())
+                      {
+                        std::string illuminanceState = itH->second.c_str();
+                        if (strcmp(illuminanceState.c_str(), "BRIGHT") == 0) {
+                          if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                            std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
+                            addToPublish(deviceLightTopic.c_str(), "BRIGHT", true);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+    }
 
     it++;
   }
@@ -4540,12 +6678,346 @@ void onConnectionEstablished() {
             commandQueue.enqueue(queueCommand);
           }
           else {
-            addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+            client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
           }
         }
       }
     });
 
+    if (meshMotionSensors && enableMesh) {
+      if (countMotionToAvoidDuplicates) {
+        client.subscribe((motionTopic + aDevice + "/motioncount").c_str(), [aDevice] (const String & payload)  {
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            /*if (printSerialOutputForDebugging) {
+              Serial.println("MQTT meshMotionCount received...");
+              }*/
+            std::string anAddr;
+            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+            if (itY != allSwitchbots.end())
+            {
+              anAddr = itY->second;
+              bool isNum = is_number(payload.c_str());
+              if (isNum) {
+                int newMeshMotionCount;
+                sscanf(payload.c_str(), "%d", &newMeshMotionCount);
+                if (newMeshMotionCount != 0) {
+                  std::map<std::string, int>::iterator itWE = motionCounts.find(anAddr.c_str());
+                  int motionCount = 0;
+                  if (itWE != motionCounts.end())
+                  {
+                    motionCount = itWE->second;
+                  }
+
+                  itWE = meshMotionCounts.find(anAddr.c_str());
+                  int meshMotionCount = 0;
+                  if (itWE != meshMotionCounts.end())
+                  {
+                    meshMotionCount = itWE->second;
+                  }
+
+                  itWE = noMotionCounts.find(anAddr.c_str());
+                  int noMotionCount = 0;
+                  if (itWE != noMotionCounts.end())
+                  {
+                    noMotionCount = itWE->second;
+                  }
+
+                  itWE = meshNoMotionCounts.find(anAddr.c_str());
+                  int meshNoMotionCount = 0;
+                  if (itWE != meshNoMotionCounts.end())
+                  {
+                    meshNoMotionCount = itWE->second;
+                  }
+
+                  if ((motionCount == 0) && (meshMotionCount == 0)) {
+                    meshMotionCounts[anAddr.c_str()] = newMeshMotionCount;
+                    motionCounts[anAddr.c_str()] = newMeshMotionCount;
+                  }
+                  else if (meshMotionCount != 0)
+                  {
+                    if ((meshMotionCount < newMeshMotionCount) ||  ((meshMotionCount > 40) && (newMeshMotionCount < 10))) {
+                      motionMeshStates[anAddr.c_str()] = "MOTION";
+                      meshMotionCounts[anAddr.c_str()] = newMeshMotionCount;
+                      if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                        std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
+                        addToPublish(deviceMotionTopic.c_str(), "MOTION", true);
+                        std::string deviceStateTopic = motionTopic + aDevice + "/state";
+                        addToPublish(deviceStateTopic.c_str(), "MOTION", true);
+                      }
+                      if (motionCount != newMeshMotionCount) {
+                        updateMotionCount[anAddr.c_str()] = millis();
+                        updateMeshMotionCount[anAddr.c_str()] = newMeshMotionCount;
+                      }
+                    }
+                    else if ((meshMotionCount == newMeshMotionCount) && (noMotionCount == meshNoMotionCount)) {
+                      std::map<std::string, std::string>::iterator itH = motionMeshStates.find(anAddr.c_str());
+                      if (itH != motionMeshStates.end())
+                      {
+                        std::string motionState = itH->second.c_str();
+                        if (strcmp(motionState.c_str(), "MOTION") == 0) {
+                          if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                            std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
+                            addToPublish(deviceMotionTopic.c_str(), "MOTION", true);
+                            std::string deviceStateTopic = motionTopic + aDevice + "/state";
+                            addToPublish(deviceStateTopic.c_str(), "MOTION", true);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        client.subscribe((motionTopic + aDevice + "/nomotioncount").c_str(), [aDevice] (const String & payload)  {
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            /* if (printSerialOutputForDebugging) {
+               Serial.println("MQTT meshNoMotionCount received...");
+              }*/
+            std::string anAddr;
+            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+            if (itY != allSwitchbots.end())
+            {
+              anAddr = itY->second;
+              bool isNum = is_number(payload.c_str());
+              if (isNum) {
+                int newMeshNoMotionCount;
+                sscanf(payload.c_str(), "%d", &newMeshNoMotionCount);
+                if (newMeshNoMotionCount != 0) {
+                  std::map<std::string, int>::iterator itWE = noMotionCounts.find(anAddr.c_str());
+                  int noMotionCount = 0;
+                  if (itWE != noMotionCounts.end())
+                  {
+                    noMotionCount = itWE->second;
+                  }
+
+                  itWE = meshNoMotionCounts.find(anAddr.c_str());
+                  int meshNoMotionCount = 0;
+                  if (itWE != meshNoMotionCounts.end())
+                  {
+                    meshNoMotionCount = itWE->second;
+                  }
+
+                  itWE = motionCounts.find(anAddr.c_str());
+                  int motionCount = 0;
+                  if (itWE != motionCounts.end())
+                  {
+                    motionCount = itWE->second;
+                  }
+
+                  itWE = meshMotionCounts.find(anAddr.c_str());
+                  int meshMotionCount = 0;
+                  if (itWE != meshMotionCounts.end())
+                  {
+                    meshMotionCount = itWE->second;
+                  }
+
+                  if ((noMotionCount == 0) && (meshNoMotionCount == 0)) {
+                    meshNoMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
+                    noMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
+                  }
+                  else if (meshNoMotionCount != 0)
+                  {
+                    if ((meshNoMotionCount < newMeshNoMotionCount) ||  ((meshNoMotionCount > 40) && (newMeshNoMotionCount < 10))) {
+                      motionMeshStates[anAddr.c_str()] = "NO MOTION";
+                      meshNoMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
+                      if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                        std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
+                        addToPublish(deviceMotionTopic.c_str(), "NO MOTION", true);
+                      }
+                      if (noMotionCount != newMeshNoMotionCount) {
+                        updateNoMotionCount[anAddr.c_str()] = millis();
+                        updateMeshNoMotionCount[anAddr.c_str()] = newMeshNoMotionCount;
+                      }
+                    }
+                    else if ((meshNoMotionCount == newMeshNoMotionCount) && (motionCount == meshMotionCount)) {
+                      std::map<std::string, std::string>::iterator itH = motionMeshStates.find(anAddr.c_str());
+                      if (itH != motionMeshStates.end())
+                      {
+                        std::string motionState = itH->second.c_str();
+                        if (strcmp(motionState.c_str(), "NO MOTION") == 0) {
+                          if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                            std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
+                            addToPublish(deviceMotionTopic.c_str(), "NO MOTION", true);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+
+      }
+
+      if (countLightToAvoidDuplicates) {
+        client.subscribe((motionTopic + aDevice + "/darkcount").c_str(), [aDevice] (const String & payload)  {
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            /*if (printSerialOutputForDebugging) {
+              Serial.println("MQTT meshDarkCount received...");
+              }*/
+            std::string anAddr;
+            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+            if (itY != allSwitchbots.end())
+            {
+              anAddr = itY->second;
+              bool isNum = is_number(payload.c_str());
+              if (isNum) {
+                int newMeshDarkCount;
+                sscanf(payload.c_str(), "%d", &newMeshDarkCount);
+                if (newMeshDarkCount != 0) {
+                  std::map<std::string, int>::iterator itWE = darkCounts.find(anAddr.c_str());
+                  int darkCount = 0;
+                  if (itWE != darkCounts.end())
+                  {
+                    darkCount = itWE->second;
+                  }
+
+                  itWE = meshDarkCounts.find(anAddr.c_str());
+                  int meshDarkCount = 0;
+                  if (itWE != meshDarkCounts.end())
+                  {
+                    meshDarkCount = itWE->second;
+                  }
+
+                  itWE = brightCounts.find(anAddr.c_str());
+                  int brightCount = 0;
+                  if (itWE != brightCounts.end())
+                  {
+                    brightCount = itWE->second;
+                  }
+
+                  itWE = meshBrightCounts.find(anAddr.c_str());
+                  int meshBrightCount = 0;
+                  if (itWE != meshBrightCounts.end())
+                  {
+                    meshBrightCount = itWE->second;
+                  }
+
+                  if ((darkCount == 0) && (meshDarkCount == 0)) {
+                    meshDarkCounts[anAddr.c_str()] = newMeshDarkCount;
+                    darkCounts[anAddr.c_str()] = newMeshDarkCount;
+                  }
+                  else if (meshDarkCount != 0)
+                  {
+                    if ((meshDarkCount < newMeshDarkCount) ||  ((meshDarkCount > 40) && (newMeshDarkCount < 10))) {
+                      lightMeshStates[anAddr.c_str()] = "DARK";
+                      meshDarkCounts[anAddr.c_str()] = newMeshDarkCount;
+                      if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                        std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
+                        addToPublish(deviceLightTopic.c_str(), "DARK", true);
+                      }
+                      if (darkCount != newMeshDarkCount) {
+                        updateDarkCount[anAddr.c_str()] = millis();
+                        updateMeshDarkCount[anAddr.c_str()] = newMeshDarkCount;
+                      }
+                    }
+                    else if ((meshDarkCount == newMeshDarkCount) && (brightCount == meshBrightCount)) {
+                      std::map<std::string, std::string>::iterator itH = lightMeshStates.find(anAddr.c_str());
+                      if (itH != lightMeshStates.end())
+                      {
+                        std::string illuminanceState = itH->second.c_str();
+                        if (strcmp(illuminanceState.c_str(), "DARK") == 0) {
+                          if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                            std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
+                            addToPublish(deviceLightTopic.c_str(), "DARK", true);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        client.subscribe((motionTopic + aDevice + "/brightcount").c_str(), [aDevice] (const String & payload)  {
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            /*if (printSerialOutputForDebugging) {
+              Serial.println("MQTT meshBrightCount received...");
+              }*/
+            std::string anAddr;
+            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+            if (itY != allSwitchbots.end())
+            {
+              anAddr = itY->second;
+              bool isNum = is_number(payload.c_str());
+              if (isNum) {
+                int newMeshBrightCount;
+                sscanf(payload.c_str(), "%d", &newMeshBrightCount);
+                if (newMeshBrightCount != 0) {
+                  std::map<std::string, int>::iterator itWE = brightCounts.find(anAddr.c_str());
+                  int brightCount = 0;
+                  if (itWE != brightCounts.end())
+                  {
+                    brightCount = itWE->second;
+                  }
+
+                  itWE = meshBrightCounts.find(anAddr.c_str());
+                  int meshBrightCount = 0;
+                  if (itWE != meshBrightCounts.end())
+                  {
+                    meshBrightCount = itWE->second;
+                  }
+
+                  itWE = darkCounts.find(anAddr.c_str());
+                  int darkCount = 0;
+                  if (itWE != darkCounts.end())
+                  {
+                    darkCount = itWE->second;
+                  }
+
+                  itWE = meshDarkCounts.find(anAddr.c_str());
+                  int meshDarkCount = 0;
+                  if (itWE != meshDarkCounts.end())
+                  {
+                    meshDarkCount = itWE->second;
+                  }
+
+                  if ((brightCount == 0) && (meshBrightCount == 0)) {
+                    meshBrightCounts[anAddr.c_str()] = newMeshBrightCount;
+                    brightCounts[anAddr.c_str()] = newMeshBrightCount;
+                  }
+                  else if (meshBrightCount != 0)
+                  {
+                    if ((meshBrightCount < newMeshBrightCount) ||  ((meshBrightCount > 40) && (newMeshBrightCount < 10))) {
+                      lightMeshStates[anAddr.c_str()] = "BRIGHT";
+                      meshBrightCounts[anAddr.c_str()] = newMeshBrightCount;
+                      if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                        std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
+                        addToPublish(deviceLightTopic.c_str(), "BRIGHT", true);
+                      }
+                      if (brightCount != newMeshBrightCount) {
+                        updateBrightCount[anAddr.c_str()] = millis();
+                        updateMeshBrightCount[anAddr.c_str()] = newMeshBrightCount;
+                      }
+                    }
+                    else if ((meshBrightCount == newMeshBrightCount) && (darkCount == meshDarkCount)) {
+                      std::map<std::string, std::string>::iterator itH = lightMeshStates.find(anAddr.c_str());
+                      if (itH != lightMeshStates.end())
+                      {
+                        std::string illuminanceState = itH->second.c_str();
+                        if (strcmp(illuminanceState.c_str(), "BRIGHT") == 0) {
+                          if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                            std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
+                            addToPublish(deviceLightTopic.c_str(), "BRIGHT", true);
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+    }
     it++;
   }
 
@@ -4577,7 +7049,7 @@ void onConnectionEstablished() {
           commandQueue.enqueue(queueCommand);
         }
         else {
-          addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+          client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
         }
       }
     }
@@ -4602,7 +7074,7 @@ void onConnectionEstablished() {
         commandQueue.enqueue(queueCommand);
       }
       else {
-        addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
       }
     }
   });
@@ -4627,7 +7099,7 @@ void onConnectionEstablished() {
         commandQueue.enqueue(queueCommand);
       }
       else {
-        addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
       }
     }
   });
@@ -4653,7 +7125,7 @@ void onConnectionEstablished() {
         commandQueue.enqueue(queueCommand);
       }
       else {
-        addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
       }
     }
   });
@@ -4671,7 +7143,7 @@ void onConnectionEstablished() {
         performHoldPress(aDevice, aHold);
       }
       else {
-        addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
       }
     }
   });
@@ -4706,7 +7178,7 @@ void onConnectionEstablished() {
           commandQueue.enqueue(queueCommand);
         }
         else {
-          addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+          client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
         }
       }
     }
@@ -5350,6 +7822,9 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       else if (byte1 == 6) {
         statDoc["status"] = "lowbattery";
         lastCommandWasBusy = false;
+        //HACK to send battery 1% if bot cannot be controlled
+        std::string deviceBatteryTopic = botTopic + aDevice + "/battery";
+        addToPublish(deviceBatteryTopic, 1, true);
       }
       else {
         statDoc["status"] = "failed";
@@ -5399,6 +7874,9 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       else if (byte1 == 6) {
         statDoc["status"] = "lowbattery";
         lastCommandWasBusy = false;
+        //HACK to send battery 1% if bot cannot be controlled
+        std::string deviceBatteryTopic = botTopic + aDevice + "/battery";
+        addToPublish(deviceBatteryTopic, 1, true);
       }
       else {
         statDoc["status"] = "failed";
@@ -5512,6 +7990,9 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       else if (byte1 == 6) {
         statDoc["status"] = "lowbattery";
         lastCommandWasBusy = false;
+        //HACK to send battery 1% if curtain cannot be controlled
+        std::string deviceBatteryTopic = curtainTopic + aDevice + "/battery";
+        addToPublish(deviceBatteryTopic, 1, true);
       }
       else {
         statDoc["status"] = "failed";
