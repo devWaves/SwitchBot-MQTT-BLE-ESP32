@@ -11,9 +11,9 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v7beta
+  v7.0-preRelease
 
-    Created: on April 9 2022
+    Created: on May 10 2022
         Author: devWaves
 
         Contributions from:
@@ -348,9 +348,9 @@
 /* Motion and Contact and Meter: (CAN BE MESHED) Enter the MAC addresses of the switchbot devices into all or most of the ESP32s */
 
 /* Wifi Settings */
-static const char* host = "esp32";                                    //  Unique name for ESP32. The name detected by your router and MQTT. If you are using more then 1 ESPs to control different switchbots be sure to use unique hostnames. Host is the MQTT Client name and is used in MQTT topics
-static const char* ssid = "SSID";                                     //  WIFI SSID
-static const char* password = "Password";                             //  WIFI Password
+static const char* host = "esp32";                          //  Unique name for ESP32. The name detected by your router and MQTT. If you are using more then 1 ESPs to control different switchbots be sure to use unique hostnames. Host is the MQTT Client name and is used in MQTT topics
+static const char* ssid = "SSID";                           //  WIFI SSID
+static const char* password = "Password";                   //  WIFI Password
 
 /* Mesh Settings */
 /* Ignore if only one ESP32 is used */
@@ -449,7 +449,7 @@ static std::map<std::string, std::string> allBotTypes = {     // OPTIONAL - (DEF
 
 
 /* ESP32 LED Settings */
-//#define LED_BUILTIN 2                              // If your board doesn't have a defined LED_BUILTIN, uncomment this line and replace 2 with the LED pin value
+#define LED_BUILTIN 2                              // If your board doesn't have a defined LED_BUILTIN, uncomment this line and replace 2 with the LED pin value
 #define LED_PIN LED_BUILTIN                          // If your board doesn't have a defined LED_BUILTIN (You will get a compile error), uncomment the line above
 static const bool ledHighEqualsON = true;            // ESP32 board LED ON=HIGH (Default). If your ESP32 LED is turning OFF on scanning and turning ON while IDLE, then set this value to false
 static const bool ledOnBootScan = true;              // Turn on LED during initial boot scan
@@ -508,7 +508,7 @@ static const bool onlyPassiveScan = false;                // If this ESP32 is a 
 static const bool alwaysActiveScan = false;               // No battery optimizations. If you are using the switchbot hub or app to control devices also and you want immediate state updates in MQTT set to true.
 static const bool scanWhileCurtainIsMoving = true;        // The ESP32 will scan for defaultCurtainScanAfterControlSecs seconds after control to keep the position slider in sync with the actual position
 
-static const bool printSerialOutputForDebugging = true;   // Only set to true when you want to debug an issue from Arduino IDE. Lots of Serial output from scanning can crash the ESP32
+static const bool printSerialOutputForDebugging = false;  // Only set to true when you want to debug an issue from Arduino IDE. Lots of Serial output from scanning can crash the ESP32
 
 /* Switchbot Bot/Meter/Curtain scan interval */
 /* Meters don't support commands so will be scanned every <int> interval automatically if scanAfterControl = true */
@@ -538,7 +538,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v7beta";
+static const String versionNum = "v7.0-preRelease";
 
 /*
    Server Index Page
@@ -623,7 +623,7 @@ static EspMQTTClient client(
   mqtt_port
 );
 
-static const uint16_t mqtt_packet_size = 1400;
+static const uint16_t mqtt_packet_size = 1300;
 static const bool home_assistant_discovery_set_up = false;
 static const std::string manufacturer = "WonderLabs SwitchBot";
 static const std::string curtainModel = "Curtain";
@@ -671,20 +671,20 @@ bool shouldActiveScanForDevice(std::string & anAddr);
 void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueString, bool useActiveScan);
 static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsDev = {};
 static std::map<std::string, NimBLEAdvertisedDevice*> allSwitchbotsScanned = {};
-static std::map<std::string, long> rescanTimes = {};
-static std::map<std::string, long> lastUpdateTimes = {};
-static std::map<std::string, long> lastActiveScanTimes = {};
+static std::map<std::string, unsigned long> rescanTimes = {};
+static std::map<std::string, unsigned long> lastUpdateTimes = {};
+static std::map<std::string, unsigned long> lastActiveScanTimes = {};
 static std::map<std::string, bool> botsSimulatedStates = {};
 static std::map<std::string, std::string> motionStates = {};
 static std::map<std::string, std::string> contactStates = {};
 static std::map<std::string, std::string> contactMeshStates = {};
 static std::map<std::string, std::string> lightMeshStates = {};
 static std::map<std::string, std::string> motionMeshStates = {};
-static std::map<std::string, long> lastMotions = {};
-static std::map<std::string, long> lastContacts = {};
-static std::map<std::string, long> lastButton = {};
-static std::map<std::string, long> lastIn = {};
-static std::map<std::string, long> lastOut = {};
+static std::map<std::string, unsigned long> lastMotions = {};
+static std::map<std::string, unsigned long> lastContacts = {};
+static std::map<std::string, unsigned long> lastButton = {};
+static std::map<std::string, unsigned long> lastIn = {};
+static std::map<std::string, unsigned long> lastOut = {};
 static std::map<std::string, std::string> illuminanceStates = {};
 static std::map<std::string, std::string> ledStates = {};
 static std::map<std::string, int> outCounts = {};
@@ -706,14 +706,14 @@ static std::map<std::string, int> updateMeshBrightCount = {};
 static std::map<std::string, int> updateMeshMotionCount = {};
 static std::map<std::string, int> updateMeshNoMotionCount = {};
 
-static std::map<std::string, long> updateClosedCount = {};
-static std::map<std::string, long> updateOpenCount = {};
-static std::map<std::string, long> updateTimeoutCount = {};
+static std::map<std::string, unsigned long> updateClosedCount = {};
+static std::map<std::string, unsigned long> updateOpenCount = {};
+static std::map<std::string, unsigned long> updateTimeoutCount = {};
 
-static std::map<std::string, long> updateMotionCount = {};
-static std::map<std::string, long> updateNoMotionCount = {};
-static std::map<std::string, long> updateDarkCount = {};
-static std::map<std::string, long> updateBrightCount = {};
+static std::map<std::string, unsigned long> updateMotionCount = {};
+static std::map<std::string, unsigned long> updateNoMotionCount = {};
+static std::map<std::string, unsigned long> updateDarkCount = {};
+static std::map<std::string, unsigned long> updateBrightCount = {};
 
 static std::map<std::string, int> openCounts = {};
 static std::map<std::string, int> closedCounts = {};
@@ -733,7 +733,7 @@ static std::map<std::string, int> botHoldSecs = {};
 static std::map<std::string, const char *> botFirmwares = {};
 static std::map<std::string, int> botNumTimers = {};
 static std::map<std::string, bool> botInverteds = {};
-static std::map<std::string, long> lastCommandSent = {};
+static std::map<std::string, unsigned long> lastCommandSent = {};
 static std::map<std::string, std::string> deviceTypes;
 static NimBLEScan* pScan;
 static bool isRescanning = false;
@@ -745,7 +745,7 @@ static bool gotSettings = false;
 static bool lastCommandSentPublished = false;
 static bool forceRescan = false;
 static bool overrideScan = false;
-static char aBuffer[120];
+//static char aBuffer[120];
 static const std::string ESPMQTTTopic = mqtt_main_topic + "/" + std::string(hostForControl);
 static const std::string ESPMQTTTopicMesh = mqtt_main_topic + "/" + std::string(hostForScan);
 static const std::string esp32Topic = ESPMQTTTopic + "/esp32";
@@ -768,7 +768,7 @@ static const std::string requestSettingsStdStr = ESPMQTTTopic + "/requestSetting
 static const std::string setModeStdStr = ESPMQTTTopic + "/setMode";
 static const std::string setHoldStdStr = ESPMQTTTopic + "/setHold";
 static const std::string holdPressStdStr = ESPMQTTTopic + "/holdPress";
-static StaticJsonDocument<120> aJsonDoc;
+//static StaticJsonDocument<120> aJsonDoc;
 
 struct to_lower {
   int operator() ( int ch )
@@ -803,9 +803,9 @@ struct QueueAdvData {
 
 ArduinoQueue<QueueCommand> commandQueue(queueSize);
 
-ArduinoQueue<QueuePublish> publishQueue(200);
+ArduinoQueue<QueuePublish> publishQueue(50);
 
-ArduinoQueue<QueueAdvData> advDataQueue(200);
+ArduinoQueue<QueueAdvData> advDataQueue(30);
 
 void addToAdvDevData(std::string aMac, long anRSSI, std::string aString, bool shouldBeActive) {
   struct QueueAdvData anAdvData;
@@ -867,6 +867,30 @@ void addToPublish(std::string aTopic, char * aPayload) {
   publishQueue.enqueue(aPublish);
 }
 
+void printAString (const char * aString) {
+  if (printSerialOutputForDebugging) {
+    Serial.println(aString);
+  }
+}
+
+void printAString (std::string & aString) {
+  if (printSerialOutputForDebugging) {
+    Serial.println(aString.c_str());
+  }
+}
+
+void printAString (String & aString) {
+  if (printSerialOutputForDebugging) {
+    Serial.println(aString);
+  }
+}
+
+void printAString (int aInt) {
+  if (printSerialOutputForDebugging) {
+    Serial.println(aInt);
+  }
+}
+
 int le16_to_cpu_signed(const uint8_t data[2]) {
   unsigned value = data[0] | ((unsigned)data[1] << 8);
   if (value & 0x8000)
@@ -920,7 +944,7 @@ void processMotionMotion(std::string & aDevice, std::string & deviceMac, std::st
     byte data[] = {byte4, byte3};
     long lastMotionLowSeconds = le16_to_cpu_signed(data);
     lastMotion = lastMotionHighSeconds + lastMotionLowSeconds;
-    std::map<std::string, long>::iterator itU = lastMotions.find(aDevice);
+    std::map<std::string, unsigned long>::iterator itU = lastMotions.find(aDevice);
     itU = lastMotions.find(aDevice);
     if (itU == lastMotions.end())
     {
@@ -1023,7 +1047,7 @@ void processMotionMotion(std::string & aDevice, std::string & deviceMac, std::st
             }
             meshMotionCounts[deviceMac.c_str()] = meshMotionCount;
             motionMeshStates[deviceMac.c_str()] = "MOTION";
-            std::map<std::string, long>::iterator itW = updateMotionCount.find(deviceMac.c_str());
+            std::map<std::string, unsigned long>::iterator itW = updateMotionCount.find(deviceMac.c_str());
             if (itW != updateMotionCount.end())
             {
               updateMotionCount.erase(deviceMac.c_str());
@@ -1049,7 +1073,7 @@ void processMotionMotion(std::string & aDevice, std::string & deviceMac, std::st
             }
             meshNoMotionCounts[deviceMac.c_str()] = meshNoMotionCount;
             motionMeshStates[deviceMac.c_str()] = "NO MOTION";
-            std::map<std::string, long>::iterator itW = updateNoMotionCount.find(deviceMac.c_str());
+            std::map<std::string, unsigned long>::iterator itW = updateNoMotionCount.find(deviceMac.c_str());
             if (itW != updateNoMotionCount.end())
             {
               updateNoMotionCount.erase(deviceMac.c_str());
@@ -1070,7 +1094,7 @@ void processMotionMotion(std::string & aDevice, std::string & deviceMac, std::st
       }
     }
     else {
-      std::map<std::string, long>::iterator itW = updateMotionCount.find(deviceMac.c_str());
+      std::map<std::string, unsigned long>::iterator itW = updateMotionCount.find(deviceMac.c_str());
       if (itW != updateMotionCount.end())
       {
         shouldPublish = false;
@@ -1135,7 +1159,7 @@ void processMotionContact(std::string & aDevice, std::string & deviceMac, std::s
     long lastMotionLowSeconds = le16_to_cpu_signed(data);
 
     lastMotion = lastMotionHighSeconds + lastMotionLowSeconds;
-    std::map<std::string, long>::iterator itU = lastMotions.find(aDevice);
+    std::map<std::string, unsigned long>::iterator itU = lastMotions.find(aDevice);
     itU = lastMotions.find(aDevice);
     if (itU == lastMotions.end())
     {
@@ -1233,7 +1257,7 @@ void processMotionContact(std::string & aDevice, std::string & deviceMac, std::s
             }
             meshMotionCounts[deviceMac.c_str()] = meshMotionCount;
             motionMeshStates[deviceMac.c_str()] = "MOTION";
-            std::map<std::string, long>::iterator itW = updateMotionCount.find(deviceMac.c_str());
+            std::map<std::string, unsigned long>::iterator itW = updateMotionCount.find(deviceMac.c_str());
             if (itW != updateMotionCount.end())
             {
               updateMotionCount.erase(deviceMac.c_str());
@@ -1259,7 +1283,7 @@ void processMotionContact(std::string & aDevice, std::string & deviceMac, std::s
             }
             meshNoMotionCounts[deviceMac.c_str()] = meshNoMotionCount;
             motionMeshStates[deviceMac.c_str()] = "NO MOTION";
-            std::map<std::string, long>::iterator itW = updateNoMotionCount.find(deviceMac.c_str());
+            std::map<std::string, unsigned long>::iterator itW = updateNoMotionCount.find(deviceMac.c_str());
             if (itW != updateNoMotionCount.end())
             {
               updateNoMotionCount.erase(deviceMac.c_str());
@@ -1280,7 +1304,7 @@ void processMotionContact(std::string & aDevice, std::string & deviceMac, std::s
       }
     }
     else {
-      std::map<std::string, long>::iterator itW = updateMotionCount.find(deviceMac.c_str());
+      std::map<std::string, unsigned long>::iterator itW = updateMotionCount.find(deviceMac.c_str());
       if (itW != updateMotionCount.end())
       {
         shouldPublish = false;
@@ -1416,7 +1440,7 @@ void processLightMotion(std::string & aDevice, std::string & deviceMac, std::str
             }
             meshDarkCounts[deviceMac.c_str()] = meshDarkCount;
             lightMeshStates[deviceMac.c_str()] = "DARK";
-            std::map<std::string, long>::iterator itW = updateDarkCount.find(deviceMac.c_str());
+            std::map<std::string, unsigned long>::iterator itW = updateDarkCount.find(deviceMac.c_str());
             if (itW != updateDarkCount.end())
             {
               updateDarkCount.erase(deviceMac.c_str());
@@ -1442,7 +1466,7 @@ void processLightMotion(std::string & aDevice, std::string & deviceMac, std::str
             }
             meshBrightCounts[deviceMac.c_str()] = meshBrightCount;
             lightMeshStates[deviceMac.c_str()] = "BRIGHT";
-            std::map<std::string, long>::iterator itW = updateBrightCount.find(deviceMac.c_str());
+            std::map<std::string, unsigned long>::iterator itW = updateBrightCount.find(deviceMac.c_str());
             if (itW != updateBrightCount.end())
             {
               updateBrightCount.erase(deviceMac.c_str());
@@ -1463,7 +1487,7 @@ void processLightMotion(std::string & aDevice, std::string & deviceMac, std::str
       }
     }
     else {
-      std::map<std::string, long>::iterator itW = updateDarkCount.find(deviceMac.c_str());
+      std::map<std::string, unsigned long>::iterator itW = updateDarkCount.find(deviceMac.c_str());
       if (itW != updateDarkCount.end())
       {
         shouldPublish = false;
@@ -1582,7 +1606,7 @@ void processLightContact(std::string & aDevice, std::string & deviceMac, std::st
             }
             meshDarkCounts[deviceMac.c_str()] = meshDarkCount;
             lightMeshStates[deviceMac.c_str()] = "DARK";
-            std::map<std::string, long>::iterator itW = updateDarkCount.find(deviceMac.c_str());
+            std::map<std::string, unsigned long>::iterator itW = updateDarkCount.find(deviceMac.c_str());
             if (itW != updateDarkCount.end())
             {
               updateDarkCount.erase(deviceMac.c_str());
@@ -1608,7 +1632,7 @@ void processLightContact(std::string & aDevice, std::string & deviceMac, std::st
             }
             meshBrightCounts[deviceMac.c_str()] = meshBrightCount;
             lightMeshStates[deviceMac.c_str()] = "BRIGHT";
-            std::map<std::string, long>::iterator itW = updateBrightCount.find(deviceMac.c_str());
+            std::map<std::string, unsigned long>::iterator itW = updateBrightCount.find(deviceMac.c_str());
             if (itW != updateBrightCount.end())
             {
               updateBrightCount.erase(deviceMac.c_str());
@@ -1629,7 +1653,7 @@ void processLightContact(std::string & aDevice, std::string & deviceMac, std::st
       }
     }
     else {
-      std::map<std::string, long>::iterator itW = updateDarkCount.find(deviceMac.c_str());
+      std::map<std::string, unsigned long>::iterator itW = updateDarkCount.find(deviceMac.c_str());
       if (itW != updateDarkCount.end())
       {
         shouldPublish = false;
@@ -1704,7 +1728,7 @@ void processLED(std::string & aDevice, std::string & deviceMac, std::string & aV
   bool shouldPublish = aPublish;
   uint8_t byte5 = (uint8_t) aValueString[5];
   std::string ledState = (byte5 & 0b00100000) ? "ON" : "OFF";
-  aJsonDoc["led"] = ledState;
+  //aJsonDoc["led"] = ledState;
 
   std::map<std::string, std::string>::iterator itL = ledStates.find(deviceMac);
   if (itL != ledStates.end())
@@ -1756,7 +1780,7 @@ void processContact(std::string & aDevice, std::string & deviceMac, std::string 
 
   long lastContact = lastContactHighSeconds + lastContactLowSeconds;
 
-  std::map<std::string, long>::iterator itU = lastContacts.find(aDevice.c_str());
+  std::map<std::string, unsigned long>::iterator itU = lastContacts.find(aDevice.c_str());
   if (itU == lastContacts.end())
   {
     lastContacts[aDevice.c_str()] = millis();
@@ -1885,7 +1909,7 @@ void processContact(std::string & aDevice, std::string & deviceMac, std::string 
             }
             meshOpenCounts[deviceMac.c_str()] = meshOpenCount;
             contactMeshStates[deviceMac.c_str()] = "OPEN";
-            std::map<std::string, long>::iterator itW = updateOpenCount.find(deviceMac.c_str());
+            std::map<std::string, unsigned long>::iterator itW = updateOpenCount.find(deviceMac.c_str());
             if (itW != updateOpenCount.end())
             {
               updateOpenCount.erase(deviceMac.c_str());
@@ -1911,7 +1935,7 @@ void processContact(std::string & aDevice, std::string & deviceMac, std::string 
             }
             meshClosedCounts[deviceMac.c_str()] = meshClosedCount;
             contactMeshStates[deviceMac.c_str()] = "CLOSED";
-            std::map<std::string, long>::iterator itW = updateClosedCount.find(deviceMac.c_str());
+            std::map<std::string, unsigned long>::iterator itW = updateClosedCount.find(deviceMac.c_str());
             if (itW != updateClosedCount.end())
             {
               updateClosedCount.erase(deviceMac.c_str());
@@ -1938,7 +1962,7 @@ void processContact(std::string & aDevice, std::string & deviceMac, std::string 
             }
             meshTimeoutCounts[deviceMac.c_str()] = meshTimeoutCount;
             contactMeshStates[deviceMac.c_str()] = "TIMEOUT";
-            std::map<std::string, long>::iterator itW = updateTimeoutCount.find(deviceMac.c_str());
+            std::map<std::string, unsigned long>::iterator itW = updateTimeoutCount.find(deviceMac.c_str());
             if (itW != updateTimeoutCount.end())
             {
               updateTimeoutCount.erase(deviceMac.c_str());
@@ -1962,7 +1986,7 @@ void processContact(std::string & aDevice, std::string & deviceMac, std::string 
     }
     else {
 
-      std::map<std::string, long>::iterator itW = updateOpenCount.find(deviceMac.c_str());
+      std::map<std::string, unsigned long>::iterator itW = updateOpenCount.find(deviceMac.c_str());
       if (itW != updateOpenCount.end())
       {
         shouldPublish = false;
@@ -2019,7 +2043,7 @@ void processContact(std::string & aDevice, std::string & deviceMac, std::string 
 void processButton(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
   uint8_t byte8 = 0;
   bool shouldPublish = aPublish;
-  bool publishButton = false;
+  bool valueChanged = false;
   if (isActive) {
     byte8 = (uint8_t) aValueString[8];
   }
@@ -2041,8 +2065,9 @@ void processButton(std::string & aDevice, std::string & deviceMac, std::string &
     int bCount = itE->second;
     if (((bCount < buttonCount) ||  ((bCount > 10) && (buttonCount < 5))) && (buttonCount != 0)) {
       shouldPublish = true;
+      valueChanged = true;
     }
-    else {
+    else if (bCount != buttonCount) {
       shouldPublish = false;
     }
   }
@@ -2053,16 +2078,15 @@ void processButton(std::string & aDevice, std::string & deviceMac, std::string &
 
   if (shouldPublish) {
     buttonCounts[deviceMac] = buttonCount;
-
-    if (isMeshNode) {
-      std::string deviceButtonMeshTopic = contactTopic + aDevice + "/buttoncount";
-      addToPublish(deviceButtonMeshTopic.c_str(), buttonCount, false);
-
-    }
-    else {
+    std::string deviceButtonMeshTopic = contactTopic + aDevice + "/buttoncount";
+    addToPublish(deviceButtonMeshTopic.c_str(), buttonCount, false);
+    if (!isMeshNode && valueChanged) {
       //addToPublish(deviceButtonTopic.c_str(), "PUSHED", false);
       client.publish(deviceButtonTopic.c_str(), "PUSHED", false);
       lastButton[deviceMac] = millis();
+    }
+    else if (!isMeshNode) {
+      addToPublish(deviceButtonTopic.c_str(), "IDLE", false);
     }
   }
 }
@@ -2070,6 +2094,7 @@ void processButton(std::string & aDevice, std::string & deviceMac, std::string &
 void processEntrance(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
   uint8_t byte8 = 0;
   bool shouldPublish = aPublish;
+  bool valueChanged = false;
   if (isActive) {
     byte8 = (uint8_t) aValueString[8];
   }
@@ -2086,8 +2111,9 @@ void processEntrance(std::string & aDevice, std::string & deviceMac, std::string
     int eCount = itE->second;
     if (((eCount < entranceCount) ||  ((eCount == 3) && (entranceCount == 1))) && (entranceCount != 0)) {
       shouldPublish = true;
+      valueChanged = true;
     }
-    else {
+    else if (eCount != entranceCount) {
       shouldPublish = false;
     }
   }
@@ -2099,14 +2125,15 @@ void processEntrance(std::string & aDevice, std::string & deviceMac, std::string
   if (shouldPublish) {
     entranceCounts[deviceMac] = entranceCount;
 
-    if (isMeshNode) {
-      std::string deviceInMeshTopic = contactTopic + aDevice + "/incount";
-      addToPublish(deviceInMeshTopic.c_str(), entranceCount, false);
-    }
-    else {
+    std::string deviceInMeshTopic = contactTopic + aDevice + "/incount";
+    addToPublish(deviceInMeshTopic.c_str(), entranceCount, false);
+    if (!isMeshNode && valueChanged) {
       //addToPublish(deviceInTopic.c_str(), "ENTERED", false);
       client.publish(deviceInTopic.c_str(), "ENTERED", false);
       lastIn[deviceMac] = millis();
+    }
+    else if (!isMeshNode) {
+      addToPublish(deviceInTopic.c_str(), "IDLE", false);
     }
   }
 }
@@ -2114,6 +2141,7 @@ void processEntrance(std::string & aDevice, std::string & deviceMac, std::string
 void processExit(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
   uint8_t byte8 = 0;
   bool shouldPublish = aPublish;
+  bool valueChanged = false;
   if (isActive) {
     byte8 = (uint8_t) aValueString[8];
   }
@@ -2130,8 +2158,9 @@ void processExit(std::string & aDevice, std::string & deviceMac, std::string & a
     int oCount = itE->second;
     if (((oCount < outCount) ||  ((oCount == 3) && (outCount == 1))) && (outCount != 0)) {
       shouldPublish = true;
+      valueChanged = true;
     }
-    else {
+    else if (oCount != outCount) {
       shouldPublish = false;
     }
   }
@@ -2143,20 +2172,21 @@ void processExit(std::string & aDevice, std::string & deviceMac, std::string & a
   if (shouldPublish) {
     outCounts[deviceMac.c_str()] = outCount;
 
-    if (isMeshNode) {
-      std::string deviceOutMeshTopic = contactTopic + aDevice + "/outcount";
-      addToPublish(deviceOutMeshTopic.c_str(), outCount, false);
-    }
-    else {
+    std::string deviceOutMeshTopic = contactTopic + aDevice + "/outcount";
+    addToPublish(deviceOutMeshTopic.c_str(), outCount, false);
+    if (!isMeshNode && valueChanged) {
       //addToPublish(deviceOutTopic.c_str(), "EXITED", false);
       client.publish(deviceOutTopic.c_str(), "EXITED", false);
       lastOut[deviceMac] = millis();
+    }
+    else if (!isMeshNode) {
+      addToPublish(deviceOutTopic.c_str(), "IDLE", false);
     }
   }
 }
 
 
-void processBotBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+void processBotBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish, JsonDocument & aJsonDoc) {
   int battLevel = 0;
   bool shouldPublish = aPublish;
   if (isActive) {
@@ -2173,7 +2203,7 @@ void processBotBattery(std::string & aDevice, std::string & deviceMac, std::stri
     addToPublish(botTopic + aDevice + "/battery", battLevel, true);
   }
 }
-void processCurtainBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+void processCurtainBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish, JsonDocument & aJsonDoc) {
   int battLevel = 0;
   bool shouldPublish = aPublish;
   if (isActive) {
@@ -2190,7 +2220,7 @@ void processCurtainBattery(std::string & aDevice, std::string & deviceMac, std::
     addToPublish(curtainTopic + aDevice + "/battery", battLevel, true);
   }
 }
-void processMeterBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
+void processMeterBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish, JsonDocument & aJsonDoc) {
   int battLevel = 0;
   bool shouldPublish = aPublish;
   if (isActive) {
@@ -2242,7 +2272,7 @@ void processMotionBattery(std::string & aDevice, std::string & deviceMac, std::s
   }
 }
 
-void processBotRSSI(std::string & aDevice, std::string & deviceMac, long anRSSI, bool isActive, bool aPublish) {
+void processBotRSSI(std::string & aDevice, std::string & deviceMac, long anRSSI, bool isActive, bool aPublish, JsonDocument & aJsonDoc) {
   bool shouldPublish = aPublish;
   aJsonDoc["rssi"] = anRSSI;
   if (shouldPublish) {
@@ -2251,7 +2281,7 @@ void processBotRSSI(std::string & aDevice, std::string & deviceMac, long anRSSI,
   }
 }
 
-void processCurtainRSSI(std::string & aDevice, std::string & deviceMac, long anRSSI, bool isActive, bool aPublish) {
+void processCurtainRSSI(std::string & aDevice, std::string & deviceMac, long anRSSI, bool isActive, bool aPublish, JsonDocument & aJsonDoc) {
   bool shouldPublish = aPublish;
   aJsonDoc["rssi"] = anRSSI;
   if (shouldPublish) {
@@ -2288,7 +2318,7 @@ void processMotionRSSI(std::string & aDevice, std::string & deviceMac, long anRS
   }
 }
 
-void processMeterRSSI(std::string & aDevice, std::string & deviceMac, long anRSSI, bool isActive, bool aPublish) {
+void processMeterRSSI(std::string & aDevice, std::string & deviceMac, long anRSSI, bool isActive, bool aPublish, JsonDocument & aJsonDoc) {
   bool shouldPublish = aPublish;
   aJsonDoc["rssi"] = anRSSI;
 
@@ -2301,17 +2331,17 @@ void processMeterRSSI(std::string & aDevice, std::string & deviceMac, long anRSS
     }
   }
 }
-static long lastOnlinePublished = 0;
-static long lastRescan = 0;
-static long lastScanCheck = 0;
+
+static unsigned long lastOnlinePublished = 0;
+static unsigned long lastRescan = 0;
+static unsigned long lastScanCheck = 0;
 static bool noResponse = false;
 static bool waitForResponse = false;
 static std::string lastDeviceControlled = "";
 
-
-bool publishMQTT(std::string topic, std::string payload, bool retain) {
+bool publishMQTT(QueuePublish aCommand) {
   if (client.isConnected()) {
-    client.publish(topic.c_str(), payload.c_str(), retain);
+    client.publish(aCommand.topic.c_str(), aCommand.payload.c_str(), aCommand.retain);
     return true;
   }
   else {
@@ -2320,35 +2350,24 @@ bool publishMQTT(std::string topic, std::string payload, bool retain) {
   return false;
 }
 
-bool publishMQTT(std::string topic, char * payload, bool retain) {
-  if (client.isConnected()) {
-    client.publish(topic.c_str(), payload, retain);
-    return true;
-  }
-  else {
-    client.loop();
-  }
-  return false;
-}
-
-bool publishMQTT(std::string topic, std::string payload) {
+/*bool publishMQTT(std::string topic, std::string payload) {
   return publishMQTT(topic, payload, false);
-}
+  }
 
-bool publishMQTT(std::string topic, char * payload) {
+  bool publishMQTT(std::string topic, char * payload) {
   return publishMQTT(topic, payload, false);
-}
+  }*/
 
 void processContactSensorTasks() {
   std::string anAddr;
   std::string aDevice;
-  long aTime = 0;
+  unsigned long aTime = 0;
   std::map<std::string, std::string>::iterator itT = allContactSensors.begin();
   while (itT != allContactSensors.end())
   {
     anAddr = itT->second;
     aDevice = itT->first;
-    std::map<std::string, long>::iterator itW = lastButton.find(anAddr.c_str());
+    std::map<std::string, unsigned long>::iterator itW = lastButton.find(anAddr.c_str());
     if (itW != lastButton.end())
     {
       aTime = itW->second;
@@ -2485,14 +2504,14 @@ void processContactSensorTasks() {
 void processMotionSensorTasks() {
   std::string anAddr;
   std::string aDevice;
-  long aTime = 0;
+  unsigned long aTime = 0;
   std::map<std::string, std::string>::iterator itT = allMotionSensors.begin();
   while (itT != allMotionSensors.end())
   {
     anAddr = itT->second;
     aDevice = itT->first;
 
-    std::map<std::string, long>::iterator itW = updateMotionCount.find(anAddr.c_str());
+    std::map<std::string, unsigned long>::iterator itW = updateMotionCount.find(anAddr.c_str());
     if (itW != updateMotionCount.end())
     {
       aTime = itW->second;
@@ -2553,9 +2572,12 @@ void processMotionSensorTasks() {
 
 void publishAllMQTT() {
   while (!(publishQueue.isEmpty())) {
+    if (!(client.isConnected())) {
+      client.loop();
+    }
     bool success = false;
     QueuePublish aCommand = publishQueue.getHead();
-    success = publishMQTT(aCommand.topic, aCommand.payload, aCommand.retain);
+    success = publishMQTT(aCommand);
     if (success) {
       publishQueue.dequeue();
     }
@@ -2564,6 +2586,9 @@ void publishAllMQTT() {
 
 void processAllAdvData() {
   while (!(advDataQueue.isEmpty())) {
+    if (!(client.isConnected())) {
+      client.loop();
+    }
     bool success = false;
     QueueAdvData aAdvData = advDataQueue.getHead();
     processAdvData(aAdvData.macAddr, aAdvData.rssi, aAdvData.aValueString, aAdvData.useActiveScan);
@@ -2574,7 +2599,6 @@ void processAllAdvData() {
 void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueString, bool useActiveScan) {
   yield();
 
-  aJsonDoc.clear();
 
   bool shouldPublish = false;
   std::string aDevice;
@@ -2599,10 +2623,11 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
 
   int aLength = aValueString.length();
   if (deviceName == botName) {
-
+    StaticJsonDocument<200> aJsonDoc;
+    char aBuffer[200];
     shouldPublish = true;
-    processBotBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
-    processBotRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish);
+    processBotBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish, aJsonDoc);
+    processBotRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish, aJsonDoc);
 
     uint8_t byte1 = (uint8_t) aValueString[1];
     uint8_t byte2 = (uint8_t) aValueString[2];
@@ -2653,13 +2678,23 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
     aJsonDoc["mode"] = aMode;
     aJsonDoc["state"] = aState;
     //aJsonDoc["batt"] = battLevel;
-
+    if (shouldPublish) {
+      if (useActiveScan) {
+        delay(50);
+        serializeJson(aJsonDoc, aBuffer);
+        addToPublish(deviceAttrTopic.c_str(), aBuffer, true);
+        delay(50);
+        addToPublish(deviceStateTopic.c_str(), aState.c_str(), true);
+      }
+      lastUpdateTimes[deviceMac] = millis();
+    }
   }
   else if (deviceName == meterName) {
     shouldPublish = true;
-
-    processMeterBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
-    processMeterRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish);
+    StaticJsonDocument<200> aJsonDoc;
+    char aBuffer[200];
+    processMeterBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish, aJsonDoc);
+    processMeterRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish, aJsonDoc);
 
     deviceStateTopic = meterTopic + aDevice + "/state";
     deviceAttrTopic = meterTopic + aDevice + "/attributes";
@@ -2683,7 +2718,16 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
     int humidity = byte5 & 0b01111111;
     aJsonDoc["hum"] = humidity;
     aState = String(tempC, 1).c_str();
-
+    if (shouldPublish) {
+      if (useActiveScan) {
+        delay(50);
+        serializeJson(aJsonDoc, aBuffer);
+        addToPublish(deviceAttrTopic.c_str(), aBuffer, true);
+        delay(50);
+        addToPublish(deviceStateTopic.c_str(), aState.c_str(), true);
+      }
+      lastUpdateTimes[deviceMac] = millis();
+    }
   }
   else if (deviceName == motionName) {
     if (!initialScanComplete) {
@@ -2727,9 +2771,10 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
   else if (deviceName == curtainName) {
 
     shouldPublish = true;
-
-    processCurtainBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
-    processCurtainRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish);
+    StaticJsonDocument<200> aJsonDoc;
+    char aBuffer[200];
+    processCurtainBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish, aJsonDoc);
+    processCurtainRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish, aJsonDoc);
 
     std::string devicePosTopic = curtainTopic + aDevice + "/position";
     deviceStateTopic = curtainTopic + aDevice + "/state";
@@ -2758,12 +2803,8 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
     docPos["pos"] = currentPosition;
     serializeJson(docPos, aBuffer);
     addToPublish(devicePosTopic.c_str(), aBuffer, true);
-  }
 
-  yield();
-
-  if (shouldPublish) {
-    if ((deviceName != motionName) && (deviceName != contactName)) {
+    if (shouldPublish) {
       if (useActiveScan) {
         delay(50);
         serializeJson(aJsonDoc, aBuffer);
@@ -2771,10 +2812,15 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
         delay(50);
         addToPublish(deviceStateTopic.c_str(), aState.c_str(), true);
       }
+      lastUpdateTimes[deviceMac] = millis();
     }
+  }
+
+  yield();
+
+  if (shouldPublish) {
     lastUpdateTimes[deviceMac] = millis();
   }
-  aJsonDoc.clear();
   yield();
 
 }
@@ -3080,7 +3126,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_motion\"," +
-               + "\"stat_t\":\"~/attributes\"," +
+               + "\"stat_t\":\"~/motion\"," +
                + "\"dev_cla\":\"motion\"," +
                + "\"pl_on\":\"MOTION\"," +
                + "\"pl_off\":\"NO MOTION\"}").c_str(), true);
@@ -3142,7 +3188,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastmotion\"," +
                + "\"dev_cla\":\"timestamp\"," +
                + "\"stat_t\":\"~/lastmotion\"," +
-               + "\"value_template\":\"{{ now() - timedelta( seconds = value ) }}\"}").c_str(), true);
+               + "\"value_template\":\"{{ now() - timedelta(seconds = (value | int)) }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/lastcontact/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " LastContact\"," +
@@ -3151,7 +3197,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastcontact\"," +
                + "\"dev_cla\":\"timestamp\"," +
                + "\"stat_t\":\"~/lastcontact\"," +
-               + "\"value_template\":\"{{ now() - timedelta( seconds = value ) }}\"}").c_str(), true);
+               + "\"value_template\":\"{{ now() - timedelta(seconds = (value | int)) }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/buttoncount/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " ButtonCount\"," +
@@ -3242,7 +3288,7 @@ void publishHomeAssistantDiscoveryMotionConfig(std::string & deviceName, std::st
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastmotion\"," +
                + "\"dev_cla\":\"timestamp\"," +
                + "\"stat_t\":\"~/lastmotion\"," +
-               + "\"value_template\":\"{{ now() - timedelta( seconds = value ) }}\"}").c_str(), true);
+               + "\"value_template\":\"{{ now() - timedelta(seconds = (value | int)) }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/sensedistance/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " SenseDistance\"," +
@@ -3257,9 +3303,7 @@ void publishHomeAssistantDiscoveryMotionConfig(std::string & deviceName, std::st
 class ClientCallbacks : public NimBLEClientCallbacks {
 
     void onConnect(NimBLEClient* pClient) {
-      if (printSerialOutputForDebugging) {
-        Serial.println("Connected");
-      }
+      printAString("Connected");
       pClient->updateConnParams(120, 120, 0, 60);
     };
 
@@ -3281,25 +3325,21 @@ class ClientCallbacks : public NimBLEClientCallbacks {
     };
 
     uint32_t onPassKeyRequest() {
-      if (printSerialOutputForDebugging) {
-        Serial.println("Client Passkey Request");
-      }
+      printAString("Client Passkey Request");
       return 123456;
     };
 
     bool onConfirmPIN(uint32_t pass_key) {
-      if (printSerialOutputForDebugging) {
-        Serial.print("The passkey YES/NO number: ");
-        Serial.println(pass_key);
-      }
+      printAString("The passkey YES/NO number: ");
+      printAString(pass_key);
       return true;
     };
 
     void onAuthenticationComplete(ble_gap_conn_desc* desc) {
       if (!desc->sec_state.encrypted) {
-        if (printSerialOutputForDebugging) {
-          Serial.println("Encrypt connection failed - disconnecting");
-        }
+
+        printAString("Encrypt connection failed - disconnecting");
+
         NimBLEDevice::getClientByID(desc->conn_handle)->disconnect();
         return;
       }
@@ -3322,14 +3362,10 @@ bool unsubscribeToNotify(NimBLEClient* pClient) {
     }
   }
   else {
-    if (printSerialOutputForDebugging) {
-      Serial.println("CUSTOM notify service not found.");
-    }
+    printAString("CUSTOM notify service not found.");
     return false;
   }
-  if (printSerialOutputForDebugging) {
-    Serial.println("unsubscribed to notify");
-  }
+  printAString("unsubscribed to notify");
   return true;
 }
 
@@ -3350,14 +3386,10 @@ bool subscribeToNotify(NimBLEAdvertisedDevice* advDeviceToUse) {
     }
   }
   else {
-    if (printSerialOutputForDebugging) {
-      Serial.println("CUSTOM notify service not found.");
-    }
+    printAString("CUSTOM notify service not found.");
     return false;
   }
-  if (printSerialOutputForDebugging) {
-    Serial.println("subscribed to notify");
-  }
+  printAString("subscribed to notify");
   return true;
 }
 
@@ -3388,10 +3420,8 @@ bool writeSettings(NimBLEAdvertisedDevice* advDeviceToUse) {
 
         byte bArray[] = {0x57, 0x12, aPassCRC[0] , aPassCRC[1] , aPassCRC[2]  , aPassCRC[3]}; // write to get settings of device
         if (pChr->writeValue(bArray, 6)) {
-          if (printSerialOutputForDebugging) {
-            Serial.print("Wrote new value to: ");
-            Serial.println(pChr->getUUID().toString().c_str());
-          }
+          printAString("Wrote new value to: ");
+          printAString(pChr->getUUID().toString().c_str());
         }
         else {
           return false;
@@ -3400,10 +3430,8 @@ bool writeSettings(NimBLEAdvertisedDevice* advDeviceToUse) {
       else {
         byte bArray[] = {0x57, 0x02}; // write to get settings of device
         if (pChr->writeValue(bArray, 2)) {
-          if (printSerialOutputForDebugging) {
-            Serial.print("Wrote new value to: ");
-            Serial.println(pChr->getUUID().toString().c_str());
-          }
+          printAString("Wrote new value to: ");
+          printAString(pChr->getUUID().toString().c_str());
         }
         else {
           return false;
@@ -3411,14 +3439,13 @@ bool writeSettings(NimBLEAdvertisedDevice* advDeviceToUse) {
       }
     }
     else {
-      if (printSerialOutputForDebugging) {
-        Serial.println("CUSTOM write service not found.");
-      }
+      printAString("CUSTOM write service not found.");
+
       return false;
     }
-    if (printSerialOutputForDebugging) {
-      Serial.println("Success! subscribed and got settings");
-    }
+
+    printAString("Success! subscribed and got settings");
+
     return true;
   }
 
@@ -3474,9 +3501,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       }
 
       if (stopScan) {
-        if (printSerialOutputForDebugging) {
-          Serial.println("Stopping Scan found devices ... ");
-        }
+        printAString("Stopping Scan found devices ... ");
         NimBLEDevice::getScan()->stop();
       }
       else {
@@ -3508,15 +3533,9 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       }
     }
     void onResult(NimBLEAdvertisedDevice* advertisedDevice) {
-      //client.loop();
-      // server.handleClient();
-      //client.loop();
-      //waitForDeviceCreation = true;
-
-      if (printSerialOutputForDebugging) {
-        Serial.print("Advertised Device found: ");
-        Serial.println(advertisedDevice->toString().c_str());
-      }
+      printAString("START onResult");
+      printAString("Advertised Device found: ");
+      printAString(advertisedDevice->toString().c_str());
       if (ledOnScan) {
         digitalWrite(LED_PIN, ledONValue);
       }
@@ -3566,19 +3585,15 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
                 else if (isCurtainDevice(deviceName)) {
                   publishHomeAssistantDiscoveryCurtainConfig(deviceName, advStr);
                 }
-                if (printSerialOutputForDebugging) {
-                  Serial.println("adding discovered device ... ");
-                  Serial.println(advStr.c_str());
-                }
+                printAString("adding discovered device ... ");
+                printAString(advStr.c_str());
                 discoveredDevices[advStr.c_str()] = true;
                 delay(100);
               }
             }
 
-            if (printSerialOutputForDebugging) {
-              Serial.println("Adding Our Service ... ");
-              Serial.println(itS->second.c_str());
-            }
+            printAString("Adding Our Service ... ");
+            printAString(itS->second.c_str());
 
             std::string aValueString = "";
             if (isActiveScan) {
@@ -3589,7 +3604,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
               if (gotAllStatus) {
                 allSwitchbotsScanned[advStr] = advertisedDevice;
                 allSwitchbotsDev[advStr] = advertisedDevice;
-                std::map<std::string, long>::iterator itR = rescanTimes.find(advStr);
+                std::map<std::string, unsigned long>::iterator itR = rescanTimes.find(advStr);
                 if (itR != rescanTimes.end())
                 {
                   if (isCurtainDevice(deviceName)) {
@@ -3606,9 +3621,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
                    rescanTimes[advStr] = millis();
                   }*/
 
-                if (printSerialOutputForDebugging) {
-                  Serial.println("Assigned advDevService");
-                }
+                printAString("Assigned advDevService");
               }
             }
             else {
@@ -3616,8 +3629,6 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
                 aValueString = advertisedDevice->getManufacturerData();
                 callForInfoAdvDev(advertisedDevice->getAddress().toString(), advertisedDevice->getRSSI() , aValueString);
               }
-
-
 
             }
           }
@@ -3631,16 +3642,15 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
       checkToContinueScan();
 
+      printAString("END onResult");
     };
 
 
 
     bool callForInfoAdvDev(std::string deviceMac, long anRSSI,  std::string & aValueString) {
       yield();
-
-      if (printSerialOutputForDebugging) {
-        Serial.println("callForInfoAdvDev");
-      }
+      printAString("START callForInfoAdvDev");
+      printAString("callForInfoAdvDev");
       if ((strcmp(deviceMac.c_str(), "") == 0)) {
         return false;
       }
@@ -3708,12 +3718,14 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         return false;
       }
       yield();
+      printAString("END callForInfoAdvDev");
       return true;
 
     };
 };
 
 void initialScanEndedCB(NimBLEScanResults results) {
+  printAString("START initialScanEndedCB");
   //pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
   lastOnlinePublished = (((millis() - 60000) > 0) ? (millis() - 60000) : 0);
   yield();
@@ -3722,9 +3734,7 @@ void initialScanEndedCB(NimBLEScanResults results) {
   }
   pScan->setActiveScan(isActiveScan);
   delay(50);
-  if (printSerialOutputForDebugging) {
-    Serial.println("initialScanEndedCB");
-  }
+  printAString("initialScanEndedCB");
   if (ledOnBootScan) {
     digitalWrite(LED_PIN, ledOFFValue);
   }
@@ -3732,18 +3742,17 @@ void initialScanEndedCB(NimBLEScanResults results) {
   isRescanning = false;
   allSwitchbotsScanned = {};
   delay(20);
-  if (printSerialOutputForDebugging) {
-    Serial.println("Scan Ended");
-  }
-  /*if (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) {
-
-    pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
-    } */
+  printAString("Scan Ended");
+  /* if (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) {
+     pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
+     }*/
 
   client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
+  printAString("END initialScanEndedCB");
 }
 
 void scanEndedCB(NimBLEScanResults results) {
+  printAString("START scanEndedCB");
   lastOnlinePublished = (((millis() - 60000) > 0) ? (millis() - 60000) : 0);
   yield();
   if (!alwaysActiveScan && !onlyActiveScan & initialScanComplete) {
@@ -3755,18 +3764,19 @@ void scanEndedCB(NimBLEScanResults results) {
   }
   allSwitchbotsScanned = {};
   delay(50);
-  if (printSerialOutputForDebugging) {
-    Serial.println("Scan Ended");
-  }
-  /*  if (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) {
+  printAString("Scan Ended");
+  /*if (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) {
 
-      pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
+    pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
     } */
 
   client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
+
+  printAString("END scanEndedCB");
 }
 
 void rescanEndedCB(NimBLEScanResults results) {
+  printAString("START rescanEndedCB");
   lastOnlinePublished = (((millis() - 60000) > 0) ? (millis() - 60000) : 0);
   yield();
   if (!alwaysActiveScan && !onlyActiveScan & initialScanComplete) {
@@ -3780,18 +3790,19 @@ void rescanEndedCB(NimBLEScanResults results) {
   lastRescan = millis();
   allSwitchbotsScanned = {};
   delay(50);
-  if (printSerialOutputForDebugging) {
-    Serial.println("ReScan Ended");
-  }
+  printAString("ReScan Ended");
 
   /* if (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) {
 
       pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
     } */
   client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
+
+  printAString("END rescanEndedCB");
 }
 
 void scanForeverEnded(NimBLEScanResults results) {
+  printAString("START scanForeverEnded");
   lastOnlinePublished = (((millis() - 60000) > 0) ? (millis() - 60000) : 0);
   yield();
   pScan->setActiveScan(isActiveScan);
@@ -3801,16 +3812,15 @@ void scanForeverEnded(NimBLEScanResults results) {
   isRescanning = false;
   allSwitchbotsScanned = {};
   delay(50);
-  if (printSerialOutputForDebugging) {
-    Serial.println("forever scan Ended");
-  }
+  printAString("forever scan Ended");
 
+  /*  if (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) {
 
-  /* if (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) {
-
-    pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
-    } */
+     pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
+     } */
   client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
+
+  printAString("END scanForeverEnded");
 }
 
 std::string getPass(std::string aDevice) {
@@ -3868,9 +3878,7 @@ void setup () {
   Serial.begin(115200);
   // Connect to WiFi network
   WiFi.begin(ssid, password);
-  if (printSerialOutputForDebugging) {
-    Serial.println("");
-  }
+  printAString("");
 
   // Wait for connection
   /*while (WiFi.status() != WL_CONNECTED) {
@@ -4090,9 +4098,7 @@ void setup () {
   if (!printSerialOutputForDebugging) {
     Serial.println("Set printSerialOutputForDebugging = true to see more Serial output");
   }
-  if (printSerialOutputForDebugging) {
-    Serial.println("Starting NimBLE Client");
-  }
+  printAString("Starting NimBLE Client");
 
   NimBLEDevice::setSecurityAuth(/*BLE_SM_PAIR_AUTHREQ_BOND | BLE_SM_PAIR_AUTHREQ_MITM |*/ BLE_SM_PAIR_AUTHREQ_SC);
   NimBLEDevice::setPower(ESP_PWR_LVL_P9);
@@ -4104,7 +4110,7 @@ void setup () {
   pScan->setDuplicateFilter(false);
   isActiveScan = true;
   pScan->setActiveScan(isActiveScan);
-  pScan->setMaxResults(100);
+  pScan->setMaxResults(50);
   //pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
 
 }
@@ -4160,7 +4166,7 @@ void scanForever() {
   if (ledOnScan) {
     digitalWrite(LED_PIN, ledONValue);
   }
-  pScan->start(1800, scanForeverEnded, true);
+  pScan->start(0, scanForeverEnded, true);
 }
 
 void rescanFind(std::string aMac) {
@@ -4209,9 +4215,7 @@ void getAllBotSettings() {
       digitalWrite(LED_PIN, ledONValue);
     }
 
-    if (printSerialOutputForDebugging) {
-      Serial.println("In all get bot settings...");
-    }
+    printAString("In all get bot settings...");
     gotSettings = true;
     std::map<std::string, std::string>::iterator itT = allBots.begin();
     std::string aDevice;
@@ -4241,9 +4245,8 @@ void getAllBotSettings() {
         hasFirmware = true;
       }
       if ((!hasFirmware) || (!hasTimers) || (!hasHold) || (!hasInverted)) {
-        if (printSerialOutputForDebugging) {
-          Serial.println("get settings");
-        }
+        printAString("get settings");
+
         processing = true;
         client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"getsettings\"}");
         controlMQTT(aDevice, "REQUESTSETTINGS", true);
@@ -4251,9 +4254,7 @@ void getAllBotSettings() {
 
       }
       else {
-        if (printSerialOutputForDebugging) {
-          Serial.println("Skip settings");
-        }
+        printAString("Skip settings");
       }
       processing = false;
       itT++;
@@ -4261,15 +4262,13 @@ void getAllBotSettings() {
     if (ledOnBootScan) {
       digitalWrite(LED_PIN, ledOFFValue);
     }
-    if (printSerialOutputForDebugging) {
-      Serial.println("Added all get bot settings...");
-    }
+    printAString("Added all get bot settings...");
   }
 }
 
-long retainStartTime = 0;
+unsigned long retainStartTime = 0;
 bool waitForRetained = true;
-long lastWebServerReboot = 0;
+unsigned long lastWebServerReboot = 0;
 
 void checkWebServer() {
   if ((millis() - lastWebServerReboot) > (30 * 1000 * 60)) {
@@ -4280,16 +4279,22 @@ void checkWebServer() {
 }
 
 void loop () {
-  vTaskDelay(10 / portTICK_PERIOD_MS);
+  printAString("START loop...");
   client.loop();
   checkWebServer();
   server.handleClient();
-  publishLastwillOnline();
+  printAString("at processAllAdvData...");
   processAllAdvData();
+  //vTaskDelay(10 / portTICK_PERIOD_MS);
+  printAString("at publishLastwillOnline...");
+  publishLastwillOnline();
+  printAString("at publishAllMQTT...");
   publishAllMQTT();
+  printAString("at processContactSensorTasks...");
   processContactSensorTasks();
+  printAString("at processMotionSensorTasks...");
   processMotionSensorTasks();
-
+  printAString("at loopcode...");
   if (waitForRetained && client.isConnected()) {
     if (retainStartTime == 0) {
       client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"waiting\"}");
@@ -4351,6 +4356,7 @@ void loop () {
       }
     }
   }
+  printAString("END loop...");
 }
 
 void recurringRescan() {
@@ -4364,7 +4370,7 @@ void recurringRescan() {
       rescan(initialScan);
     }
     else {
-      long tempVal = (millis() - ((rescanTime * 1000) - 5000));
+      unsigned long tempVal = (millis() - ((rescanTime * 1000) - 5000));
       if (tempVal < 0) {
         tempVal = 0;
       }
@@ -4394,8 +4400,8 @@ bool shouldActiveScanForDevice(std::string & anAddr) {
     return false;
   }
   std::map<std::string, std::string>::iterator itB = allSwitchbotsOpp.find(anAddr);
-  long lastActiveScanTime = 0;
-  std::map<std::string, long>::iterator itX = lastActiveScanTimes.find(anAddr);
+  unsigned long lastActiveScanTime = 0;
+  std::map<std::string, unsigned long>::iterator itX = lastActiveScanTimes.find(anAddr);
   if (itX != lastActiveScanTimes.end())
   {
     lastActiveScanTime = itX->second;
@@ -4417,8 +4423,8 @@ bool shouldActiveScanForDevice(std::string & anAddr) {
 
   else if (isBotDevice(itB->second) || isMeterDevice(itB->second) || isCurtainDevice(itB->second)) {
     std::map<std::string, int>::iterator itS = botScanTime.find(itB->second);
-    long lastTime;
-    std::map<std::string, long>::iterator it = rescanTimes.find(anAddr);
+    unsigned long lastTime;
+    std::map<std::string, unsigned long>::iterator it = rescanTimes.find(anAddr);
     if (it != rescanTimes.end())
     {
       lastTime = it->second;
@@ -4427,7 +4433,7 @@ bool shouldActiveScanForDevice(std::string & anAddr) {
       return false;
     }
 
-    long scanTime = defaultBotScanAfterControlSecs;
+    unsigned long scanTime = defaultBotScanAfterControlSecs;
     if (isCurtainDevice(itB->second)) {
       scanTime = defaultCurtainScanAfterControlSecs;
     }
@@ -4476,8 +4482,8 @@ bool shouldMQTTUpdateForDevice(std::string & anAddr) {
     return true;
   }
 
-  long lastUpdateTime = 0;
-  std::map<std::string, long>::iterator itX = lastUpdateTimes.find(anAddr);
+  unsigned long lastUpdateTime = 0;
+  std::map<std::string, unsigned long>::iterator itX = lastUpdateTimes.find(anAddr);
   if (itX != lastUpdateTimes.end())
   {
     lastUpdateTime = itX->second;
@@ -4526,7 +4532,7 @@ void recurringScan() {
       while (itS != allSwitchbotsOpp.end())
       {
         anAddr = itS->first;
-        std::map<std::string, long>::iterator itR = rescanTimes.find(anAddr);
+        std::map<std::string, unsigned long>::iterator itR = rescanTimes.find(anAddr);
         if (itR != rescanTimes.end())
         {
           bool shouldMQTTOrActiveScanUpdate = false;
@@ -4542,7 +4548,7 @@ void recurringScan() {
             if (!processing && !(pScan->isScanning()) && !isRescanning) {
               rescanFind(anAddr);
               delay(100);
-              std::map<std::string, long>::iterator itR = rescanTimes.find(anAddr);
+              std::map<std::string, unsigned long>::iterator itR = rescanTimes.find(anAddr);
               if (itR != rescanTimes.end())
               {
                 std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(anAddr);
@@ -4626,7 +4632,7 @@ bool processRequest(std::string macAdd, std::string aName, const char * command,
   if (advDevice == nullptr)
   {
     StaticJsonDocument<100> doc;
-    //char aBuffer[100];
+    char aBuffer[100];
     doc["id"] = aName.c_str();
     doc["status"] = "errorLocatingDevice";
     serializeJson(doc, aBuffer);
@@ -4640,7 +4646,7 @@ bool processRequest(std::string macAdd, std::string aName, const char * command,
 
 bool waitToProcess(QueueCommand aCommand) {
   bool wait = false;
-  long waitTimeLeft = 0;
+  unsigned long waitTimeLeft = 0;
 
   std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
   if (itP != botsToWaitFor.end())
@@ -4657,11 +4663,11 @@ bool waitToProcess(QueueCommand aCommand) {
       if (itY != allSwitchbots.end())
       {
         anAddr = itY->second;
-        std::map<std::string, long>::iterator itZ = lastCommandSent.find(anAddr);
+        std::map<std::string, unsigned long>::iterator itZ = lastCommandSent.find(anAddr);
         if (itZ != lastCommandSent.end())
         {
           wait = true;
-          long lastTime = itZ->second;
+          unsigned long lastTime = itZ->second;
           int waitForSecs = 0;
           std::string deviceName;
           std::map<std::string, std::string>::iterator itK = deviceTypes.find(anAddr);
@@ -4708,13 +4714,11 @@ bool waitToProcess(QueueCommand aCommand) {
     }
   }
   if (wait) {
-    if (printSerialOutputForDebugging) {
-      Serial.print("Control for device: ");
-      Serial.print(aCommand.device.c_str());
-      Serial.print(" will wait ");
-      Serial.print(waitTimeLeft);
-      Serial.println(" millisecondSeconds");
-    }
+    printAString("Control for device: ");
+    printAString(aCommand.device.c_str());
+    printAString(" will wait ");
+    printAString(waitTimeLeft);
+    printAString(" millisecondSeconds");
   }
   return wait;
 }
@@ -4742,11 +4746,9 @@ bool processQueue() {
           return false;
         }
         processing = true;
-        if (printSerialOutputForDebugging) {
-          Serial.print("Received something on ");
-          Serial.println(aCommand.topic.c_str());
-          Serial.println(aCommand.device.c_str());
-        }
+        printAString("Received something on ");
+        printAString(aCommand.topic.c_str());
+        printAString(aCommand.device.c_str());
         if (aCommand.topic == ESPMQTTTopic + "/control") {
           if (aCommand.disconnectAfter == false) {
             disconnectAfter = false;
@@ -4818,7 +4820,7 @@ bool processQueue() {
               }
               noResponse = true;
               bool shouldContinue = true;
-              long timeSent = millis();
+              unsigned long timeSent = millis();
               bool isSuccess = false;
               if (isBotDevice(aCommand.device.c_str()))
               {
@@ -4903,10 +4905,9 @@ bool processQueue() {
                   }
                   else if ((retryBotActionNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount)) || (retryBotSetNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount) && ((strcmp(aCommand.payload.c_str(), "REQUESTSETTINGS") == 0) || (strcmp(aCommand.payload.c_str(), "GETSETTINGS") == 0)
                            || (strcmp(aCommand.payload.c_str(), "MODEPRESS") == 0) || (strcmp(aCommand.payload.c_str(), "MODEPRESSINV") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCH") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCHINV") == 0) || isNum ))) {
-                    if (printSerialOutputForDebugging) {
-                      Serial.print("current retry...");
-                      Serial.println(aCommand.currentTry);
-                    }
+                    printAString("current retry...");
+                    printAString(aCommand.currentTry);
+
                     requeue = true;
                     botsToWaitFor[aCommand.device] = true;
                     lastCommandWasBusy = false;
@@ -4931,9 +4932,8 @@ bool processQueue() {
                   while (noResponse && shouldContinue )
                   {
                     waitForResponse = true;
-                    if (printSerialOutputForDebugging) {
-                      Serial.println("waiting for response...");
-                    }
+                    printAString("waiting for response...");
+
                     if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
                       shouldContinue = false;
                     }
@@ -4960,10 +4960,9 @@ bool processQueue() {
                     lastCommandSent[anAddr] = 0;
                   }
                   else if (retryCurtainNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount)) {
-                    if (printSerialOutputForDebugging) {
-                      Serial.print("current retry...");
-                      Serial.println(aCommand.currentTry);
-                    }
+                    printAString("current retry...");
+                    printAString(aCommand.currentTry);
+
                     requeue = true;
                     botsToWaitFor[aCommand.device] = true;
                     lastCommandWasBusy = false;
@@ -5027,7 +5026,7 @@ bool processQueue() {
             sendInitial = false;
             count++;
             shouldContinue = true;
-            long timeSent = millis();
+            unsigned long timeSent = millis();
             client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"getsettings\"}");
             controlMQTT(requestDevice, "REQUESTSETTINGS", disconnectAfter);
             while (noResponse && shouldContinue )
@@ -5064,7 +5063,7 @@ bool sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string & aName, const
 
   if ((advDeviceToUse != nullptr) && (advDeviceToUse != NULL))
   {
-    //char aBuffer[100];
+    char aBuffer[100];
     StaticJsonDocument<100> doc;
     //    doc["id"] = aName.c_str();
     if (strcmp(command, "requestInfo") == 0 || strcmp(command, "REQUESTINFO") == 0 || strcmp(command, "GETINFO") == 0) {
@@ -5117,7 +5116,7 @@ bool sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string & aName, const
           shouldContinue = false;
           if (!lastCommandSentPublished) {
             StaticJsonDocument<100> doc;
-            //char aBuffer[100];
+            char aBuffer[100];
             doc["status"] = "commandSent";
             doc["command"] = command;
             serializeJson(doc, aBuffer);
@@ -5152,7 +5151,7 @@ bool sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string & aName, const
               if (isCurtainDevice(aDevice)) {
                 std::string devicePosTopic = deviceTopic + "/position";
                 StaticJsonDocument<50> docPos;
-                //char aBuffer[100];
+                char aBuffer[100];
                 docPos["pos"] = aVal;
                 serializeJson(docPos, aBuffer);
                 addToPublish(devicePosTopic.c_str(), aBuffer);
@@ -5186,9 +5185,8 @@ bool sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string & aName, const
       }
     }
   }
-  if (printSerialOutputForDebugging) {
-    Serial.println("Done sendCommand...");
-  }
+  printAString("Done sendCommand...");
+
   return isSuccess;
 }
 
@@ -5203,20 +5201,16 @@ bool controlMQTT(std::string & device, std::string payload, bool disconnectAfter
   client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"controlling\"}");
   bool isSuccess = false;
   processing = true;
-  if (printSerialOutputForDebugging) {
-    Serial.println("Processing Control MQTT...");
-  }
+  printAString("Processing Control MQTT...");
 
   std::string deviceAddr = "";
   std::string deviceTopic;
   std::string anAddr;
 
-  if (printSerialOutputForDebugging) {
-    Serial.print("Device: ");
-    Serial.println(device.c_str());
-    Serial.print("Device value: ");
-    Serial.println(payload.c_str());
-  }
+  printAString("Device: ");
+  printAString(device.c_str());
+  printAString("Device value: ");
+  printAString(payload.c_str());
 
   std::map<std::string, std::string>::iterator itS = allBots.find(device.c_str());
   if (itS != allBots.end())
@@ -5306,25 +5300,21 @@ bool controlMQTT(std::string & device, std::string payload, bool disconnectAfter
         isSuccess = processRequest(deviceAddr, device, payload.c_str(), deviceTopic, disconnectAfter);
       }
       else {
-        //char aBuffer[100];
+        char aBuffer[100];
         StaticJsonDocument<100> docOut;
         docOut["status"] = "errorJSONValue";
         serializeJson(docOut, aBuffer);
-        if (printSerialOutputForDebugging) {
-          Serial.println("Parsing failed = value not a valid command");
-        }
+        printAString("Parsing failed = value not a valid command");
         addToPublish(ESPMQTTTopic.c_str(), aBuffer);
       }
     }
   }
   else {
-    //char aBuffer[100];
+    char aBuffer[100];
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorJSONDevice";
     serializeJson(docOut, aBuffer);
-    if (printSerialOutputForDebugging) {
-      Serial.println("Parsing failed = device not from list");
-    }
+    printAString("Parsing failed = device not from list");
     addToPublish(ESPMQTTTopic.c_str(), aBuffer);
   }
 
@@ -5369,17 +5359,13 @@ void performHoldOff(std::string aDevice, int aHold) {
 void rescanMQTT(std::string & payload) {
   isRescanning = true;
   processing = true;
-  if (printSerialOutputForDebugging) {
-    Serial.println("Processing Rescan MQTT...");
-  }
+  printAString("Processing Rescan MQTT...");
   StaticJsonDocument<100> docIn;
   deserializeJson(docIn, payload);
 
   if (docIn == nullptr) { //Check for errors in parsing
-    if (printSerialOutputForDebugging) {
-      Serial.println("Parsing failed");
-    }
-    //char aBuffer[100];
+    printAString("Parsing failed");
+    char aBuffer[100];
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorParsingJSON";
     serializeJson(docOut, aBuffer);
@@ -5402,13 +5388,11 @@ void rescanMQTT(std::string & payload) {
         rescan(aVal);
       }
       else {
-        //char aBuffer[100];
+        char aBuffer[100];
         StaticJsonDocument<100> docOut;
         docOut["status"] = "errorJSONValue";
         serializeJson(docOut, aBuffer);
-        if (printSerialOutputForDebugging) {
-          Serial.println("Parsing failed = device not from list");
-        }
+        printAString("Parsing failed = device not from list");
         addToPublish(ESPMQTTTopic.c_str(), aBuffer);
       }
     }
@@ -5418,17 +5402,13 @@ void rescanMQTT(std::string & payload) {
 
 void requestInfoMQTT(std::string & payload) {
   processing = true;
-  if (printSerialOutputForDebugging) {
-    Serial.println("Processing Request Info MQTT...");
-  }
+  printAString("Processing Request Info MQTT...");
   StaticJsonDocument<100> docIn;
   deserializeJson(docIn, payload);
 
   if (docIn == nullptr) { //Check for errors in parsing
-    if (printSerialOutputForDebugging) {
-      Serial.println("Parsing failed");
-    }
-    //char aBuffer[100];
+    printAString("Parsing failed");
+    char aBuffer[100];
     StaticJsonDocument<100> docOut;
     docOut["status"] = "errorParsingJSON";
     serializeJson(docOut, aBuffer);
@@ -5436,10 +5416,8 @@ void requestInfoMQTT(std::string & payload) {
   }
   else {
     const char * aName = docIn["id"]; //Get sensor type value
-    if (printSerialOutputForDebugging) {
-      Serial.print("Device: ");
-      Serial.println(aName);
-    }
+    printAString("Device: ");
+    printAString(aName);
 
     std::string deviceAddr = "";
     std::string deviceTopic;
@@ -5492,13 +5470,11 @@ void requestInfoMQTT(std::string & payload) {
       processRequest(deviceAddr, aName, "requestInfo", deviceTopic, true);
     }
     else {
-      //char aBuffer[100];
+      char aBuffer[100];
       StaticJsonDocument<100> docOut;
       docOut["status"] = "errorJSONId";
       serializeJson(docOut, aBuffer);
-      if (printSerialOutputForDebugging) {
-        Serial.println("Parsing failed = device not from list");
-      }
+      printAString("Parsing failed = device not from list");
       addToPublish(ESPMQTTTopic.c_str(), aBuffer);
     }
   }
@@ -5507,9 +5483,9 @@ void requestInfoMQTT(std::string & payload) {
 
 void onConnectionEstablished() {
   if (!MDNS.begin(host)) {
-    Serial.println("Error starting mDNS");
+    printAString("Error starting mDNS");
   }
-  Serial.println("Reconnected to WIFI/MQTT");
+  printAString("Reconnected to WIFI/MQTT");
   server.close();
   server.begin();
   std::string anAddr;
@@ -5530,9 +5506,7 @@ void onConnectionEstablished() {
       aDevice = it->first.c_str();
       client.subscribe((botTopic + aDevice + "/assumedstate").c_str(), [aDevice] (const String & payload)  {
         if ((payload != NULL) && !(payload.isEmpty())) {
-          if (printSerialOutputForDebugging) {
-            Serial.println("state MQTT Received (from retained)...updating ON/OFF simulate states");
-          }
+          printAString("state MQTT Received (from retained)...updating ON/OFF simulate states");
 
           if (isBotDevice(aDevice)) {
             std::map<std::string, std::string>::iterator itP = allBots.find(aDevice);
@@ -5545,7 +5519,7 @@ void onConnectionEstablished() {
 
               if (itE != botsSimulateONOFFinPRESSmode.end())
               {
-                Serial.println("settings the value");
+                printAString("settings the value");
                 if ((strcmp(payload.c_str(), "OFF") == 0)) {
                   if (itI == botsSimulatedStates.end()) {
                     botsSimulatedStates[aDevice] = false;
@@ -5565,42 +5539,30 @@ void onConnectionEstablished() {
 
       client.subscribe((botTopic + aDevice + "/settings").c_str(), [aDevice] (const String & payload)  {
         if ((payload != NULL) && !(payload.isEmpty())) {
-          if (printSerialOutputForDebugging) {
-            Serial.println("settings MQTT Received (from retained)...updating firmware/timers/hold");
-          }
+          printAString("settings MQTT Received (from retained)...updating firmware/timers/hold");
           StaticJsonDocument<100> docIn;
           if (isBotDevice(aDevice)) {
-            if (printSerialOutputForDebugging) {
-              Serial.println("going thru bot settings retained");
-            }
+            printAString("going thru bot settings retained");
             std::map<std::string, std::string>::iterator itP = allBots.find(aDevice);
             if (itP != allBots.end())
             {
               std::string aMac = itP->second.c_str();
               deserializeJson(docIn, payload.c_str());
               if (docIn.containsKey("firmware")) {
-                if (printSerialOutputForDebugging) {
-                  Serial.println("contains firmware");
-                }
+                printAString("contains firmware");
                 const char * firmware = docIn["firmware"];
                 botFirmwares[aMac] = firmware;
               }
               if (docIn.containsKey("timers")) {
-                if (printSerialOutputForDebugging) {
-                  Serial.println("contains timers");
-                }
+                printAString("contains timers");
                 botNumTimers[aMac] = docIn["timers"];
               }
               if (docIn.containsKey("hold")) {
-                if (printSerialOutputForDebugging) {
-                  Serial.println("contains hold");
-                }
+                printAString("contains hold");
                 botHoldSecs[aMac] = docIn["hold"];
               }
               if (docIn.containsKey("inverted")) {
-                if (printSerialOutputForDebugging) {
-                  Serial.println("contains inverted");
-                }
+                printAString("contains inverted");
                 botInverteds[aMac] = docIn["inverted"];
               }
             }
@@ -5620,9 +5582,7 @@ void onConnectionEstablished() {
     aDevice = it->first.c_str();
     client.subscribe((curtainTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
       if ((payload != NULL) && !(payload.isEmpty())) {
-        if (printSerialOutputForDebugging) {
-          Serial.println("Control MQTT Received...");
-        }
+        printAString("Control MQTT Received...");
         if (pScan->isScanning() || isRescanning) {
           if (pScan->isScanning()) {
             pScan->stop();
@@ -5658,7 +5618,7 @@ void onConnectionEstablished() {
                   aVal = 100;
                 }
                 StaticJsonDocument<50> docPos;
-                //char aBuffer[100];
+                char aBuffer[100];
                 docPos["pos"] = aVal;
                 serializeJson(docPos, aBuffer);
                 addToPublish(devicePosTopic.c_str(), aBuffer);
@@ -5698,9 +5658,7 @@ void onConnectionEstablished() {
 
     client.subscribe((botTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
       if ((payload != NULL) && !(payload.isEmpty())) {
-        if (printSerialOutputForDebugging) {
-          Serial.println("Control MQTT Received...");
-        }
+        printAString("Control MQTT Received...");
 
         std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
         std::string deviceStateTopic = botTopic + aDevice + "/state";
@@ -5803,9 +5761,7 @@ void onConnectionEstablished() {
     aDevice = it->first.c_str();
     client.subscribe((meterTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
       if ((payload != NULL) && !(payload.isEmpty())) {
-        if (printSerialOutputForDebugging) {
-          Serial.println("Control MQTT Received...");
-        }
+        printAString("Control MQTT Received...");
         bool skip = false;
         if (isRescanning) {
           if (pScan->isScanning() || isRescanning) {
@@ -5848,9 +5804,7 @@ void onConnectionEstablished() {
     aDevice = it->first.c_str();
     client.subscribe((contactTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
       if ((payload != NULL) && !(payload.isEmpty())) {
-        if (printSerialOutputForDebugging) {
-          Serial.println("Control MQTT Received...");
-        }
+        printAString("Control MQTT Received...");
         bool skip = false;
         if (isRescanning) {
           if (pScan->isScanning() || isRescanning) {
@@ -5887,10 +5841,10 @@ void onConnectionEstablished() {
 
     if (!isMeshNode && meshContactSensors && enableMesh) {
       client.subscribe((contactTopic + aDevice + "/buttoncount").c_str(), [aDevice] (const String & payload)  {
+
+        printAString("START contactTopic + aDevice + buttoncount");
         if ((payload != NULL) && !(payload.isEmpty())) {
-          /*if (printSerialOutputForDebugging) {
-            Serial.println("MQTT meshButtonCount received...");
-            }*/
+          printAString("MQTT meshButtonCount received...");
           std::string anAddr;
           std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
           if (itY != allSwitchbots.end())
@@ -5918,13 +5872,13 @@ void onConnectionEstablished() {
             }
           }
         }
+        printAString("END contactTopic + aDevice + buttoncount");
       });
 
       client.subscribe((contactTopic + aDevice + "/outcount").c_str(), [aDevice] (const String & payload)  {
+        printAString("START contactTopic + aDevice + outcount");
         if ((payload != NULL) && !(payload.isEmpty())) {
-          /*if (printSerialOutputForDebugging) {
-            Serial.println("MQTT meshOutCount received...");
-            }*/
+          printAString("MQTT meshOutCount received...");
           std::string anAddr;
           std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
           if (itY != allSwitchbots.end())
@@ -5952,13 +5906,13 @@ void onConnectionEstablished() {
             }
           }
         }
+        printAString("END contactTopic + aDevice + outcount");
       });
 
       client.subscribe((contactTopic + aDevice + "/incount").c_str(), [aDevice] (const String & payload)  {
+        printAString("START contactTopic + aDevice + incount");
         if ((payload != NULL) && !(payload.isEmpty())) {
-          /*if (printSerialOutputForDebugging) {
-            Serial.println("MQTT meshInCount received...");
-            }*/
+          printAString("MQTT meshInCount received...");
           std::string anAddr;
           std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
           if (itY != allSwitchbots.end())
@@ -5985,6 +5939,7 @@ void onConnectionEstablished() {
             }
           }
         }
+        printAString("END contactTopic + aDevice + outcount");
       });
 
     }
@@ -5992,10 +5947,9 @@ void onConnectionEstablished() {
     if (meshContactSensors && enableMesh) {
       if (countMotionToAvoidDuplicates) {
         client.subscribe((contactTopic + aDevice + "/motioncount").c_str(), [aDevice] (const String & payload)  {
+          printAString("START contactTopic + aDevice + motioncount");
           if ((payload != NULL) && !(payload.isEmpty())) {
-            /* if (printSerialOutputForDebugging) {
-               Serial.println("MQTT meshMotionCount received...");
-              }*/
+            printAString("MQTT meshMotionCount received...");
             std::string anAddr;
             std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
             if (itY != allSwitchbots.end())
@@ -6070,13 +6024,13 @@ void onConnectionEstablished() {
               }
             }
           }
+          printAString("END contactTopic + aDevice + motioncount");
         });
 
         client.subscribe((contactTopic + aDevice + "/nomotioncount").c_str(), [aDevice] (const String & payload)  {
+          printAString("START contactTopic + aDevice + nomotioncount");
           if ((payload != NULL) && !(payload.isEmpty())) {
-            /*if (printSerialOutputForDebugging) {
-              Serial.println("MQTT meshNoMotionCount received...");
-              }*/
+            printAString("MQTT meshNoMotionCount received...");
             std::string anAddr;
             std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
             if (itY != allSwitchbots.end())
@@ -6151,16 +6105,16 @@ void onConnectionEstablished() {
               }
             }
           }
+          printAString("END contactTopic + aDevice + nomotioncount");
         });
 
       }
 
       if (countContactToAvoidDuplicates) {
         client.subscribe((contactTopic + aDevice + "/closedcount").c_str(), [aDevice] (const String & payload)  {
+          printAString("START contactTopic + aDevice + closedcount");
           if ((payload != NULL) && !(payload.isEmpty())) {
-            /*if (printSerialOutputForDebugging) {
-              Serial.println("MQTT meshClosedCount received...");
-              }*/
+            printAString("MQTT meshClosedCount received...");
             std::string anAddr;
             std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
             if (itY != allSwitchbots.end())
@@ -6257,13 +6211,13 @@ void onConnectionEstablished() {
               }
             }
           }
+          printAString("END contactTopic + aDevice + closedcount");
         });
 
         client.subscribe((contactTopic + aDevice + "/opencount").c_str(), [aDevice] (const String & payload)  {
+          printAString("START contactTopic + aDevice + opencount");
           if ((payload != NULL) && !(payload.isEmpty())) {
-            /*if (printSerialOutputForDebugging) {
-              Serial.println("MQTT meshOpenCount received...");
-              }*/
+            printAString("MQTT meshOpenCount received...");
             std::string anAddr;
             std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
             if (itY != allSwitchbots.end())
@@ -6366,13 +6320,13 @@ void onConnectionEstablished() {
               }
             }
           }
+          printAString("END contactTopic + aDevice + closedcount");
         });
 
         client.subscribe((contactTopic + aDevice + "/timeoutcount").c_str(), [aDevice] (const String & payload)  {
+          printAString("START contactTopic + aDevice + timeoutcount");
           if ((payload != NULL) && !(payload.isEmpty())) {
-            /*if (printSerialOutputForDebugging) {
-              Serial.println("MQTT meshTimeoutCount received...");
-              }*/
+            printAString("MQTT meshTimeoutCount received...");
             std::string anAddr;
             std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
             if (itY != allSwitchbots.end())
@@ -6471,15 +6425,15 @@ void onConnectionEstablished() {
               }
             }
           }
+          printAString("END contactTopic + aDevice + timeoutcount");
         });
       }
 
       if (countLightToAvoidDuplicates) {
         client.subscribe((contactTopic + aDevice + "/darkcount").c_str(), [aDevice] (const String & payload)  {
+          printAString("START contactTopic + aDevice + darkcount");
           if ((payload != NULL) && !(payload.isEmpty())) {
-            /*if (printSerialOutputForDebugging) {
-              Serial.println("MQTT meshDarkCount received...");
-              }*/
+            printAString("MQTT meshDarkCount received...");
             std::string anAddr;
             std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
             if (itY != allSwitchbots.end())
@@ -6554,13 +6508,13 @@ void onConnectionEstablished() {
               }
             }
           }
+          printAString("END contactTopic + aDevice + darkcount");
         });
 
         client.subscribe((contactTopic + aDevice + "/brightcount").c_str(), [aDevice] (const String & payload)  {
+          printAString("START contactTopic + aDevice + brightcount");
           if ((payload != NULL) && !(payload.isEmpty())) {
-            /*if (printSerialOutputForDebugging) {
-              Serial.println("MQTT meshBrightCount received...");
-              }*/
+            printAString("MQTT meshBrightCount received...");
             std::string anAddr;
             std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
             if (itY != allSwitchbots.end())
@@ -6635,6 +6589,7 @@ void onConnectionEstablished() {
               }
             }
           }
+          printAString("END contactTopic + aDevice + brightcount");
         });
       }
     }
@@ -6649,9 +6604,7 @@ void onConnectionEstablished() {
     aDevice = it->first.c_str();
     client.subscribe((motionTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
       if ((payload != NULL) && !(payload.isEmpty())) {
-        if (printSerialOutputForDebugging) {
-          Serial.println("Control MQTT Received...");
-        }
+        printAString("Control MQTT Received...");
         bool skip = false;
         if (isRescanning) {
           if (pScan->isScanning() || isRescanning) {
@@ -6687,10 +6640,9 @@ void onConnectionEstablished() {
     if (meshMotionSensors && enableMesh) {
       if (countMotionToAvoidDuplicates) {
         client.subscribe((motionTopic + aDevice + "/motioncount").c_str(), [aDevice] (const String & payload)  {
+          printAString("START motionTopic + aDevice + motioncount");
           if ((payload != NULL) && !(payload.isEmpty())) {
-            /*if (printSerialOutputForDebugging) {
-              Serial.println("MQTT meshMotionCount received...");
-              }*/
+            printAString("MQTT meshMotionCount received...");
             std::string anAddr;
             std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
             if (itY != allSwitchbots.end())
@@ -6769,13 +6721,13 @@ void onConnectionEstablished() {
               }
             }
           }
+          printAString("END motionTopic + aDevice + motioncount");
         });
 
         client.subscribe((motionTopic + aDevice + "/nomotioncount").c_str(), [aDevice] (const String & payload)  {
+          printAString("START motionTopic + aDevice + nomotioncount");
           if ((payload != NULL) && !(payload.isEmpty())) {
-            /* if (printSerialOutputForDebugging) {
-               Serial.println("MQTT meshNoMotionCount received...");
-              }*/
+            printAString("MQTT meshNoMotionCount received...");
             std::string anAddr;
             std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
             if (itY != allSwitchbots.end())
@@ -6850,16 +6802,16 @@ void onConnectionEstablished() {
               }
             }
           }
+          printAString("END motionTopic + aDevice + nomotioncount");
         });
 
       }
 
       if (countLightToAvoidDuplicates) {
         client.subscribe((motionTopic + aDevice + "/darkcount").c_str(), [aDevice] (const String & payload)  {
+          printAString("START motionTopic + aDevice + darkcount");
           if ((payload != NULL) && !(payload.isEmpty())) {
-            /*if (printSerialOutputForDebugging) {
-              Serial.println("MQTT meshDarkCount received...");
-              }*/
+            printAString("MQTT meshDarkCount received...");
             std::string anAddr;
             std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
             if (itY != allSwitchbots.end())
@@ -6934,13 +6886,13 @@ void onConnectionEstablished() {
               }
             }
           }
+          printAString("END motionTopic + aDevice + darkcount");
         });
 
         client.subscribe((motionTopic + aDevice + "/brightcount").c_str(), [aDevice] (const String & payload)  {
+          printAString("START motionTopic + aDevice + brightcount");
           if ((payload != NULL) && !(payload.isEmpty())) {
-            /*if (printSerialOutputForDebugging) {
-              Serial.println("MQTT meshBrightCount received...");
-              }*/
+            printAString("MQTT meshBrightCount received...");
             std::string anAddr;
             std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
             if (itY != allSwitchbots.end())
@@ -7015,6 +6967,7 @@ void onConnectionEstablished() {
               }
             }
           }
+          printAString("END motionTopic + aDevice + brightcount");
         });
       }
     }
@@ -7023,9 +6976,7 @@ void onConnectionEstablished() {
 
   client.subscribe(requestInfoStdStr.c_str(), [] (const String & payload)  {
     if ((payload != NULL) && !(payload.isEmpty())) {
-      if (printSerialOutputForDebugging) {
-        Serial.println("Request Info MQTT Received...");
-      }
+      printAString("Request Info MQTT Received...");
       bool skip = false;
       if (isRescanning) {
         if (pScan->isScanning() || isRescanning) {
@@ -7057,9 +7008,7 @@ void onConnectionEstablished() {
 
   client.subscribe(requestSettingsStdStr.c_str(), [] (const String & payload)  {
     if ((payload != NULL) && !(payload.isEmpty())) {
-      if (printSerialOutputForDebugging) {
-        Serial.println("Request Settings MQTT Received...");
-      }
+      printAString("Request Settings MQTT Received...");
       if (!commandQueue.isFull()) {
         StaticJsonDocument<100> docIn;
         deserializeJson(docIn, payload.c_str());
@@ -7081,9 +7030,7 @@ void onConnectionEstablished() {
 
   client.subscribe(setModeStdStr.c_str(), [] (const String & payload)  {
     if ((payload != NULL) && !(payload.isEmpty())) {
-      if (printSerialOutputForDebugging) {
-        Serial.println("setMode  MQTT Received...");
-      }
+      printAString("setMode  MQTT Received...");
       if (!commandQueue.isFull()) {
         StaticJsonDocument<100> docIn;
         deserializeJson(docIn, payload.c_str());
@@ -7106,9 +7053,7 @@ void onConnectionEstablished() {
 
   client.subscribe(setHoldStdStr.c_str(), [] (const String & payload)  {
     if ((payload != NULL) && !(payload.isEmpty())) {
-      if (printSerialOutputForDebugging) {
-        Serial.println("setHold MQTT Received...");
-      }
+      printAString("setHold MQTT Received...");
       if (!commandQueue.isFull()) {
         StaticJsonDocument<100> docIn;
         deserializeJson(docIn, payload.c_str());
@@ -7132,9 +7077,7 @@ void onConnectionEstablished() {
 
   client.subscribe(holdPressStdStr.c_str(), [] (const String & payload)  {
     if ((payload != NULL) && !(payload.isEmpty())) {
-      if (printSerialOutputForDebugging) {
-        Serial.println("holdPress MQTT Received...");
-      }
+      printAString("holdPress MQTT Received...");
       if (!commandQueue.isFull()) {
         StaticJsonDocument<100> docIn;
         deserializeJson(docIn, payload.c_str());
@@ -7150,9 +7093,7 @@ void onConnectionEstablished() {
 
   client.subscribe(rescanStdStr.c_str(), [] (const String & payload)  {
     if ((payload != NULL) && !(payload.isEmpty())) {
-      if (printSerialOutputForDebugging) {
-        Serial.println("Rescan MQTT Received...");
-      }
+      printAString("Rescan MQTT Received...");
 
       bool skip = false;
       if (isRescanning) {
@@ -7190,23 +7131,17 @@ void onConnectionEstablished() {
 }
 
 bool connectToServer(NimBLEAdvertisedDevice * advDeviceToUse) {
-  if (printSerialOutputForDebugging) {
-    Serial.println("Try to connect. Try a reconnect first...");
-  }
+  printAString("Try to connect. Try a reconnect first...");
   NimBLEClient* pClient = nullptr;
   if (NimBLEDevice::getClientListSize()) {
 
     pClient = NimBLEDevice::getClientByPeerAddress(advDeviceToUse->getAddress());
     if (pClient) {
       if (!pClient->connect(advDeviceToUse, false)) {
-        if (printSerialOutputForDebugging) {
-          Serial.println("Reconnect failed");
-        }
+        printAString("Reconnect failed");
       }
       else {
-        if (printSerialOutputForDebugging) {
-          Serial.println("Reconnected client");
-        }
+        printAString("Reconnected client");
       }
     }
     else {
@@ -7215,15 +7150,11 @@ bool connectToServer(NimBLEAdvertisedDevice * advDeviceToUse) {
   }
   if (!pClient) {
     if (NimBLEDevice::getClientListSize() >= NIMBLE_MAX_CONNECTIONS) {
-      if (printSerialOutputForDebugging) {
-        Serial.println("Max clients reached - no more connections available");
-      }
+      printAString("Max clients reached - no more connections available");
       return false;
     }
     pClient = NimBLEDevice::createClient();
-    if (printSerialOutputForDebugging) {
-      Serial.println("New client created");
-    }
+    printAString("New client created");
     pClient->setClientCallbacks(&clientCB, false);
     pClient->setConnectionParams(12, 12, 0, 51);
     pClient->setConnectTimeout(10);
@@ -7232,18 +7163,14 @@ bool connectToServer(NimBLEAdvertisedDevice * advDeviceToUse) {
   if (!pClient->isConnected()) {
     if (!pClient->connect(advDeviceToUse)) {
       NimBLEDevice::deleteClient(pClient);
-      if (printSerialOutputForDebugging) {
-        Serial.println("Failed to connect, deleted client");
-      }
+      printAString("Failed to connect, deleted client");
       return false;
     }
   }
-  if (printSerialOutputForDebugging) {
-    Serial.print("Connected to: ");
-    Serial.println(pClient->getPeerAddress().toString().c_str());
-    Serial.print("RSSI: ");
-    Serial.println(pClient->getRssi());
-  }
+  printAString("Connected to: ");
+  printAString(pClient->getPeerAddress().toString().c_str());
+  printAString("RSSI: ");
+  printAString(pClient->getRssi());
   return true;
 }
 
@@ -7335,9 +7262,7 @@ bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int
   if (advDeviceToUse == nullptr) {
     return false;
   }
-  if (printSerialOutputForDebugging) {
-    Serial.println("Sending command...");
-  }
+  printAString("Sending command...");
 
   byte bArrayPress[] = {0x57, 0x01};
   byte bArrayOn[] = {0x57, 0x01, 0x01};
@@ -7370,15 +7295,11 @@ bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int
   int count = 1;
   while (tryConnect  || !pClient ) {
     if (count > 20) {
-      if (printSerialOutputForDebugging) {
-        Serial.println("Failed to connect for sending command");
-      }
+      printAString("Failed to connect for sending command");
       return false;
     }
     count++;
-    if (printSerialOutputForDebugging) {
-      Serial.println("Attempt to send command. Not connecting. Try connecting...");
-    }
+    printAString("Attempt to send command. Not connecting. Try connecting...");
     tryConnect = !(connectToServer(advDeviceToUse));
     if (!tryConnect) {
       pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
@@ -7432,9 +7353,7 @@ bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int
           if (isBotDevice(aDevice)) {
             skipWaitAfter = true;
             if (aPass == "") {
-              if (printSerialOutputForDebugging) {
-                Serial.println("Num is for a bot device - no pass");
-              }
+              printAString("Num is for a bot device - no pass");
               byte anArray[4];
               for (int i = 0; i < 4; i++) {
                 if (i == 3) {
@@ -7671,10 +7590,8 @@ bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int
             }
           }
           if (wasSuccess) {
-            if (printSerialOutputForDebugging) {
-              Serial.print("Wrote new value to: ");
-              Serial.println(pChr->getUUID().toString().c_str());
-            }
+            printAString("Wrote new value to: ");
+            printAString(pChr->getUUID().toString().c_str());
           }
           else {
             returnValue = false;
@@ -7686,26 +7603,20 @@ bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int
       }
     }
     else {
-      if (printSerialOutputForDebugging) {
-        Serial.println("CUSTOM write service not found.");
-      }
+      printAString("CUSTOM write service not found.");
       returnValue = false;
     }
   }
   if (!returnValue) {
     if (attempts >= 10) {
-      if (printSerialOutputForDebugging) {
-        Serial.println("Sending failed. Disconnecting client");
-      }
+      printAString("Sending failed. Disconnecting client");
       pClient->disconnect();
     } return false;
   }
   if (disconnectAfter) {
     pClient->disconnect();
   }
-  if (printSerialOutputForDebugging) {
-    Serial.println("Success! Command sent/received to/from SwitchBot");
-  }
+  printAString("Success! Command sent/received to/from SwitchBot");
   if (!skipWaitAfter) {
     lastCommandSent[anAddr] = millis();
   }
@@ -7724,11 +7635,10 @@ bool getGeneric(NimBLEAdvertisedDevice * advDeviceToUse) {
 
   if (pChr) {    /** make sure it's not null */
     if (pChr->canRead()) {
-      if (printSerialOutputForDebugging) {
-        Serial.print(pChr->getUUID().toString().c_str());
-        Serial.print(" Value: ");
-        Serial.println(pChr->readValue().c_str());
-      } // should return WoHand
+      printAString(pChr->getUUID().toString().c_str());
+      printAString(" Value: ");
+      printAString(pChr->readValue().c_str());
+      // should return WoHand
       deviceTypes[advDeviceToUse->getAddress().toString().c_str()] = pChr->readValue().c_str();
       return true;
     }
@@ -7740,17 +7650,13 @@ bool requestInfo(NimBLEAdvertisedDevice * advDeviceToUse) {
   if (advDeviceToUse == nullptr) {
     return false;
   }
-  if (printSerialOutputForDebugging) {
-    Serial.println("Requesting info...");
-  }
+  printAString("Requesting info...");
   rescanFind(advDeviceToUse->getAddress().toString().c_str());
   return true;
 }
 
 void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-  if (printSerialOutputForDebugging) {
-    Serial.println("notifyCB");
-  }
+  printAString("notifyCB");
   noResponse = false;
   std::string aDevice;
   std::string aState;
@@ -7776,7 +7682,7 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
     aCommand = itH->second.c_str();
   }
 
-  //char aBuffer[200];
+  char aBuffer[120];
   std::string deviceName;
   itS = deviceTypes.find(deviceMac.c_str());
   if (itS != deviceTypes.end())
@@ -7806,10 +7712,8 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
     if (length == 1) {
       StaticJsonDocument<100> statDoc;
       uint8_t byte1 = pData[0];
-      if (printSerialOutputForDebugging) {
-        Serial.print("The response value from bot set mode or holdSecs: ");
-        Serial.println(byte1);
-      }
+      printAString("The response value from bot set mode or holdSecs: ");
+      printAString(byte1);
       if (byte1 == 3) {
         statDoc["status"] = "busy";
         lastCommandWasBusy = true;
@@ -7838,10 +7742,8 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
     if (length == 3) {
       StaticJsonDocument<60> statDoc;
       uint8_t byte1 = pData[0];
-      if (printSerialOutputForDebugging) {
-        Serial.print("The response value from bot action: ");
-        Serial.println(byte1);
-      }
+      printAString("The response value from bot action: ");
+      printAString(byte1);
       if (byte1 == 3) {
         statDoc["status"] = "busy";
         lastCommandWasBusy = true;
@@ -7974,10 +7876,8 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       StaticJsonDocument<50> statDoc;
       uint8_t byte1 = pData[0];
 
-      if (printSerialOutputForDebugging) {
-        Serial.print("The response value from curtain: ");
-        Serial.println(byte1);
-      }
+      printAString("The response value from curtain: ");
+      printAString(byte1);
       if (byte1 == 3) {
         statDoc["status"] = "busy";
         lastCommandWasBusy = true;
