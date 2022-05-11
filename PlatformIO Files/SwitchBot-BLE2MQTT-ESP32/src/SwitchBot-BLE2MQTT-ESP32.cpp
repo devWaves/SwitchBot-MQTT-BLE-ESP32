@@ -449,7 +449,7 @@ static std::map<std::string, std::string> allBotTypes = {     // OPTIONAL - (DEF
 
 
 /* ESP32 LED Settings */
-#define LED_BUILTIN 2                              // If your board doesn't have a defined LED_BUILTIN, uncomment this line and replace 2 with the LED pin value
+//#define LED_BUILTIN 2                              // If your board doesn't have a defined LED_BUILTIN, uncomment this line and replace 2 with the LED pin value
 #define LED_PIN LED_BUILTIN                          // If your board doesn't have a defined LED_BUILTIN (You will get a compile error), uncomment the line above
 static const bool ledHighEqualsON = true;            // ESP32 board LED ON=HIGH (Default). If your ESP32 LED is turning OFF on scanning and turning ON while IDLE, then set this value to false
 static const bool ledOnBootScan = true;              // Turn on LED during initial boot scan
