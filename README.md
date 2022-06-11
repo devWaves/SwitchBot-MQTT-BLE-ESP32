@@ -382,3 +382,16 @@ by BangerTech (Language German. based on v6.1. OpenHab)
 <br>
 &nbsp;&nbsp;&nbsp;https://www.youtube.com/watch?v=TmtCwZbDJIU
 
+<br>
+<br>
+
+**ESP32 models that I can confirm work**
+* Wemos D1 Mini ESP32
+* ESP32-WROOM-32U
+* QuinLED-ESP32-AE
+
+**ESP32 models that may not work**
+* ESP32-S2 = No Bluetooth so definitely won't work
+* ESP32-C3 = Less RAM/ROM that the WROOM models
+* ESP32s = Ai-Thinker model. Some users have said they had issues with this model
+
