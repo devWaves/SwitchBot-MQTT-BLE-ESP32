@@ -394,4 +394,5 @@ by BangerTech (Language German. based on v6.1. OpenHab)
 * ESP32-S2 = No Bluetooth so definitely won't work
 * ESP32-C3 = Less RAM/ROM that the WROOM models
 * ESP32s = Ai-Thinker model. Some users have said they had issues with this model
+* ESP32-solo = Only has one core instead of 2 cores
 
