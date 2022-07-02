@@ -389,6 +389,7 @@ by BangerTech (Language German. based on v6.1. OpenHab)
 * Wemos D1 Mini ESP32
 * ESP32-WROOM-32U
 * QuinLED-ESP32-AE
+* Heltec WiFi Kit 32
 
 **ESP32 models that may not work**
 * ESP32-S2 = No Bluetooth so definitely won't work
