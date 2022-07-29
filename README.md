@@ -398,7 +398,7 @@ by BangerTech (Language German. based on v6.1. OpenHab)
 * ESP32-solo = Only has one core instead of 2 cores
 
 **Known Supported SwitchBot devices and firmware versions**
-* Bot = Firmware v6.4
+* Bot = Firmware v6.2
 * Curtain = Firmware v4.6
 * Meter/MeterPlus = Firmware v2.7
 * Contact Sensor = Firmware v1.1
