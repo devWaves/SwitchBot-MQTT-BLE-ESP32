@@ -11,9 +11,9 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v6.11
+  v6.12
 
-    Created: on June 28 2022
+    Created: on July 29 2022
         Author: devWaves
 
         Contributions from:
@@ -92,7 +92,7 @@
 
       Strings:
         - "REQUESTINFO" or "GETINFO"                                    (for bot and curtain) Does the same thing as calling <ESPMQTTTopic>/requestInfo
-        - "REQUESTSETTINGS" or "GETSETTINGS"                            (for bot only) Does the same thing as calling <ESPMQTTTopic>/requestSettings        requires getBotResponse = true
+        - "REQUESTSETTINGS" or "GETSETTINGS"                            (for bot only) Does the same thing as calling <ESPMQTTTopic>/requestSettings
         - "MODEPRESS", "MODESWITCH", "MODEPRESSINV", "MODESWITCHINV"    (for bot only) Does the same thing as <ESPMQTTTopic>/setMode
 
                       ESP32 will respond with MQTT on 'status' topic for every configured device
@@ -198,7 +198,7 @@
 
 
   // REQUESTSETTINGS WORKS FOR BOT ONLY - DOCUMENTATION NOT AVAILABLE ONLINE FOR CURTAIN
-  ESP32 will Subscribe to MQTT topic for device settings information (requires getBotResponse = true)
+  ESP32 will Subscribe to MQTT topic for device settings information
       - <ESPMQTTTopic>/requestSettings
 
     send a JSON payload of the device you want to requestSettings
@@ -465,10 +465,8 @@ static const bool autoRescan = true;                      // perform automatic r
 static const bool scanAfterControl = true;                // perform requestInfo after successful control command (uses botScanTime).
 static const bool waitBetweenControl = true;              // wait between commands sent to bot/curtain (avoids sending while bot is busy)
 static const bool getSettingsOnBoot = true;               // Currently only works for bot (curtain documentation not available but can probably be reverse engineered easily). Get bot extra settings values like firmware, holdSecs, inverted, number of timers. ***If holdSecs is available it is used by waitBetweenControl
-static const bool getBotResponse = true;                  // get a response from the bot devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
-static const bool getCurtainResponse = true;              // get a response from the curtain devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
-static const bool retryBotOnBusy = true;                  // Requires getBotResponse = true. if bot responds with busy, the last control command will retry until success
-static const bool retryCurtainOnBusy = true;              // Requires getCurtainResponse = true. if curtain responds with busy, the last control command will retry until success
+static const bool retryBotOnBusy = true;                  // if bot responds with busy, the last control command will retry until success
+static const bool retryCurtainOnBusy = true;              // if curtain responds with busy, the last control command will retry until success
 static const bool retryBotActionNoResponse = false;       // Retry if bot doesn't send a response. Bot default is false because no response can still mean the bot triggered.
 static const bool retryBotSetNoResponse = true;           // Retry if bot doesn't send a response when requesting settings (hold, firwmare etc) or settings hold/mode
 static const bool retryCurtainNoResponse = true;          // Retry if curtain doesn't send a response. Default is true. It shouldn't matter if curtain receives the same command twice (or multiple times)
@@ -506,7 +504,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v6.11";
+static const String versionNum = "v6.12";
 
 /*
    Server Index Page
@@ -1672,7 +1670,10 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         }
         bool aMotion = (byte1 & 0b01000000);
 
-        bool missedAMotion = (millis() - lastMotions[aDevice] > (lastMotion * 1000));
+        long theLastKnownMotion = millis() - lastMotions[aDevice];
+        if(theLastKnownMotion < 0){theLastKnownMotion = 0;}
+
+        bool missedAMotion = (theLastKnownMotion > (lastMotion * 1000));
         if (missedAMotion) {
           shouldPublish = true;
         }
@@ -1823,7 +1824,10 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         }
         bool aMotion = (byte1 & 0b01000000);
 
-        bool missedAMotion = (millis() - lastMotions[aDevice] > (lastMotion * 1000));
+        long theLastKnownMotion = millis() - lastMotions[aDevice];
+        if(theLastKnownMotion < 0){theLastKnownMotion = 0;}
+
+        bool missedAMotion = (theLastKnownMotion > (lastMotion * 1000));
         if (missedAMotion) {
           shouldPublish = true;
         }
@@ -1860,7 +1864,10 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           contact = "RESERVE";
         }
 
-        bool missedAContact = (millis() - lastContacts[aDevice] > (lastContact * 1000));
+        long theLastKnownContact = millis() - lastContacts[aDevice];
+        if(theLastKnownContact < 0){theLastKnownContact = 0;}
+
+        bool missedAContact = (theLastKnownContact > (lastContact * 1000));
         if (missedAContact) {
           shouldPublish = true;
         }
@@ -2967,7 +2974,6 @@ bool processQueue() {
                 else {
                   isSuccess = controlMQTT(aCommand.device, aCommand.payload, disconnectAfter);
                 }
-                if (getBotResponse) {
                   while (noResponse && shouldContinue )
                   {
                     waitForResponse = true;
@@ -3021,7 +3027,7 @@ bool processQueue() {
                     }
                   }
 
-                  if (isNum && !lastCommandWasBusy && getBotResponse) {
+                  if (isNum && !lastCommandWasBusy) {
                     getSettingsAfter = true;
                   }
                   if (lastCommandWasBusy && retryBotOnBusy) {
@@ -3050,7 +3056,6 @@ bool processQueue() {
                       botsToWaitFor.erase(aCommand.device);
                     }
                   }
-                }
                 waitForResponse = false;
                 noResponse = false;
               }
@@ -3058,7 +3063,6 @@ bool processQueue() {
               {
                 controlMQTT(aCommand.device, aCommand.payload, disconnectAfter);
                 std::string anAddr;
-                if (getCurtainResponse) {
                   while (noResponse && shouldContinue )
                   {
                     waitForResponse = true;
@@ -3106,7 +3110,6 @@ bool processQueue() {
                       botsToWaitFor.erase(aCommand.device);
                     }
                   }
-                }
               }
               waitForResponse = false;
               noResponse = false;
@@ -4238,13 +4241,12 @@ bool connectToServer(NimBLEAdvertisedDevice * advDeviceToUse) {
   return true;
 }
 
-
-bool sendCommandBytesNoResponse(NimBLERemoteCharacteristic * pChr, byte * bArray, int aSize ) {
+/*bool sendCommandBytesNoResponse(NimBLERemoteCharacteristic * pChr, byte * bArray, int aSize ) {
   if (pChr == nullptr) {
     return false;
   }
   return pChr->writeValue(bArray, aSize, false);
-}
+}*/
 
 bool sendCommandBytesWithResponse(NimBLERemoteCharacteristic * pChr, byte * bArray, int aSize ) {
   if (pChr == nullptr) {
@@ -4257,24 +4259,14 @@ bool sendCurtainCommandBytes(NimBLERemoteCharacteristic * pChr, byte * bArray, i
   if (pChr == nullptr) {
     return false;
   }
-  if (getCurtainResponse) {
-    return sendCommandBytesWithResponse(pChr, bArray, aSize);
-  }
-  else {
-    return sendCommandBytesNoResponse(pChr, bArray, aSize);
-  }
+   return sendCommandBytesWithResponse(pChr, bArray, aSize);
 }
 
 bool sendBotCommandBytes(NimBLERemoteCharacteristic * pChr, byte * bArray, int aSize ) {
   if (pChr == nullptr) {
     return false;
   }
-  if (getBotResponse) {
-    return sendCommandBytesWithResponse(pChr, bArray, aSize);
-  }
-  else {
-    return sendCommandBytesNoResponse(pChr, bArray, aSize);
-  }
+  return sendCommandBytesWithResponse(pChr, bArray, aSize);
 }
 
 bool isBotDevice(std::string aDevice) {
@@ -4367,15 +4359,11 @@ bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int
   }
   if (isBotDevice(aDevice))
   {
-    if (getBotResponse) {
       returnValue = subscribeToNotify(advDeviceToUse);
-    }
   }
   else if (isCurtainDevice(aDevice))
   {
-    if (getCurtainResponse) {
       returnValue = subscribeToNotify(advDeviceToUse);
-    }
   }
   bool skipWaitAfter = false;
   if (returnValue) {
@@ -4968,14 +4956,4 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
     }
   }
 
-  NimBLEClient* pClient = nullptr;
-  if (NimBLEDevice::getClientListSize()) {
-    pClient = NimBLEDevice::getClientByPeerAddress(deviceMac);
-    if (pClient) {
-      if (pClient->isConnected()) {
-        unsubscribeToNotify(pClient);
-        //pClient->disconnect();
-      }
-    }
-  }
 }
