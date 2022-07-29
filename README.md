@@ -4,9 +4,9 @@ Switchbot local control using ESP32. no switchbot hub used/required. works with 
 
 https://github.com/devWaves/SwitchBot-MQTT-BLE-ESP32
 
-v6.11
+v6.12
 
-Created: on June 28 2022
+Created: on July 29 2022
   
   Author:
    devWaves
@@ -397,3 +397,9 @@ by BangerTech (Language German. based on v6.1. OpenHab)
 * ESP32s = Ai-Thinker model. Some users have said they had issues with this model
 * ESP32-solo = Only has one core instead of 2 cores
 
+**Known Supported SwitchBot devices and firmware versions**
+* Bot = Firmware v6.4
+* Curtain = Firmware v4.6
+* Meter/MeterPlus = Firmware v2.7
+* Contact Sensor = Firmware v1.1
+* Motion Sensor = Firmware v1.3
