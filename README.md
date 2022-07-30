@@ -374,8 +374,8 @@ Notes:
 1. Download the latest version of the ESP32 code
 2. Edit the code with your Wifi, MQTT, Switchbot device MAC configurations
 3. Compile a .bin file using the IDE you are using
-	Arduino = https://randomnerdtutorials.com/bin-binary-files-sketch-arduino-ide/
-	PlatformIO = https://community.platformio.org/t/how-to-make-bin-file-using-platformio-ide/8491
+	- Arduino = https://randomnerdtutorials.com/bin-binary-files-sketch-arduino-ide/
+	- PlatformIO = https://community.platformio.org/t/how-to-make-bin-file-using-platformio-ide/8491
 4. Open the ESP32 IP address in a web browser 
 5. Upload the new .bin file from the web browser
 6. Check from the web browser that the version is the correct version
