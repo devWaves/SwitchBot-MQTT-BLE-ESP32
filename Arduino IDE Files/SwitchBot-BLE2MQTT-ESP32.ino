@@ -11,9 +11,9 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v7.0-preRelease
+  v7.0-preRelease2
 
-    Created: on May 10 2022
+    Created: on Aug 8 2022
         Author: devWaves
 
         Contributions from:
@@ -97,7 +97,7 @@
 
       Strings:
         - "REQUESTINFO" or "GETINFO"                                    (for bot and curtain) Does the same thing as calling <ESPMQTTTopic>/requestInfo
-        - "REQUESTSETTINGS" or "GETSETTINGS"                            (for bot only) Does the same thing as calling <ESPMQTTTopic>/requestSettings        requires getBotResponse = true
+        - "REQUESTSETTINGS" or "GETSETTINGS"                            (for bot only) Does the same thing as calling <ESPMQTTTopic>/requestSettings
         - "MODEPRESS", "MODESWITCH", "MODEPRESSINV", "MODESWITCHINV"    (for bot only) Does the same thing as <ESPMQTTTopic>/setMode
 
                       ESP32 will respond with MQTT on 'status' topic for every configured device
@@ -201,7 +201,7 @@
 
 
   // REQUESTSETTINGS WORKS FOR BOT ONLY - DOCUMENTATION NOT AVAILABLE ONLINE FOR CURTAIN
-  ESP32 will Subscribe to MQTT topic for device settings information (requires getBotResponse = true)
+  ESP32 will Subscribe to MQTT topic for device settings information
       - <ESPMQTTTopic>/requestSettings
 
     send a JSON payload of the device you want to requestSettings
@@ -343,29 +343,14 @@
 /* If using one ESP32 */
 /* Enter all the switchbot device MAC addresses in the lists below */
 
-/* If using multiple ESP32s - ESP32 can be meshed together for better motion/contact performance */
+/* If using multiple ESP32s - ESP32 can be meshed together for better motion/contact/meter performance */
 /* Bot and Curtains: (CANNOT BE MESHED) Enter the MAC addresses of the switchbot devices on the ESP32 closest to the switchbot device */
 /* Motion and Contact and Meter: (CAN BE MESHED) Enter the MAC addresses of the switchbot devices into all or most of the ESP32s */
 
 /* Wifi Settings */
-static const char* host = "esp32";                          //  Unique name for ESP32. The name detected by your router and MQTT. If you are using more then 1 ESPs to control different switchbots be sure to use unique hostnames. Host is the MQTT Client name and is used in MQTT topics
-static const char* ssid = "SSID";                           //  WIFI SSID
-static const char* password = "Password";                   //  WIFI Password
-
-/* Mesh Settings */
-/* Ignore if only one ESP32 is used */
-static const bool enableMesh = false;                                 // Ignore if only one ESP32 is used. Set to false
-static const char* meshHost = "";                                     // Ignore if only one ESP32 is used. Ignore if you don't have either meter/contact/motion. Enter the host value of the primary ESP32 if you are using multiple esp32s and you want to mesh them together for better contact/motion
-static const bool meshMeters = true;                                  // Mesh meters together if meshHost is set. The meter values will use the meshHost MQTT topics
-static const bool meshContactSensors = true;                          // Mesh contact sensors together if meshHost is set. The contact values will use the meshHost MQTT topics.
-static const bool meshMotionSensors = true;                           // Mesh motion sensors together if meshHost is set. The motion values will use the meshHost MQTT topics
-static const bool onlyAllowRootESPToPublishContact = true;            // All meshed messages for contact and motions sensors will pass through the root mesh host ESP32. Only the root host will send contact and motion messages
-static const bool onlyAllowRootESPToPublishMotion = false;            // All meshed messages for motion will pass through the root mesh host ESP32. Only the root host will send motion messages
-static const bool onlyAllowRootESPToPublishLight = true;              // All meshed messages for illuminance will pass through the root mesh host ESP32. Only the root host will send illuminance messages
-static const bool countContactToAvoidDuplicates = true;               // count the number of open/close/timeout over all esp32s so that none are duplicated
-static const bool countMotionToAvoidDuplicates = false;               // count the number of motion/no motion over all esp32s so that none are duplicated
-static const bool countLightToAvoidDuplicates = true;                 // count the number of dark/bright over all esp32s so that none are duplicated
-static const int timeToIgnoreDuplicates = 30;                         // if a duplicate is determined, ignore it within X seconds
+static const char* host = "esp32";                                  //  Unique name for ESP32. The name detected by your router and MQTT. If you are using more then 1 ESPs to control different switchbots be sure to use unique hostnames. Host is the MQTT Client name and is used in MQTT topics
+static const char* ssid = "SSID";                                   //  WIFI SSID
+static const char* password = "Password";                           //  WIFI Password
 
 /* MQTT Settings */
 /* MQTT Client name is set to WIFI host from Wifi Settings*/
@@ -374,6 +359,22 @@ static const char* mqtt_user = "switchbot";                         //  MQTT Bro
 static const char* mqtt_pass = "switchbot";                         //  MQTT Broker password
 static const int mqtt_port = 1883;                                  //  MQTT Port
 static const std::string mqtt_main_topic = "switchbot";             //  MQTT main topic
+
+/* Mesh Settings */
+/* Ignore if only one ESP32 is used */
+static const bool enableMesh = true;                                // Ignore if only one ESP32 is used. Set to false
+static const char* meshHost = "";                                   // Ignore if only one ESP32 is used. Ignore if you don't have either meter/contact/motion. Enter the host value of the primary ESP32 if you are using multiple esp32s and you want to mesh them together for better contact/motion
+static const bool meshMeters = true;                                // Mesh meters together if meshHost is set. The meter values will use the meshHost MQTT topics
+static const bool meshContactSensors = true;                        // Mesh contact sensors together if meshHost is set. The contact values will use the meshHost MQTT topics.
+static const bool meshMotionSensors = true;                         // Mesh motion sensors together if meshHost is set. The motion values will use the meshHost MQTT topics
+static const bool onlyAllowRootESPToPublishContact = true;          // All meshed messages for contact and motions sensors will pass through the root mesh host ESP32. Only the root host will send contact and motion messages
+static const bool onlyAllowRootESPToPublishMotion = false;          // All meshed messages for motion will pass through the root mesh host ESP32. Only the root host will send motion messages
+static const bool onlyAllowRootESPToPublishLight = false;           // All meshed messages for illuminance will pass through the root mesh host ESP32. Only the root host will send illuminance messages
+static const bool countContactToAvoidDuplicates = true;             // count the number of open/close/timeout over all esp32s so that none are duplicated
+static const bool countMotionToAvoidDuplicates = false;             // count the number of motion/no motion over all esp32s so that none are duplicated
+static const bool countLightToAvoidDuplicates = false;              // count the number of dark/bright over all esp32s so that none are duplicated
+static const int timeToIgnoreDuplicates = 30;                       // if a duplicate is determined, ignore it within X seconds
+
 
 /* Switchbot Bot Settings */
 static std::map<std::string, std::string> allBots = {
@@ -406,6 +407,12 @@ static std::map<std::string, std::string> allMotionSensors = {
     { "motiontwo", "yY:yY:yY:yY:yY:yY" }*/
 };
 
+/* Switchbot Plug Mini Settings */
+static std::map<std::string, std::string> allPlugs = {
+  /*{ "plugone", "xX:xX:xX:xX:xX:xX" },
+    { "plugtwo", "yY:yY:yY:yY:yY:yY" }*/
+};
+
 /* Switchbot Bot Passwords */
 static std::map<std::string, std::string> allPasswords = {     // Set all the bot passwords (setup in app first). Ignore if passwords are not used
   /*{ "switchbotone", "switchbotonePassword" },
@@ -415,33 +422,33 @@ static std::map<std::string, std::string> allPasswords = {     // Set all the bo
 /* Switchbot Bot Device Types - OPTIONAL */
 /* Options include: "switch", "light", "button" */
 static std::map<std::string, std::string> allBotTypes = {     // OPTIONAL - (DEFAULTS to "switch" if bot is not in list) - Will create HA entities for device types
- /* { "switchbotone", "switch" },
-    { "switchbottwo", "light" },
-    { "switchbotthree", "button" }*/
+  /* { "switchbotone", "switch" },
+     { "switchbottwo", "light" },
+     { "switchbotthree", "button" }*/
 };
 
-      /*** Bots in PRESS mode to simulate ON/OFF - ESP32 will try to keep track of the ON/OFF state of your device while in PRESS mode***/
-      // Add bots while in PRESS mode that will simulate ON/OFF. Default state will be used if no MQTT retained on state topic
-      // false = default state = OFF
-      // true = default state = ON
-      // If the state is incorrect, call set STATEOFF or STATEON
-      static std::map<std::string, bool> botsSimulateONOFFinPRESSmode = {
-        /*{ "switchbotone", false },
-          { "switchbottwo", false }*/
-      };
+          /*** Bots in PRESS mode to simulate ON/OFF - ESP32 will try to keep track of the ON/OFF state of your device while in PRESS mode***/
+          // Add bots while in PRESS mode that will simulate ON/OFF. Default state will be used if no MQTT retained on state topic
+          // false = default state = OFF
+          // true = default state = ON
+          // If the state is incorrect, call set STATEOFF or STATEON
+          static std::map<std::string, bool> botsSimulateONOFFinPRESSmode = {
+            /*{ "switchbotone", false },
+            { "switchbottwo", false }*/
+          };
 
-      //Add bots OFF hold time for simulated ON/OFF, if not in list, the current hold value will be used. Device must be in botsSimulateONOFFinPRESSmode list
-      static std::map<std::string, int> botsSimulatedOFFHoldTimes = {
-        /*{ "switchbotone", 0 },
-          { "switchbottwo", 10 }*/
-      };
+          //Add bots OFF hold time for simulated ON/OFF, if not in list, the current hold value will be used. Device must be in botsSimulateONOFFinPRESSmode list
+          static std::map<std::string, int> botsSimulatedOFFHoldTimes = {
+            /*{ "switchbotone", 0 },
+              { "switchbottwo", 10 }*/
+          };
 
-      //Add bots ON hold time for simulated ON/OFF, if not in list, the current hold value will be used. Device must be in botsSimulateONOFFinPRESSmode list
-      static std::map<std::string, int> botsSimulatedONHoldTimes = {
-        /*{ "switchbotone", 15 },
-          { "switchbottwo", 1}*/
-      };
-      /********************************************/
+          //Add bots ON hold time for simulated ON/OFF, if not in list, the current hold value will be used. Device must be in botsSimulateONOFFinPRESSmode list
+          static std::map<std::string, int> botsSimulatedONHoldTimes = {
+            /*{ "switchbotone", 15 },
+              { "switchbottwo", 1}*/
+          };
+/********************************************/
 
 
 /********** ADVANCED SETTINGS - ONLY NEED TO CHANGE IF YOU WANT TO TWEAK SETTINGS **********/
@@ -473,42 +480,56 @@ static const int tryConnecting = 60;                         // How many times t
 static const int trySending = 30;                            // How many times to try sending command to bot
 static const int initialScan = 120;                          // How many seconds to scan for bots on ESP reboot and autoRescan. Once all devices are found scan stops, so you can set this to a big number
 static const int infoScanTime = 60;                          // How many seconds to scan for single device status updates
-static const int rescanTime = 600;                           // Automatically rescan for device info of all devices every X seconds (default 10 min)
+static const int rescanTime = 10800;                         // Automatically perform a full active scan for device info of all devices every X seconds (default 3 hours). XXXXActiveScanSecs will also active scan on schedule
 static const int queueSize = 50;                             // Max number of control/requestInfo/rescan MQTT commands stored in the queue. If you send more then queueSize, they will be ignored
 static const int defaultBotWaitTime = 2;                     // wait at least X seconds between control command send to bots. ESP32 will detect if bot is in press mode with a hold time and will add hold time to this value per device
 static const int defaultCurtainWaitTime = 0;                 // wait at least X seconds between control command send to curtains
 static const int waitForResponseSec = 20;                    // How many seconds to wait for a bot/curtain response
 static const int noResponseRetryAmount = 5;                  // How many times to retry if no response received
 static const int defaultBotScanAfterControlSecs = 10;        // Default How many seconds to wait for state/status update call after set/control command. *override with botScanTime list
-static const int defaultCurtainScanAfterControlSecs = 30;    // Default How many seconds to wait for state/status update call after set/control command. *override with botScanTime list
-static const int defaultMeterScanSecs = 180;                 // Default Scan/MQTT Update for meter temp sensors every X seconds. *override with botScanTime list
-static const int defaultMotionScanSecs = 30;                 // Default Scan/MQTT Update for motion sensors every X seconds. *override with botScanTime list
-static const int defaultContactScanSecs = 30;                // Default Scan/MQTT Update for contact temp sensors every X seconds. *override with botScanTime list
-static const int waitForMQTTRetainMessages = 10;             // Only for bots in simulated ON/OFF: On boot ESP32 will look for retained MQTT state messages for X secs, otherwise default state is used
-static const int missedDataResend = 120;                     // If a motion or contact is somehow missed while controlling bots, send the MQTT messages within X secs of it occuring as a backup. requires sendBackupMotionContact = true
+static const int defaultCurtainScanAfterControlSecs = 30;    // Default How many seconds to wait for state/status update call after set/control command. *override with botScanTime list. Also used by scanWhileCurtainIsMoving
+static const int defaultBotMQTTUpdateSecs = 600;             // Used only when alwaysMQTTUpdate = false. Default MQTT Update for bot every X seconds. Note: a change in state will be always be published either way during active scanning
+static const int defaultCurtainMQTTUpdateSecs = 600;         // Used only when alwaysMQTTUpdate = false. Default MQTT Update for curtain every X seconds.  Note: a change in state will be always be published either way during active scanning
+static const int defaultMeterMQTTUpdateSecs = 600;           // Used only when alwaysMQTTUpdate = false. Default MQTT Update for meter temp sensors every X seconds. Note: a change in state will be always be published either way at all times (active or passive)
+static const int defaultMotionMQTTUpdateSecs = 600;          // Used only when alwaysMQTTUpdate = false. Default MQTT Update for motion sensors every X seconds. Note: a change in state will be always be published either way at all times (active or passive)
+static const int defaultContactMQTTUpdateSecs = 600;         // Used only when alwaysMQTTUpdate = false. Default MQTT Update for contact temp sensors every X seconds. Note: a change in state will be always be published either way at all times (active or passive)
+static const int defaultPlugMQTTUpdateSecs = 600;            // Used only when alwaysMQTTUpdate = false. Default MQTT Update for motion sensors every X seconds. Note: a change in state will be always be published either way at all times (active or passive)
+static const int defaultBotActiveScanSecs = 1800;            // Default Active Scan for bot every X seconds if not active scanned since X seconds. *override with botScanTime list.
+static const int defaultCurtainActiveScanSecs = 1800;        // Default Active Scan for curtain every X seconds if not active scanned since X seconds. *override with botScanTime list.
+static const int defaultMeterActiveScanSecs = 3600;          // Default Active Scan for meter temp sensors every X seconds if not active scanned since X seconds. *override with botScanTime list.
+static const int defaultMotionActiveScanSecs = 3600;         // Default Active Scan for motion sensors every X seconds if not active scanned since X seconds. *override with botScanTime list.
+static const int defaultContactActiveScanSecs = 3600;        // Default Active Scan for contact temp sensors every X seconds if not active scanned since X seconds. *override with botScanTime list.
+static const int defaultPlugActiveScanSecs = 3600;           // Default Active Scan for motion sensors every X seconds if not active scanned since X seconds. *override with botScanTime list.
+static const int waitForMQTTRetainMessages = 10;             // On boot ESP32 will look for retained MQTT state messages for X secs, otherwise default state is used. This is for bots in simulate ON/OFF, and when ESP32 mesh is used
+static const int missedDataResend = 120;                     // Experimental. If a motion or contact is somehow missed while controlling bots, send the MQTT messages within X secs of it occuring as a backup. requires sendBackupMotionContact = true. Note: Not used if multiple ESP32s are meshed
+static const int missedContactDelay = 30;                    // Experimental. If a contact is somehow missed while controlling bots, compare lastcontact from esp32 with contact sensor lastcontact. If different is greater than X, send a contact message. Note: Not used if multiple ESP32s are meshed
+static const int missedMotionDelay = 30;                     // Experimental. If a motion is somehow missed while controlling bots, compare lastmotion from esp32 with motion/contact sensor lastmotion. If different is greater than X, send a motion message. Note: Not used if multiple ESP32s are meshed
 
-static const bool sendBackupMotionContact = true;         // Compares last contact/motion time value from switchbot contact/motion devices against what the esp32 received. If ESP32 missed one while controlling bots, it will send a motion/contact message after. Note: Not used if multiple ESP32s are meshed
-static const bool autoRescan = true;                      // perform automatic rescan (uses rescanTime and initialScan).
-static const bool scanAfterControl = true;                // perform requestInfo after successful control command (uses botScanTime).
-static const bool waitBetweenControl = true;              // wait between commands sent to bot/curtain (avoids sending while bot is busy)
-static const bool getSettingsOnBoot = true;               // Currently only works for bot (curtain documentation not available but can probably be reverse engineered easily). Get bot extra settings values like firmware, holdSecs, inverted, number of timers. ***If holdSecs is available it is used by waitBetweenControl
-static const bool getBotResponse = true;                  // get a response from the bot devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
-static const bool getCurtainResponse = true;              // get a response from the curtain devices. A response of "success" means the most recent command was successful. A response of "busy" means the bot was busy when the command was sent
-static const bool retryBotOnBusy = true;                  // Requires getBotResponse = true. if bot responds with busy, the last control command will retry until success
-static const bool retryCurtainOnBusy = true;              // Requires getCurtainResponse = true. if curtain responds with busy, the last control command will retry until success
-static const bool retryBotActionNoResponse = false;       // Retry if bot doesn't send a response. Bot default is false because no response can still mean the bot triggered.
-static const bool retryBotSetNoResponse = true;           // Retry if bot doesn't send a response when requesting settings (hold, firwmare etc) or settings hold/mode
-static const bool retryCurtainNoResponse = true;          // Retry if curtain doesn't send a response. Default is true. It shouldn't matter if curtain receives the same command twice (or multiple times)
-static const bool immediateBotStateUpdate = true;         // ESP32 will send ON/OFF state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
-static const bool immediateCurtainStateUpdate = true;     // ESP32 will send OPEN/CLOSE and Position state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
-static const bool assumeNoResponseMeansSuccess = true;    // Only for bots in simulated ON/OFF: If the ESP32 does not receive a response after sending command (after noResponseRetryAmount reached and retryBotActionNoResponse = true) assume it worked and change state
-static const bool alwaysMQTTUpdate = true;                // If the ESP32 is scanning, always publish MQTT data instead of using set times
-static const bool onlyActiveScan = false;                 // Active scanning requires more battery from the BLE switchbot devices. If false, passive scanning is used when possible for contact/motion
-static const bool onlyPassiveScan = false;                // If this ESP32 is a mesh ESP32 or you only have motion/contact sensors. Passive scanning uses less battery from BLE switchbot devices. Passive scanning provides less data then active scanning, but uses less battery
-static const bool alwaysActiveScan = false;               // No battery optimizations. If you are using the switchbot hub or app to control devices also and you want immediate state updates in MQTT set to true.
-static const bool scanWhileCurtainIsMoving = true;        // The ESP32 will scan for defaultCurtainScanAfterControlSecs seconds after control to keep the position slider in sync with the actual position
+static const bool sendBackupMotionContact = false;           // Experimental. Compares last contact/motion time value from switchbot contact/motion devices against what the esp32 received. If ESP32 missed one while controlling bots, it will send a motion/contact message after. Note: Not used if multiple ESP32s are meshed
+static const bool autoRescan = true;                         // perform automatic rescan (uses rescanTime and initialScan).
+static const bool activeScanOnSchedule = true;               // perform an active scan on decice types based on the scheduled seconds values for XXXXActiveScanSecs
+static const bool scanAfterControl = true;                   // perform requestInfo after successful control command (uses botScanTime).
+static const bool waitBetweenControl = true;                 // wait between commands sent to bot/curtain (avoids sending while bot is busy)
+static const bool getSettingsOnBoot = true;                  // Currently only works for bot (curtain documentation not available but can probably be reverse engineered easily). Get bot extra settings values like firmware, holdSecs, inverted, number of timers. ***If holdSecs is available it is used by waitBetweenControl
+static const bool retryBotOnBusy = true;                     // if bot responds with busy, the last control command will retry until success
+static const bool retryCurtainOnBusy = true;                 // if curtain responds with busy, the last control command will retry until success
+static const bool retryPlugOnBusy = true;                    // if plug responds with busy, the last control command will retry until success
+static const bool retryBotActionNoResponse = false;          // Retry if bot doesn't send a response. Bot default is false because no response can still mean the bot triggered.
+static const bool retryPlugActionNoResponse = true;          // Retry if plug doesn't send a response. Default is true. It shouldn't matter if plug receives the same command twice (or multiple times)
+static const bool retryBotSetNoResponse = true;              // Retry if bot doesn't send a response when requesting settings (hold, firwmare etc) or settings hold/mode
+static const bool retryCurtainNoResponse = true;             // Retry if curtain doesn't send a response. Default is true. It shouldn't matter if curtain receives the same command twice (or multiple times)
+static const bool immediateBotStateUpdate = true;            // ESP32 will send ON/OFF state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
+static const bool immediatePlugStateUpdate = true;           // ESP32 will send ON/OFF state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
+static const bool immediateCurtainStateUpdate = true;        // ESP32 will send OPEN/CLOSE and Position state update as soon as MQTT is received. You can set this = false if not using Home Assistant Discovery.
+static const bool assumeNoResponseMeansSuccess = true;       // Only for bots in simulated ON/OFF: If the ESP32 does not receive a response after sending command (after noResponseRetryAmount reached and retryBotActionNoResponse = true) assume it worked and change state
+static const bool alwaysMQTTUpdate = false;                  // If the ESP32 is scanning, always publish MQTT data instead of using set times. ***Note: This creates a lot of MQTT traffic
+static const bool onlyActiveScan = false;                    // Active scanning requires more battery from the BLE switchbot devices. If false, passive scanning is used when possible for contact/motion
+static const bool onlyPassiveScan = false;                   // If this ESP32 is a mesh ESP32 or you only have motion/contact/meter sensors. Passive scanning uses less battery from BLE switchbot devices. Passive scanning provides less data then active scanning, but uses less battery
+static const bool alwaysActiveScan = false;                  // No battery optimizations. If you are using the switchbot hub or app to control devices also and you want immediate state updates for bot and curtains in MQTT set to true
+static const bool scanWhileCurtainIsMoving = true;           // The ESP32 will scan for defaultCurtainScanAfterControlSecs seconds after control to keep the position slider in sync with the actual position
 
-static const bool printSerialOutputForDebugging = false;  // Only set to true when you want to debug an issue from Arduino IDE. Lots of Serial output from scanning can crash the ESP32
+static const bool printSerialOutputForDebugging = false;     // Only set to true when you want to debug an issue from Arduino IDE. Lots of Serial output from scanning can crash the ESP32
+static bool manualDebugStartESP32WithMQTT = false;           // Only set to true when you want to debug an issue. ESP32 will boot in an OFF state when set to true. To start the ESP32 processing send any MQTT message to the topic ESPMQTTTopic/manualstart. This will make it easier to catch the last serial output of the ESP32 before crashing
 
 /* Switchbot Bot/Meter/Curtain scan interval */
 /* Meters don't support commands so will be scanned every <int> interval automatically if scanAfterControl = true */
@@ -538,7 +559,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v7.0-preRelease";
+static const String versionNum = "v7.0-preRelease2";
 
 /*
    Server Index Page
@@ -628,6 +649,8 @@ static const bool home_assistant_discovery_set_up = false;
 static const std::string manufacturer = "WonderLabs SwitchBot";
 static const std::string curtainModel = "Curtain";
 static const std::string curtainName = "WoCurtain";
+static const std::string plugName = "WoPlug";
+static const std::string plugModel = "Plug";
 static const std::string botModel = "Bot";
 static const std::string botName = "WoHand";
 static const std::string meterModel = "Meter";
@@ -677,6 +700,16 @@ static std::map<std::string, unsigned long> lastActiveScanTimes = {};
 static std::map<std::string, bool> botsSimulatedStates = {};
 static std::map<std::string, std::string> motionStates = {};
 static std::map<std::string, std::string> contactStates = {};
+static std::map<std::string, std::string> plugStates = {};
+static std::map<std::string, std::string> botStates = {};
+static std::map<std::string, std::string> curtainStates = {};
+static std::map<std::string, int> meterHumidStates = {};
+static std::map<std::string, float> meterTempCStates = {};
+static std::map<std::string, float> meterTempFStates = {};
+static std::map<std::string, int> curtainPositionStates = {};
+static std::map<std::string, int> curtainLightStates = {};
+static std::map<std::string, long> plugPowerStates = {};
+static std::map<std::string, bool> plugOverloadStates = {};
 static std::map<std::string, std::string> contactMeshStates = {};
 static std::map<std::string, std::string> lightMeshStates = {};
 static std::map<std::string, std::string> motionMeshStates = {};
@@ -755,6 +788,7 @@ static const std::string lastWillScanStr = ESPMQTTTopicMesh + "/lastwill";
 static const char* lastWill = lastWillStr.c_str();
 static const char* lastWillScan = lastWillScanStr.c_str();
 static const std::string botTopic = ESPMQTTTopic + "/bot/";
+static const std::string plugTopic = ESPMQTTTopic + "/plug/";
 static const std::string curtainTopic = ESPMQTTTopic + "/curtain/";
 static std::string meterTopic = ESPMQTTTopic + "/meter/";
 static std::string contactTopic = ESPMQTTTopic + "/contact/";
@@ -801,92 +835,114 @@ struct QueueAdvData {
   bool useActiveScan;
 };
 
+
+static const int publishQueueSize = 300;
+static const int advDataQueueSize = 300;
+
 ArduinoQueue<QueueCommand> commandQueue(queueSize);
 
-ArduinoQueue<QueuePublish> publishQueue(50);
+ArduinoQueue<QueuePublish> publishQueue(publishQueueSize);
 
-ArduinoQueue<QueueAdvData> advDataQueue(30);
+ArduinoQueue<QueueAdvData> advDataQueue(advDataQueueSize);
 
 void addToAdvDevData(std::string aMac, long anRSSI, std::string aString, bool shouldBeActive) {
-  struct QueueAdvData anAdvData;
-  anAdvData.macAddr = aMac;
-  anAdvData.rssi = anRSSI;
-  anAdvData.aValueString = aString;
-  anAdvData.useActiveScan = shouldBeActive;
-  advDataQueue.enqueue(anAdvData);
+  bool queueIsFull = advDataQueue.isFull();
+  if (!queueIsFull) {
+    struct QueueAdvData anAdvData;
+    anAdvData.macAddr = aMac;
+    anAdvData.rssi = anRSSI;
+    anAdvData.aValueString = aString;
+    anAdvData.useActiveScan = shouldBeActive;
+    advDataQueue.enqueue(anAdvData);
+  }
 }
 
 void addToPublish(std::string aTopic, std::string aPayload, bool retain) {
-  struct QueuePublish aPublish;
-  aPublish.payload = aPayload;
-  aPublish.topic = aTopic;
-  aPublish.retain = retain;
-  publishQueue.enqueue(aPublish);
-
+  bool queueIsFull = publishQueue.isFull();
+  if (!queueIsFull) {
+    struct QueuePublish aPublish;
+    aPublish.payload = aPayload;
+    aPublish.topic = aTopic;
+    aPublish.retain = retain;
+    publishQueue.enqueue(aPublish);
+  }
 }
 
 void addToPublish(std::string aTopic, char * aPayload, bool retain) {
-  struct QueuePublish aPublish;
-  aPublish.payload = aPayload;
-  aPublish.topic = aTopic;
-  aPublish.retain = retain;
-  publishQueue.enqueue(aPublish);
+  bool queueIsFull = publishQueue.isFull();
+  if (!queueIsFull) {
+    struct QueuePublish aPublish;
+    aPublish.payload = aPayload;
+    aPublish.topic = aTopic;
+    aPublish.retain = retain;
+    publishQueue.enqueue(aPublish);
+  }
 }
 
 void addToPublish(std::string aTopic, int aPayload, bool retain) {
-  struct QueuePublish aPublish;
-  aPublish.payload = (String(aPayload)).c_str();
-  aPublish.topic = aTopic;
-  aPublish.retain = retain;
-  publishQueue.enqueue(aPublish);
-
+  bool queueIsFull = publishQueue.isFull();
+  if (!queueIsFull) {
+    struct QueuePublish aPublish;
+    aPublish.payload = (String(aPayload)).c_str();
+    aPublish.topic = aTopic;
+    aPublish.retain = retain;
+    publishQueue.enqueue(aPublish);
+  }
 }
 
 void addToPublish(std::string aTopic, long aPayload, bool retain) {
-  struct QueuePublish aPublish;
-  aPublish.payload = (String(aPayload)).c_str();
-  aPublish.topic = aTopic;
-  aPublish.retain = retain;
-  publishQueue.enqueue(aPublish);
+  bool queueIsFull = publishQueue.isFull();
+  if (!queueIsFull) {
+    struct QueuePublish aPublish;
+    aPublish.payload = (String(aPayload)).c_str();
+    aPublish.topic = aTopic;
+    aPublish.retain = retain;
+    publishQueue.enqueue(aPublish);
+  }
 }
 
 void addToPublish(std::string aTopic, std::string aPayload) {
-  struct QueuePublish aPublish;
-  aPublish.payload = aPayload;
-  aPublish.topic = aTopic;
-  aPublish.retain = false;
-  publishQueue.enqueue(aPublish);
-
+  bool queueIsFull = publishQueue.isFull();
+  if (!queueIsFull) {
+    struct QueuePublish aPublish;
+    aPublish.payload = aPayload;
+    aPublish.topic = aTopic;
+    aPublish.retain = false;
+    publishQueue.enqueue(aPublish);
+  }
 }
 
 void addToPublish(std::string aTopic, char * aPayload) {
-  struct QueuePublish aPublish;
-  aPublish.payload = aPayload;
-  aPublish.topic = aTopic;
-  aPublish.retain = false;
-  publishQueue.enqueue(aPublish);
+  bool queueIsFull = publishQueue.isFull();
+  if (!queueIsFull) {
+    struct QueuePublish aPublish;
+    aPublish.payload = aPayload;
+    aPublish.topic = aTopic;
+    aPublish.retain = false;
+    publishQueue.enqueue(aPublish);
+  }
 }
 
 void printAString (const char * aString) {
-  if (printSerialOutputForDebugging) {
+  if (printSerialOutputForDebugging && !manualDebugStartESP32WithMQTT) {
     Serial.println(aString);
   }
 }
 
 void printAString (std::string & aString) {
-  if (printSerialOutputForDebugging) {
+  if (printSerialOutputForDebugging && !manualDebugStartESP32WithMQTT) {
     Serial.println(aString.c_str());
   }
 }
 
 void printAString (String & aString) {
-  if (printSerialOutputForDebugging) {
+  if (printSerialOutputForDebugging && !manualDebugStartESP32WithMQTT) {
     Serial.println(aString);
   }
 }
 
 void printAString (int aInt) {
-  if (printSerialOutputForDebugging) {
+  if (printSerialOutputForDebugging && !manualDebugStartESP32WithMQTT) {
     Serial.println(aInt);
   }
 }
@@ -932,6 +988,7 @@ void processMotionMotion(std::string & aDevice, std::string & deviceMac, std::st
   uint8_t byte3 = 0;
   uint8_t byte4 = 0;
   uint8_t byte5 = 0;
+  bool fakeLastMotion = false;
 
   if (isActive) {
     uint8_t byte1 = (uint8_t) aValueString[1];
@@ -951,16 +1008,20 @@ void processMotionMotion(std::string & aDevice, std::string & deviceMac, std::st
       lastMotions[aDevice] = millis();
     }
 
-    if (!enableMesh) {
-      bool missedAMotion = ((millis() - lastMotions[aDevice]) > (lastMotion * 1000));
+    if (!enableMesh && sendBackupMotionContact) {
+      long theLastKnownMotion = millis() - lastMotions[aDevice];
+      if (theLastKnownMotion < 0) {
+        theLastKnownMotion = 0;
+      }
+
+      bool missedAMotion = (theLastKnownMotion > ((lastMotion * 1000) + (missedMotionDelay * 1000)));
+
       if (missedAMotion) {
         shouldPublish = true;
       }
 
-      if (sendBackupMotionContact) {
-        if ( missedAMotion && (lastMotion < missedDataResend) ) {
-          aMotion = true;
-        }
+      if ( missedAMotion && (lastMotion < missedDataResend) ) {
+        aMotion = true;
       }
     }
   }
@@ -972,6 +1033,7 @@ void processMotionMotion(std::string & aDevice, std::string & deviceMac, std::st
     lastMotionHighSeconds = (byte5 & 0b10000000);
 
     if (aMotion) {
+      fakeLastMotion = true;
       lastMotion = 0;
     }
 
@@ -1030,7 +1092,7 @@ void processMotionMotion(std::string & aDevice, std::string & deviceMac, std::st
       }
     }
   }
-
+  bool publishLastMotion = true;
   std::map<std::string, std::string>::iterator itH = motionStates.find(deviceMac.c_str());
   if (itH != motionStates.end())
   {
@@ -1094,6 +1156,11 @@ void processMotionMotion(std::string & aDevice, std::string & deviceMac, std::st
       }
     }
     else {
+
+      if (fakeLastMotion && (lastMotion == 0)) {
+        publishLastMotion = false;
+      }
+
       std::map<std::string, unsigned long>::iterator itW = updateMotionCount.find(deviceMac.c_str());
       if (itW != updateMotionCount.end())
       {
@@ -1130,7 +1197,7 @@ void processMotionMotion(std::string & aDevice, std::string & deviceMac, std::st
       addToPublish(deviceMotionTopic.c_str(), motion.c_str(), true);
       std::string deviceStateTopic = motionTopic + aDevice + "/state";
       addToPublish(deviceStateTopic.c_str(), motion.c_str(), true);
-      if (lastMotion >= 0) {
+      if (lastMotion >= 0 && publishLastMotion) {
         publishMotionLastMotion(aDevice, lastMotion);
       }
     }
@@ -1147,7 +1214,7 @@ void processMotionContact(std::string & aDevice, std::string & deviceMac, std::s
   uint8_t byte3 = 0;
   uint8_t byte4 = 0;
   uint8_t byte5 = 0;
-
+  bool fakeLastMotion = false;
   if (isActive) {
     byte1 = (uint8_t) aValueString[1];
     byte3 = (uint8_t) aValueString[3];
@@ -1165,16 +1232,19 @@ void processMotionContact(std::string & aDevice, std::string & deviceMac, std::s
     {
       lastMotions[aDevice] = millis();
     }
-    if (!enableMesh) {
-      bool missedAMotion = ((millis() - lastMotions[aDevice]) > (lastMotion * 1000));
+    if (!enableMesh && sendBackupMotionContact) {
+      long theLastKnownMotion = millis() - lastMotions[aDevice];
+      if (theLastKnownMotion < 0) {
+        theLastKnownMotion = 0;
+      }
+
+      bool missedAMotion = (theLastKnownMotion > ((lastMotion * 1000) + (missedMotionDelay * 1000)));
       if (missedAMotion) {
         shouldPublish = true;
       }
 
-      if (sendBackupMotionContact) {
-        if ( missedAMotion && (lastMotion < missedDataResend) ) {
-          aMotion = true;
-        }
+      if ( missedAMotion && (lastMotion < missedDataResend) ) {
+        aMotion = true;
       }
     }
   }
@@ -1183,6 +1253,7 @@ void processMotionContact(std::string & aDevice, std::string & deviceMac, std::s
     aMotion = (byte3 & 0b10000000);
     lastMotionHighSeconds = (byte3 & 0b00000010);
     if (aMotion) {
+      fakeLastMotion = true;
       lastMotion = 0;
     }
   }
@@ -1240,7 +1311,7 @@ void processMotionContact(std::string & aDevice, std::string & deviceMac, std::s
       }
     }
   }
-
+  bool publishLastMotion = true;
   std::map<std::string, std::string>::iterator itH = motionStates.find(deviceMac.c_str());
   if (itH != motionStates.end())
   {
@@ -1304,6 +1375,11 @@ void processMotionContact(std::string & aDevice, std::string & deviceMac, std::s
       }
     }
     else {
+
+      if (fakeLastMotion && (lastMotion == 0)) {
+        publishLastMotion = false;
+      }
+
       std::map<std::string, unsigned long>::iterator itW = updateMotionCount.find(deviceMac.c_str());
       if (itW != updateMotionCount.end())
       {
@@ -1338,7 +1414,7 @@ void processMotionContact(std::string & aDevice, std::string & deviceMac, std::s
     if (!isMeshNode || !onlyAllowRootESPToPublishMotion) {
       std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
       addToPublish(deviceMotionTopic.c_str(), motion.c_str(), true);
-      if (lastMotion >= 0) {
+      if (lastMotion >= 0 && publishLastMotion) {
         publishContactLastMotion(aDevice, lastMotion);
       }
     }
@@ -1531,7 +1607,7 @@ void processLightContact(std::string & aDevice, std::string & deviceMac, std::st
   std::string light = "";
   int battLevel = 0;
   uint8_t byte3 = 0;
-  if (isActiveScan) {
+  if (isActive) {
     byte3 = (uint8_t) aValueString[3];
     light = (byte3 & 0b00000001) ? "BRIGHT" : "DARK";
   }
@@ -1757,7 +1833,7 @@ void processContact(std::string & aDevice, std::string & deviceMac, std::string 
   std::string light = "";
   int battLevel = 0;
 
-  if ( isActiveScan) {
+  if ( isActive) {
     byte3 = (uint8_t) aValueString[3];
     byte6 = (uint8_t) aValueString[6];
     byte7 = (uint8_t) aValueString[7];
@@ -1803,17 +1879,20 @@ void processContact(std::string & aDevice, std::string & deviceMac, std::string 
     contact = "RESERVE";
   }
 
-  if (!enableMesh) {
-    bool missedAContact = ((millis() - lastContacts[aDevice.c_str()]) > (lastContact * 1000));
+  if (!enableMesh && sendBackupMotionContact) {
+    long theLastKnownContact = millis() - lastContacts[aDevice];
+    if (theLastKnownContact < 0) {
+      theLastKnownContact = 0;
+    }
+
+    bool missedAContact = (theLastKnownContact > ((lastContact * 1000) + (missedContactDelay * 1000)));
     if (missedAContact) {
       shouldPublish = true;
     }
 
-    if (sendBackupMotionContact) {
-      if ( missedAContact && (lastContact < missedDataResend) ) {
-        contact = "OPEN";
-        lastContacts[aDevice.c_str()] = millis();
-      }
+    if ( missedAContact && (lastContact < missedDataResend) ) {
+      contact = "OPEN";
+      lastContacts[aDevice.c_str()] = millis();
     }
   }
 
@@ -2197,6 +2276,7 @@ void processBotBattery(std::string & aDevice, std::string & deviceMac, std::stri
   }
   else {
     battLevel = batteryValues[aDevice];
+    aJsonDoc["batt"] = battLevel;
   }
   if (shouldPublish) {
     //std::string deviceBatteryTopic = ;
@@ -2214,6 +2294,7 @@ void processCurtainBattery(std::string & aDevice, std::string & deviceMac, std::
   }
   else {
     battLevel = batteryValues[aDevice];
+    aJsonDoc["batt"] = battLevel;
   }
   if (shouldPublish) {
     //std::string deviceBatteryTopic = ;
@@ -2231,6 +2312,7 @@ void processMeterBattery(std::string & aDevice, std::string & deviceMac, std::st
   }
   else {
     battLevel = batteryValues[aDevice];
+    aJsonDoc["batt"] = battLevel;
   }
   if (shouldPublish) {
     //std::string deviceBatteryTopic = ;
@@ -2290,6 +2372,14 @@ void processCurtainRSSI(std::string & aDevice, std::string & deviceMac, long anR
   }
 }
 
+void processPlugRSSI(std::string & aDevice, std::string & deviceMac, long anRSSI, bool isActive, bool aPublish, JsonDocument & aJsonDoc) {
+  bool shouldPublish = aPublish;
+  aJsonDoc["rssi"] = anRSSI;
+  if (shouldPublish) {
+    addToPublish(plugTopic + aDevice + "/rssi", anRSSI, true);
+  }
+}
+
 void processContactRSSI(std::string & aDevice, std::string & deviceMac, long anRSSI, bool isActive, bool aPublish) {
   bool shouldPublish = aPublish;
   //aJsonDoc["rssi"] = anRSSI;
@@ -2343,9 +2433,6 @@ bool publishMQTT(QueuePublish aCommand) {
   if (client.isConnected()) {
     client.publish(aCommand.topic.c_str(), aCommand.payload.c_str(), aCommand.retain);
     return true;
-  }
-  else {
-    client.loop();
   }
   return false;
 }
@@ -2571,9 +2658,13 @@ void processMotionSensorTasks() {
 }
 
 void publishAllMQTT() {
-  while (!(publishQueue.isEmpty())) {
+  int attempts = 0;
+  while (!(publishQueue.isEmpty()) && attempts < 3) {
     if (!(client.isConnected())) {
       client.loop();
+    }
+    else {
+      attempts++;
     }
     bool success = false;
     QueuePublish aCommand = publishQueue.getHead();
@@ -2585,9 +2676,13 @@ void publishAllMQTT() {
 }
 
 void processAllAdvData() {
-  while (!(advDataQueue.isEmpty())) {
+  int attempts = 0;
+  while (!(advDataQueue.isEmpty()) && attempts < 3) {
     if (!(client.isConnected())) {
       client.loop();
+    }
+    else {
+      attempts++;
     }
     bool success = false;
     QueueAdvData aAdvData = advDataQueue.getHead();
@@ -2598,9 +2693,15 @@ void processAllAdvData() {
 
 void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueString, bool useActiveScan) {
   yield();
-
-
-  bool shouldPublish = false;
+  bool shouldPublish = alwaysMQTTUpdate;
+  if (!initialScanComplete) {
+    shouldPublish = true;
+  }
+  if (!shouldPublish) {
+    if (shouldMQTTUpdateOrActiveScanForDevice(deviceMac)) {
+      shouldPublish = true;
+    }
+  }
   std::string aDevice;
   std::string aState = "";
   std::string deviceStateTopic;
@@ -2625,9 +2726,6 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
   if (deviceName == botName) {
     StaticJsonDocument<200> aJsonDoc;
     char aBuffer[200];
-    shouldPublish = true;
-    processBotBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish, aJsonDoc);
-    processBotRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish, aJsonDoc);
 
     uint8_t byte1 = (uint8_t) aValueString[1];
     uint8_t byte2 = (uint8_t) aValueString[2];
@@ -2674,10 +2772,28 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
         aState = "OFF";
       }
     }
-    //int battLevel = byte2 & 0b01111111; // %
+
+    std::map<std::string, std::string>::iterator itH = botStates.find(deviceMac.c_str());
+    if (itH != botStates.end())
+    {
+      std::string botState = itH->second.c_str();
+      if (strcmp(botState.c_str(), aState.c_str()) != 0) {
+        shouldPublish = true;
+
+      }
+    }
+    else {
+      shouldPublish = true;
+    }
+
+    botStates[deviceMac] = aState.c_str();
+
     aJsonDoc["mode"] = aMode;
     aJsonDoc["state"] = aState;
-    //aJsonDoc["batt"] = battLevel;
+
+    processBotBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish, aJsonDoc);
+    processBotRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish, aJsonDoc);
+
     if (shouldPublish) {
       if (useActiveScan) {
         delay(50);
@@ -2690,19 +2806,29 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
     }
   }
   else if (deviceName == meterName) {
-    shouldPublish = true;
     StaticJsonDocument<200> aJsonDoc;
     char aBuffer[200];
-    processMeterBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish, aJsonDoc);
-    processMeterRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish, aJsonDoc);
 
     deviceStateTopic = meterTopic + aDevice + "/state";
     deviceAttrTopic = meterTopic + aDevice + "/attributes";
 
-    uint8_t byte2 = (uint8_t) aValueString[2];
-    uint8_t byte3 = (uint8_t) aValueString[3];
-    uint8_t byte4 = (uint8_t) aValueString[4];
-    uint8_t byte5 = (uint8_t) aValueString[5];
+    uint8_t byte2 = 0;
+    uint8_t byte3 = 0;
+    uint8_t byte4 = 0;
+    uint8_t byte5 = 0;
+
+    if ( useActiveScan) {
+      byte2 = (uint8_t) aValueString[2];
+      byte3 = (uint8_t) aValueString[3];
+      byte4 = (uint8_t) aValueString[4];
+      byte5 = (uint8_t) aValueString[5];
+    }
+    else
+    {
+      byte3 = (uint8_t) aValueString[10];
+      byte4 = (uint8_t) aValueString[11];
+      byte5 = (uint8_t) aValueString[12];
+    }
 
     int tempSign = (byte4 & 0b10000000) ? 1 : -1;
     float tempC = tempSign * ((byte4 & 0b01111111) + ((byte3 & 0b00001111) / 10.0));
@@ -2711,34 +2837,67 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
     bool tempScale = (byte5 & 0b10000000) ;
     std::string str1 = (tempScale == true) ? "f" : "c";
     aJsonDoc["scale"] = str1;
-    //int battLevel = (byte2 & 0b01111111);
-    //aJsonDoc["batt"] = battLevel;
     aJsonDoc["C"] = serialized(String(tempC, 1));
     aJsonDoc["F"] = serialized(String(tempF, 1));
     int humidity = byte5 & 0b01111111;
     aJsonDoc["hum"] = humidity;
     aState = String(tempC, 1).c_str();
-    if (shouldPublish) {
-      if (useActiveScan) {
-        delay(50);
-        serializeJson(aJsonDoc, aBuffer);
-        addToPublish(deviceAttrTopic.c_str(), aBuffer, true);
-        delay(50);
-        addToPublish(deviceStateTopic.c_str(), aState.c_str(), true);
+
+    std::map<std::string, float>::iterator itH = meterTempCStates.find(deviceMac.c_str());
+    if (itH != meterTempCStates.end())
+    {
+      float tempCState = itH->second;
+      if (tempCState != tempC) {
+        shouldPublish = true;
+
       }
+    }
+    else {
+      shouldPublish = true;
+    }
+    std::map<std::string, float>::iterator itW = meterTempFStates.find(deviceMac.c_str());
+    if (itW != meterTempFStates.end())
+    {
+      float tempFState = itW->second;
+      if (tempFState != tempF) {
+        shouldPublish = true;
+
+      }
+    }
+    else {
+      shouldPublish = true;
+    }
+
+    std::map<std::string, int>::iterator itR = meterHumidStates.find(deviceMac.c_str());
+    if (itR != meterHumidStates.end())
+    {
+      int humidState = itR->second;
+      if (humidState != humidity) {
+        shouldPublish = true;
+
+      }
+    }
+    else {
+      shouldPublish = true;
+    }
+
+    meterTempCStates[deviceMac] = tempC;
+    meterTempFStates[deviceMac] = tempF;
+    meterHumidStates[deviceMac] = humidity;
+
+    processMeterBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish, aJsonDoc);
+    processMeterRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish, aJsonDoc);
+
+    if (shouldPublish) {
+      delay(50);
+      serializeJson(aJsonDoc, aBuffer);
+      addToPublish(deviceAttrTopic.c_str(), aBuffer, true);
+      delay(50);
+      addToPublish(deviceStateTopic.c_str(), aState.c_str(), true);
       lastUpdateTimes[deviceMac] = millis();
     }
   }
   else if (deviceName == motionName) {
-    if (!initialScanComplete) {
-      shouldPublish = true;
-    }
-
-    if (!shouldPublish) {
-      if (shouldMQTTUpdateOrActiveScanForDevice(deviceMac)) {
-        shouldPublish = true;
-      }
-    }
 
     processMotionMotion(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
     processLightMotion(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
@@ -2749,15 +2908,7 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
   }
 
   else if (deviceName == contactName) {
-    if (!initialScanComplete) {
-      shouldPublish = true;
-    }
 
-    if (!shouldPublish) {
-      if (shouldMQTTUpdateOrActiveScanForDevice(deviceMac)) {
-        shouldPublish = true;
-      }
-    }
     processContact(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
     processMotionContact(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
     processLightContact(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish);
@@ -2770,7 +2921,6 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
 
   else if (deviceName == curtainName) {
 
-    shouldPublish = true;
     StaticJsonDocument<200> aJsonDoc;
     char aBuffer[200];
     processCurtainBattery(aDevice, deviceMac, aValueString, useActiveScan, shouldPublish, aJsonDoc);
@@ -2785,7 +2935,7 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
     uint8_t byte3 = (uint8_t) aValueString[3];
     uint8_t byte4 = (uint8_t) aValueString[4];
 
-    bool calibrated = byte1 & 0b01000000;;
+    bool calibrated = byte1 & 0b01000000;
     //int battLevel = byte2 & 0b01111111;
     int currentPosition = 100 - (byte3 & 0b01111111);
     int lightLevel = (byte4 >> 4) & 0b00001111;
@@ -2799,10 +2949,48 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
     aJsonDoc["state"] = aState;
     aJsonDoc["light"] = lightLevel;
 
-    StaticJsonDocument<50> docPos;
-    docPos["pos"] = currentPosition;
-    serializeJson(docPos, aBuffer);
-    addToPublish(devicePosTopic.c_str(), aBuffer, true);
+    std::map<std::string, std::string>::iterator itH = curtainStates.find(deviceMac.c_str());
+    if (itH != curtainStates.end())
+    {
+      std::string curtainState = itH->second.c_str();
+      if (strcmp(curtainState.c_str(), aState.c_str()) != 0) {
+        shouldPublish = true;
+
+      }
+    }
+    else {
+      shouldPublish = true;
+    }
+
+    std::map<std::string, int>::iterator itW = curtainPositionStates.find(deviceMac.c_str());
+    if (itW != curtainPositionStates.end())
+    {
+      int positionState = itW->second;
+      if (positionState != currentPosition) {
+        shouldPublish = true;
+
+      }
+    }
+    else {
+      shouldPublish = true;
+    }
+
+    std::map<std::string, int>::iterator itE = curtainLightStates.find(deviceMac.c_str());
+    if (itE != curtainLightStates.end())
+    {
+      int lightState = itE->second;
+      if (lightState != lightLevel) {
+        shouldPublish = true;
+
+      }
+    }
+    else {
+      shouldPublish = true;
+    }
+
+    curtainStates[deviceMac] = aState.c_str();
+    curtainPositionStates[deviceMac] = currentPosition;
+    curtainLightStates[deviceMac] = lightLevel;
 
     if (shouldPublish) {
       if (useActiveScan) {
@@ -2811,7 +2999,109 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
         addToPublish(deviceAttrTopic.c_str(), aBuffer, true);
         delay(50);
         addToPublish(deviceStateTopic.c_str(), aState.c_str(), true);
+        StaticJsonDocument<50> docPos;
+        docPos["pos"] = currentPosition;
+        serializeJson(docPos, aBuffer);
+        addToPublish(devicePosTopic.c_str(), aBuffer, true);
       }
+      lastUpdateTimes[deviceMac] = millis();
+    }
+  }
+
+  else if (deviceName == plugName) {
+    StaticJsonDocument<200> aJsonDoc;
+    char aBuffer[200];
+
+    deviceStateTopic = plugTopic + aDevice + "/state";
+    deviceAttrTopic = plugTopic + aDevice + "/attributes";
+    std::string devicePowerTopic = plugTopic + aDevice + "/energy";
+    std::string deviceOverloadTopic = plugTopic + aDevice + "/overload";
+
+    uint8_t byte9 = (uint8_t) aValueString[9];
+    uint8_t byte12 = (uint8_t) aValueString[12];
+    uint8_t byte13 = (uint8_t) aValueString[13];
+
+    bool overload = byte12 & 0b10000000;
+
+    byte powerHIGH = (byte13 & 0b11111111);
+    byte powerLOW = (byte12 & 0b01111111);
+    byte data2[] = {powerHIGH, powerLOW};
+    long powerData = le16_to_cpu_signed(data2);
+
+    std::string overloadStr = "";
+    aState = "UNKNOWN";
+    if (byte9 == 0) {
+      aState = "OFF";
+    }
+    else if (byte9 == 128) {
+      aState = "ON";
+    }
+
+    if (overload) {
+      overloadStr = "true";
+    }
+    else {
+      overloadStr = "false";
+    }
+
+    std::map<std::string, std::string>::iterator itH = plugStates.find(deviceMac.c_str());
+    if (itH != plugStates.end())
+    {
+      std::string plugState = itH->second.c_str();
+      if (strcmp(plugState.c_str(), aState.c_str()) != 0) {
+        shouldPublish = true;
+
+      }
+    }
+    else {
+      shouldPublish = true;
+    }
+
+    std::map<std::string, long>::iterator itP = plugPowerStates.find(deviceMac.c_str());
+    if (itP != plugPowerStates.end())
+    {
+      long plugPowerState = itP->second;
+      if (plugPowerState != powerData) {
+        shouldPublish = true;
+
+      }
+    }
+    else {
+      shouldPublish = true;
+    }
+
+    std::map<std::string, bool>::iterator itW = plugOverloadStates.find(deviceMac.c_str());
+    if (itW != plugOverloadStates.end())
+    {
+      bool plugOverloadState = itW->second;
+      if (plugOverloadState != overload) {
+        shouldPublish = true;
+
+      }
+    }
+    else {
+      shouldPublish = true;
+    }
+
+    plugStates[deviceMac] = aState.c_str();
+    plugPowerStates[deviceMac] = powerData;
+    plugOverloadStates[deviceMac] = overload;
+
+    processPlugRSSI(aDevice, deviceMac, anRSSI, useActiveScan, shouldPublish, aJsonDoc);
+
+    aJsonDoc["state"] = aState;
+    float powerLevel = powerData / 10.0;
+    aJsonDoc["energy"] = serialized(String(powerLevel, 1));
+    aJsonDoc["overload"] = overload;
+
+    if (shouldPublish) {
+      delay(50);
+      serializeJson(aJsonDoc, aBuffer);
+      addToPublish(deviceAttrTopic.c_str(), aBuffer, true);
+      delay(50);
+      addToPublish(deviceStateTopic.c_str(), aState.c_str(), true);
+      addToPublish(devicePowerTopic.c_str(), (String(powerLevel, 1)).c_str(), true);
+      addToPublish(deviceOverloadTopic.c_str(), overloadStr, true);
       lastUpdateTimes[deviceMac] = millis();
     }
   }
@@ -2824,6 +3114,7 @@ void processAdvData(std::string & deviceMac, long anRSSI,  std::string & aValueS
   yield();
 
 }
+
 void publishLastwillOnline() {
   if ((millis() - lastOnlinePublished) > 30000) {
     if (client.isConnected()) {
@@ -2845,7 +3136,68 @@ void publishHomeAssistantDiscoveryESPConfig() {
                + "\"stat_t\":\"~/rssi\"," +
                + "\"icon\":\"mdi:signal\"," +
                + "\"unit_of_meas\": \"rssi\"}").c_str(), true);
+
+  addToPublish((home_assistant_mqtt_prefix + "/sensor/" + host + "/firmware/config").c_str(), ("{\"~\":\"" + esp32Topic + "\"," +
+               + "\"name\":\"" + host + " Firmware\"," +
+               + "\"device\": {\"identifiers\":[\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + "ESP32" + "\",\"name\": \"" + host + "\" }," +
+               + "\"avty_t\": \"" + lastWill + "\"," +
+               + "\"uniq_id\":\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "_firmware\"," +
+               + "\"icon\":\"mdi:cog\"," +
+               + "\"stat_t\":\"~/firmware\"}").c_str(), true);
 }
+
+
+void publishHomeAssistantDiscoveryPlugConfig(std::string & deviceName, std::string deviceMac, bool optimistic) {
+  std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
+
+  addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (plugTopic + deviceName) + "\"," +
+               + "\"name\":\"" + deviceName + " Linkquality\"," +
+               + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + plugModel + "\",\"name\": \"" + deviceName + "\" }," +
+               + "\"avty_t\": \"" + lastWill + "\"," +
+               + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
+               + "\"icon\":\"mdi:signal\"," +
+               + "\"unit_of_meas\": \"rssi\", " +
+               + "\"stat_t\":\"~/rssi\"}").c_str(), true);
+
+  std::string optiString;
+  if (optimistic) {
+    optiString = "true";
+  }
+  else {
+    optiString = "false";
+  }
+
+  addToPublish((home_assistant_mqtt_prefix + "/switch/" + deviceName + "/config").c_str(), ("{\"~\":\"" + (plugTopic + deviceName) + "\", " +
+               + "\"name\":\"" + deviceName + " Switch\"," +
+               + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + plugModel + "\",\"name\": \"" + deviceName + "\" }," +
+               + "\"avty_t\": \"" + lastWill + "\"," +
+               + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
+               + "\"stat_t\":\"~/state\", " +
+               + "\"opt\":" + optiString + ", " +
+               + "\"cmd_t\": \"~/set\" }").c_str(), true);
+
+  addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/energy/config").c_str(), ("{\"~\":\"" + (plugTopic + deviceName) + "\"," +
+               + "\"name\":\"" + deviceName + " Energy\"," +
+               + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + plugModel + "\",\"name\": \"" + deviceName + "\" }," +
+               + "\"avty_t\": \"" + lastWill + "\"," +
+               + "\"uniq_id\":\"switchbot_" + deviceMac + "_energy\"," +
+               + "\"unit_of_meas\":\"W\"," +
+               + "\"state_class\":\"measurement\"," +
+               + "\"dev_cla\":\"power\"," +
+               + "\"stat_t\":\"~/energy\"}").c_str(), true);
+
+  addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/overload/config").c_str(), ("{\"~\":\"" + (plugTopic + deviceName) + "\"," +
+               + "\"name\":\"" + deviceName + " Overload\"," +
+               + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + plugModel + "\",\"name\": \"" + deviceName + "\" }," +
+               + "\"avty_t\": \"" + lastWill + "\"," +
+               + "\"uniq_id\":\"switchbot_" + deviceMac + "_overload\"," +
+               + "\"icon\":\"mdi:cog\"," +
+               + "\"pl_on\":\"true\"," +
+               + "\"pl_off\":\"false\"," +
+               + "\"stat_t\":\"~/overload\"}").c_str(), true);
+
+}
+
 
 void publishHomeAssistantDiscoveryBotConfig(std::string & deviceName, std::string deviceMac, bool optimistic) {
   std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
@@ -3463,8 +3815,8 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
     void checkToContinueScan() {
       bool stopScan = false;
       if (client.isConnected()) {
-        if (((allContactSensors.size() + allMotionSensors.size()) != 0) || alwaysActiveScan ) {
-          if (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) {
+        if (((allContactSensors.size() + allMotionSensors.size() + allPlugs.size()) != 0) || alwaysActiveScan ) {
+          if (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size() + allPlugs.size())) {
             if (!initialScanComplete) {
               initialScanComplete = true;
               stopScan = true;
@@ -3481,7 +3833,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           }
         }
         else {
-          if ((allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())) && (allSwitchbotsScanned.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size())))  {
+          if ((allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size() + allPlugs.size())) && (allSwitchbotsScanned.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size() + allPlugs.size())))  {
             stopScan = true;
             forceRescan = false;
             allSwitchbotsScanned = {};
@@ -3492,7 +3844,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
             stopScan = true;
             allSwitchbotsScanned = {};
           }
-          else if (overrideScan && (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size()))) {
+          else if (overrideScan && (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size() + allPlugs.size()))) {
             stopScan = true;
             allSwitchbotsScanned = {};
           }
@@ -3507,7 +3859,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       else {
 
         bool shouldActiveScan = false;
-        if (allSwitchbotsDev.size() != (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size()))
+        if (allSwitchbotsDev.size() != (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size() + allPlugs.size()))
         {
           shouldActiveScan = true;
         }
@@ -3550,16 +3902,13 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           NimBLEDevice::whiteListAdd(advertisedDevice->getAddress());
           }*/
         std::string deviceName = itS->second.c_str();
-        if ((advertisedDevice->isAdvertisingService(NimBLEUUID("cba20d00-224d-11e6-9fb8-0002a5d5c51b"))) || isContactDevice(deviceName) || isMotionDevice(deviceName) || isMeterDevice(deviceName))
+        if ((advertisedDevice->isAdvertisingService(NimBLEUUID("cba20d00-224d-11e6-9fb8-0002a5d5c51b"))) || isBotDevice(deviceName) || isCurtainDevice(deviceName) || isPlugDevice(deviceName) || isContactDevice(deviceName) || isMotionDevice(deviceName) || isMeterDevice(deviceName))
         {
           std::map<std::string, NimBLEAdvertisedDevice*>::iterator itY;
-          bool shouldUpdate = false;
-          if (shouldMQTTUpdateOrActiveScanForDevice(advStr) || isContactDevice(deviceName) || isMotionDevice(deviceName)) {
-            itY = allSwitchbotsScanned.find(advStr);
-            if (itY != allSwitchbotsScanned.end())
-            {
-              allSwitchbotsScanned.erase(advStr);
-            }
+          itY = allSwitchbotsScanned.find(advStr);
+          if (itY != allSwitchbotsScanned.end())
+          {
+            allSwitchbotsScanned.erase(advStr);
           }
           itY = allSwitchbotsScanned.find(advStr);
           if (((itY == allSwitchbotsScanned.end()) || alwaysMQTTUpdate) && client.isConnected())
@@ -3585,6 +3934,9 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
                 else if (isCurtainDevice(deviceName)) {
                   publishHomeAssistantDiscoveryCurtainConfig(deviceName, advStr);
                 }
+                else if (isPlugDevice(deviceName)) {
+                  publishHomeAssistantDiscoveryPlugConfig(deviceName, advStr, home_assistant_use_opt_mode);
+                }
                 printAString("adding discovered device ... ");
                 printAString(advStr.c_str());
                 discoveredDevices[advStr.c_str()] = true;
@@ -3597,9 +3949,16 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
 
             std::string aValueString = "";
             if (isActiveScan) {
-              aValueString = advertisedDevice->getServiceData(0);
+
               if (client.isConnected()) {
-                gotAllStatus = callForInfoAdvDev(advertisedDevice->getAddress().toString(), advertisedDevice->getRSSI() , aValueString);
+                if (isPlugDevice(deviceName)) {
+                  aValueString = advertisedDevice->getManufacturerData();
+                  gotAllStatus = callForInfoAdvDev(advertisedDevice->getAddress().toString(), advertisedDevice->getRSSI() , aValueString);
+                }
+                else {
+                  aValueString = advertisedDevice->getServiceData(0);
+                  gotAllStatus = callForInfoAdvDev(advertisedDevice->getAddress().toString(), advertisedDevice->getRSSI() , aValueString);
+                }
               }
               if (gotAllStatus) {
                 allSwitchbotsScanned[advStr] = advertisedDevice;
@@ -3625,7 +3984,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
               }
             }
             else {
-              if (isContactDevice(deviceName) || isMotionDevice(deviceName)) {
+              if (isContactDevice(deviceName) || isMotionDevice(deviceName) || isPlugDevice(deviceName) || isMeterDevice(deviceName)) {
                 aValueString = advertisedDevice->getManufacturerData();
                 callForInfoAdvDev(advertisedDevice->getAddress().toString(), advertisedDevice->getRSSI() , aValueString);
               }
@@ -3641,7 +4000,6 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       //waitForDeviceCreation = false;
 
       checkToContinueScan();
-
       printAString("END onResult");
     };
 
@@ -3683,6 +4041,10 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
           return false;
         }
 
+        if (((aLength < 6) && isActiveScan) || (!isActiveScan && (aLength < 13))) {
+          return false;
+        }
+
         addToAdvDevData(deviceMac, anRSSI,  aValueString, isActiveScan);
       }
       else if (deviceName == motionName) {
@@ -3707,7 +4069,13 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
         }
         addToAdvDevData(deviceMac, anRSSI,  aValueString, isActiveScan);
       }
+      else if (deviceName == plugName) {
+        if (aLength < 12) {
+          return false;
+        }
 
+        addToAdvDevData(deviceMac, anRSSI,  aValueString, isActiveScan);
+      }
       else if (deviceName == curtainName) {
         if (aLength < 5) {
           return false;
@@ -3964,6 +4332,7 @@ void setup () {
   static std::map<std::string, std::string> allMetersTemp = {};
   static std::map<std::string, std::string> allContactSensorsTemp = {};
   static std::map<std::string, std::string> allMotionSensorsTemp = {};
+  static std::map<std::string, std::string> allPlugsTemp = {};
   static std::map<std::string, std::string> allPasswordsTemp = {};
   static std::map<std::string, bool> botsSimulateONOFFinPRESSmodeTemp = {};
   static std::map<std::string, int> botsSimulatedOFFHoldTimesTemp = {};
@@ -3983,6 +4352,7 @@ void setup () {
     allSwitchbots[aName] = anAddr.c_str();
     deviceTypes[anAddr.c_str()] = botName;
     allBotsTemp[aName] = anAddr.c_str();
+    NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr, 1));
     it++;
   }
   allBots = allBotsTemp;
@@ -3998,6 +4368,7 @@ void setup () {
     allSwitchbots[aName] = anAddr.c_str();
     deviceTypes[anAddr.c_str()] = curtainName;
     allCurtainsTemp[aName] = anAddr.c_str();
+    NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr, 1));
     it++;
   }
   allCurtains = allCurtainsTemp;
@@ -4013,6 +4384,7 @@ void setup () {
     allSwitchbots[aName] = anAddr.c_str();
     deviceTypes[anAddr.c_str()] = meterName;
     allMetersTemp[aName] = anAddr.c_str();
+    NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr, 1));
     it++;
   }
   allMeters = allMetersTemp;
@@ -4028,6 +4400,7 @@ void setup () {
     allSwitchbots[aName] = anAddr.c_str();
     deviceTypes[anAddr.c_str()] = contactName;
     allContactSensorsTemp[aName] = anAddr.c_str();
+    NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr, 1));
     it++;
   }
   allContactSensors = allContactSensorsTemp;
@@ -4043,9 +4416,26 @@ void setup () {
     allSwitchbots[aName] = anAddr.c_str();
     deviceTypes[anAddr.c_str()] = motionName;
     allMotionSensorsTemp[aName] = anAddr.c_str();
+    NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr, 1));
     it++;
   }
   allMotionSensors = allMotionSensorsTemp;
+
+  it = allPlugs.begin();
+  while (it != allPlugs.end())
+  {
+    aName = it->first;
+    anAddr = it->second;
+    std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+    std::replace( aName.begin(), aName.end(), ' ', '_');
+    allSwitchbotsOpp[anAddr.c_str()] = aName;
+    allSwitchbots[aName] = anAddr.c_str();
+    deviceTypes[anAddr.c_str()] = plugName;
+    allPlugsTemp[aName] = anAddr.c_str();
+    NimBLEDevice::whiteListAdd(NimBLEAddress(anAddr, 1));
+    it++;
+  }
+  allPlugs = allPlugsTemp;
 
   it = allPasswords.begin();
   std::string aPass;
@@ -4110,7 +4500,7 @@ void setup () {
   pScan->setDuplicateFilter(false);
   isActiveScan = true;
   pScan->setActiveScan(isActiveScan);
-  pScan->setMaxResults(50);
+  pScan->setMaxResults(100);
   //pScan->setFilterPolicy(BLE_HCI_SCAN_FILT_USE_WL);
 
 }
@@ -4125,15 +4515,18 @@ void rescan(int seconds) {
   lastRescan = millis();
   if (onlyPassiveScan && initialScanComplete) {
     isActiveScan = false;
+    delay(50);
+    addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"passivescanning\"}");
   }
   else {
     isRescanning = true;
     isActiveScan = true;
+    delay(50);
+    addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"activescanning\"}");
   }
 
   pScan->setActiveScan(isActiveScan);
-  delay(50);
-  addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"activescanning\"}");
+
   delay(50);
   if (ledOnScan) {
     digitalWrite(LED_PIN, ledONValue);
@@ -4179,9 +4572,13 @@ void rescanFind(std::string aMac) {
 
   if (onlyPassiveScan && initialScanComplete) {
     isActiveScan = false;
+    delay(100);
+    addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"passivescanning\"}");
   }
   else {
     isActiveScan = true;
+    delay(100);
+    addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"activescanning\"}");
   }
   pScan->setActiveScan(isActiveScan);
 
@@ -4200,8 +4597,7 @@ void rescanFind(std::string aMac) {
 
   //allSwitchbotsDev.erase(aMac);
   //pScan->erase(NimBLEAddress(aMac));
-  delay(100);
-  addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"activescanning\"}");
+
   delay(50);
   if (ledOnScan) {
     digitalWrite(LED_PIN, ledONValue);
@@ -4279,23 +4675,22 @@ void checkWebServer() {
 }
 
 void loop () {
-  printAString("START loop...");
+  //printAString("START loop...");
   client.loop();
   checkWebServer();
   server.handleClient();
-  printAString("at processAllAdvData...");
+  //printAString("at processAllAdvData...");
   processAllAdvData();
-  //vTaskDelay(10 / portTICK_PERIOD_MS);
-  printAString("at publishLastwillOnline...");
+  //printAString("at publishLastwillOnline...");
   publishLastwillOnline();
-  printAString("at publishAllMQTT...");
+  //printAString("at publishAllMQTT...");
   publishAllMQTT();
-  printAString("at processContactSensorTasks...");
+  //printAString("at processContactSensorTasks...");
   processContactSensorTasks();
-  printAString("at processMotionSensorTasks...");
+  //printAString("at processMotionSensorTasks...");
   processMotionSensorTasks();
-  printAString("at loopcode...");
-  if (waitForRetained && client.isConnected()) {
+  //printAString("at loopcode...");
+  if (waitForRetained && client.isConnected() && !manualDebugStartESP32WithMQTT) {
     if (retainStartTime == 0) {
       client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"waiting\"}");
       retainStartTime = millis();
@@ -4309,7 +4704,7 @@ void loop () {
       }*/
   }
 
-  if ((!initialScanComplete) && client.isConnected() && (!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning) && (!waitForRetained)) {
+  if ((!initialScanComplete) && client.isConnected() && (!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning) && (!waitForRetained) && !manualDebugStartESP32WithMQTT) {
     addToPublish(ESPMQTTTopic.c_str(), "{\"status\":\"activescanning\"}");
     isRescanning = true;
     isActiveScan = true;
@@ -4318,7 +4713,7 @@ void loop () {
     pScan->start(initialScan, initialScanEndedCB, true);
   }
 
-  if (initialScanComplete && client.isConnected()) {
+  if (initialScanComplete && client.isConnected() && !manualDebugStartESP32WithMQTT) {
     if (isRescanning) {
       lastRescan = millis();
     }
@@ -4328,7 +4723,7 @@ void loop () {
       }
     }
 
-    if (((allContactSensors.size() + allMotionSensors.size()) != 0) || alwaysActiveScan) {
+    if (((allContactSensors.size() + allMotionSensors.size() + allPlugs.size()) != 0) || alwaysActiveScan) {
       if ((!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning)) {
         bool queueProcessed = false;
         queueProcessed = processQueue();
@@ -4344,7 +4739,7 @@ void loop () {
         bool queueProcessed = false;
         queueProcessed = processQueue();
         if (commandQueue.isEmpty() && queueProcessed && !waitForResponse && !processing && !(pScan->isScanning()) && !isRescanning) {
-          if (scanAfterControl || (!allMeters.empty())) {
+          if (scanAfterControl || (!allMeters.empty()) || activeScanOnSchedule) {
             recurringScan();
           }
         }
@@ -4356,7 +4751,7 @@ void loop () {
       }
     }
   }
-  printAString("END loop...");
+  //printAString("END loop...");
 }
 
 void recurringRescan() {
@@ -4415,13 +4810,38 @@ bool shouldActiveScanForDevice(std::string & anAddr) {
     return true;
   }
 
-  if (isMeterDevice(itB->second)) {
-    if ((millis() - lastActiveScanTime) >= (defaultMeterScanSecs * 1000)) {
+  if (isBotDevice(itB->second)) {
+    if ((millis() - lastActiveScanTime) >= (defaultBotActiveScanSecs * 1000)) {
+      return true;
+    }
+  }
+  else if (isCurtainDevice(itB->second)) {
+    if ((millis() - lastActiveScanTime) >= (defaultCurtainActiveScanSecs * 1000)) {
+      return true;
+    }
+  }
+  else if (isMeterDevice(itB->second)) {
+    if ((millis() - lastActiveScanTime) >= (defaultMeterActiveScanSecs * 1000)) {
+      return true;
+    }
+  }
+  else if (isContactDevice(itB->second)) {
+    if ((millis() - lastActiveScanTime) >= (defaultContactActiveScanSecs * 1000)) {
+      return true;
+    }
+  }
+  else if (isMotionDevice(itB->second)) {
+    if ((millis() - lastActiveScanTime) >= (defaultMotionActiveScanSecs * 1000)) {
+      return true;
+    }
+  }
+  else if (isPlugDevice(itB->second)) {
+    if ((millis() - lastActiveScanTime) >= (defaultPlugActiveScanSecs * 1000)) {
       return true;
     }
   }
 
-  else if (isBotDevice(itB->second) || isMeterDevice(itB->second) || isCurtainDevice(itB->second)) {
+  if (isBotDevice(itB->second) || isCurtainDevice(itB->second)) {
     std::map<std::string, int>::iterator itS = botScanTime.find(itB->second);
     unsigned long lastTime;
     std::map<std::string, unsigned long>::iterator it = rescanTimes.find(anAddr);
@@ -4437,9 +4857,9 @@ bool shouldActiveScanForDevice(std::string & anAddr) {
     if (isCurtainDevice(itB->second)) {
       scanTime = defaultCurtainScanAfterControlSecs;
     }
-    else if (isMeterDevice(itB->second)) {
-      scanTime = defaultMeterScanSecs;
-    }
+    /* else if (isMeterDevice(itB->second)) {
+       scanTime = defaultMeterMQTTUpdateSecs;
+      }*/
     if (itS != botScanTime.end())
     {
       scanTime = itS->second;
@@ -4500,7 +4920,7 @@ bool shouldMQTTUpdateForDevice(std::string & anAddr) {
   std::map<std::string, std::string>::iterator itM = allMeters.find(itB->second);
   if (itM != allMeters.end())
   {
-    if ((lastUpdateTime == 0 ) || ((millis() - lastUpdateTime) >= (defaultMeterScanSecs * 1000))) {
+    if ((lastUpdateTime == 0 ) || ((millis() - lastUpdateTime) >= (defaultMeterMQTTUpdateSecs * 1000))) {
       return true;
     }
   }
@@ -4508,14 +4928,38 @@ bool shouldMQTTUpdateForDevice(std::string & anAddr) {
   itM = allContactSensors.find(itB->second);
   if (itM != allContactSensors.end())
   {
-    if ((lastUpdateTime == 0 ) || ((millis() - lastUpdateTime) >= (defaultContactScanSecs * 1000))) {
+    if ((lastUpdateTime == 0 ) || ((millis() - lastUpdateTime) >= (defaultContactMQTTUpdateSecs * 1000))) {
       return true;
     }
   }
   itM = allMotionSensors.find(itB->second);
   if (itM != allMotionSensors.end())
   {
-    if ((lastUpdateTime == 0 ) || ((millis() - lastUpdateTime) >= (defaultMotionScanSecs * 1000))) {
+    if ((lastUpdateTime == 0 ) || ((millis() - lastUpdateTime) >= (defaultMotionMQTTUpdateSecs * 1000))) {
+      return true;
+    }
+  }
+
+  itM = allPlugs.find(itB->second);
+  if (itM != allPlugs.end())
+  {
+    if ((lastUpdateTime == 0 ) || ((millis() - lastUpdateTime) >= (defaultPlugMQTTUpdateSecs * 1000))) {
+      return true;
+    }
+  }
+
+  itM = allCurtains.find(itB->second);
+  if (itM != allCurtains.end())
+  {
+    if ((lastUpdateTime == 0 ) || ((millis() - lastUpdateTime) >= (defaultCurtainMQTTUpdateSecs * 1000))) {
+      return true;
+    }
+  }
+
+  itM = allBots.find(itB->second);
+  if (itM != allBots.end())
+  {
+    if ((lastUpdateTime == 0 ) || ((millis() - lastUpdateTime) >= (defaultBotMQTTUpdateSecs * 1000))) {
       return true;
     }
   }
@@ -4525,7 +4969,7 @@ bool shouldMQTTUpdateForDevice(std::string & anAddr) {
 
 void recurringScan() {
   if ((millis() - lastScanCheck) >= 200) {
-    recurringMeterScan();
+    //recurringMeterScan();
     if (!rescanTimes.empty()) {
       std::string anAddr;
       std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.begin();
@@ -4535,9 +4979,9 @@ void recurringScan() {
         std::map<std::string, unsigned long>::iterator itR = rescanTimes.find(anAddr);
         if (itR != rescanTimes.end())
         {
-          bool shouldMQTTOrActiveScanUpdate = false;
-          shouldMQTTOrActiveScanUpdate = shouldActiveScanForDevice(anAddr);
-          if (shouldMQTTOrActiveScanUpdate) {
+          bool shouldActiveScan = false;
+          shouldActiveScan = shouldActiveScanForDevice(anAddr);
+          if (shouldActiveScan) {
             if (onlyPassiveScan && initialScanComplete) {
               isActiveScan = false;
             }
@@ -4572,7 +5016,7 @@ void recurringScan() {
   }
 }
 
-void recurringMeterScan() {
+/*void recurringMeterScan() {
   if (!allMeters.empty()) {
     std::map<std::string, std::string>::iterator it = allMeters.begin();
     std::string anAddr = it->second;
@@ -4581,12 +5025,12 @@ void recurringMeterScan() {
       bool shouldMQTTOrActiveScanUpdate = false;
       shouldMQTTOrActiveScanUpdate = shouldActiveScanForDevice(anAddr);
       if (shouldMQTTOrActiveScanUpdate) {
-        rescanTimes[anAddr] = (((millis() - defaultMeterScanSecs) > 0) ? (millis() - defaultMeterScanSecs) : 0 ) ;
+        rescanTimes[anAddr] = (((millis() - defaultMeterMQTTUpdateSecs) > 0) ? (millis() - defaultMeterMQTTUpdateSecs) : 0 ) ;
       }
       it++;
     }
   }
-}
+  }*/
 
 
 bool processRequest(std::string macAdd, std::string aName, const char * command, std::string deviceTopic, bool disconnectAfter) {
@@ -4838,146 +5282,205 @@ bool processQueue() {
                 else {
                   isSuccess = controlMQTT(aCommand.device, aCommand.payload, disconnectAfter);
                 }
-                if (getBotResponse) {
-                  while (noResponse && shouldContinue )
-                  {
-                    waitForResponse = true;
-                    //if (printSerialOutputForDebugging) {Serial.println("waiting for response...");}
-                    if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
-                      shouldContinue = false;
-                    }
+                while (noResponse && shouldContinue )
+                {
+                  waitForResponse = true;
+                  //if (printSerialOutputForDebugging) {Serial.println("waiting for response...");}
+                  if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
+                    shouldContinue = false;
                   }
-                  if (noResponse && assumeNoResponseMeansSuccess && !retryBotActionNoResponse && isSuccess) {
-                    std::string deviceAssumedStateTopic = botTopic + aCommand.device + "/state";
-                    std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aCommand.device);
-                    if (itE != botsSimulateONOFFinPRESSmode.end()) {
-                      if ((strcmp(aCommand.payload.c_str(), "ON") == 0) || (strcmp(aCommand.payload.c_str(), "OFF") == 0)) {
-                        if (strcmp(aCommand.payload.c_str(), "OFF") == 0) {
-                          botsSimulatedStates[aCommand.device] = false;
-                          addToPublish(deviceStateTopic.c_str(), "OFF", true);
-                          addToPublish(deviceAssumedStateTopic.c_str(), "OFF", true);
-                        }
-                        else if (strcmp(aCommand.payload.c_str(), "ON") == 0) {
-                          botsSimulatedStates[aCommand.device] = true;
+                }
+                if (noResponse && assumeNoResponseMeansSuccess && !retryBotActionNoResponse && isSuccess) {
+                  std::string deviceAssumedStateTopic = botTopic + aCommand.device + "/state";
+                  std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aCommand.device);
+                  if (itE != botsSimulateONOFFinPRESSmode.end()) {
+                    if ((strcmp(aCommand.payload.c_str(), "ON") == 0) || (strcmp(aCommand.payload.c_str(), "OFF") == 0)) {
+                      if (strcmp(aCommand.payload.c_str(), "OFF") == 0) {
+                        botsSimulatedStates[aCommand.device] = false;
+                        addToPublish(deviceStateTopic.c_str(), "OFF", true);
+                        addToPublish(deviceAssumedStateTopic.c_str(), "OFF", true);
+                      }
+                      else if (strcmp(aCommand.payload.c_str(), "ON") == 0) {
+                        botsSimulatedStates[aCommand.device] = true;
+                        addToPublish(deviceStateTopic.c_str(), "ON", true);
+                        addToPublish(deviceAssumedStateTopic.c_str(), "ON", true);
+                      }
+                      else if (strcmp(aCommand.payload.c_str(), "PRESS") == 0) {
+                        botsSimulatedStates[aCommand.device] = !(botsSimulatedStates[aCommand.device]);
+                        if (botsSimulatedStates[aCommand.device]) {
                           addToPublish(deviceStateTopic.c_str(), "ON", true);
                           addToPublish(deviceAssumedStateTopic.c_str(), "ON", true);
                         }
-                        else if (strcmp(aCommand.payload.c_str(), "PRESS") == 0) {
-                          botsSimulatedStates[aCommand.device] = !(botsSimulatedStates[aCommand.device]);
-                          if (botsSimulatedStates[aCommand.device]) {
-                            addToPublish(deviceStateTopic.c_str(), "ON", true);
-                            addToPublish(deviceAssumedStateTopic.c_str(), "ON", true);
-                          }
-                          else {
-                            addToPublish(deviceStateTopic.c_str(), "OFF", true);
-                            addToPublish(deviceAssumedStateTopic.c_str(), "OFF", true);
-                          }
+                        else {
+                          addToPublish(deviceStateTopic.c_str(), "OFF", true);
+                          addToPublish(deviceAssumedStateTopic.c_str(), "OFF", true);
                         }
                       }
                     }
                   }
-                  std::map<std::string, std::string>::iterator itN = allBots.find(aCommand.device);
-                  std::string anAddr = itN->second;
-                  std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
-                  NimBLEClient* pClient = nullptr;
-                  if (NimBLEDevice::getClientListSize()) {
-                    pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
-                    if (pClient) {
-                      if (pClient->isConnected()) {
-                        unsubscribeToNotify(pClient);
-                        if (disconnectAfter) {
-                          pClient->disconnect();
-                        }
+                }
+                std::map<std::string, std::string>::iterator itN = allBots.find(aCommand.device);
+                std::string anAddr = itN->second;
+                std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+                NimBLEClient* pClient = nullptr;
+                if (NimBLEDevice::getClientListSize()) {
+                  pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
+                  if (pClient) {
+                    if (pClient->isConnected()) {
+                      unsubscribeToNotify(pClient);
+                      if (disconnectAfter) {
+                        pClient->disconnect();
                       }
                     }
                   }
+                }
 
-                  if (isNum && !lastCommandWasBusy && getBotResponse) {
-                    getSettingsAfter = true;
-                  }
-                  if (lastCommandWasBusy && retryBotOnBusy) {
-                    requeue = true;
-                    botsToWaitFor[aCommand.device] = true;
-                    lastCommandWasBusy = false;
-                    getSettingsAfter = false;
+                if (isNum && !lastCommandWasBusy) {
+                  getSettingsAfter = true;
+                }
+                if (lastCommandWasBusy && retryBotOnBusy) {
+                  requeue = true;
+                  botsToWaitFor[aCommand.device] = true;
+                  lastCommandWasBusy = false;
+                  getSettingsAfter = false;
 
-                    lastCommandSent[anAddr] = 0;
-                  }
-                  else if ((retryBotActionNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount)) || (retryBotSetNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount) && ((strcmp(aCommand.payload.c_str(), "REQUESTSETTINGS") == 0) || (strcmp(aCommand.payload.c_str(), "GETSETTINGS") == 0)
-                           || (strcmp(aCommand.payload.c_str(), "MODEPRESS") == 0) || (strcmp(aCommand.payload.c_str(), "MODEPRESSINV") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCH") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCHINV") == 0) || isNum ))) {
-                    printAString("current retry...");
-                    printAString(aCommand.currentTry);
+                  lastCommandSent[anAddr] = 0;
+                }
+                else if ((retryBotActionNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount)) || (retryBotSetNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount) && ((strcmp(aCommand.payload.c_str(), "REQUESTSETTINGS") == 0) || (strcmp(aCommand.payload.c_str(), "GETSETTINGS") == 0)
+                         || (strcmp(aCommand.payload.c_str(), "MODEPRESS") == 0) || (strcmp(aCommand.payload.c_str(), "MODEPRESSINV") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCH") == 0) || (strcmp(aCommand.payload.c_str(), "MODESWITCHINV") == 0) || isNum ))) {
+                  printAString("current retry...");
+                  printAString(aCommand.currentTry);
 
-                    requeue = true;
-                    botsToWaitFor[aCommand.device] = true;
-                    lastCommandWasBusy = false;
-                    getSettingsAfter = false;
-                  }
-                  else {
-                    std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
-                    if (itP != botsToWaitFor.end())
-                    {
-                      botsToWaitFor.erase(aCommand.device);
-                    }
+                  requeue = true;
+                  botsToWaitFor[aCommand.device] = true;
+                  lastCommandWasBusy = false;
+                  getSettingsAfter = false;
+                }
+                else {
+                  std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
+                  if (itP != botsToWaitFor.end())
+                  {
+                    botsToWaitFor.erase(aCommand.device);
                   }
                 }
                 waitForResponse = false;
                 noResponse = false;
               }
+
+
+              else if (isPlugDevice(aCommand.device.c_str()))
+              {
+
+                String tempPayload = aCommand.payload.c_str();
+                isSuccess = controlMQTT(aCommand.device, aCommand.payload, disconnectAfter);
+
+                while (noResponse && shouldContinue )
+                {
+                  waitForResponse = true;
+                  //if (printSerialOutputForDebugging) {Serial.println("waiting for response...");}
+                  if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
+                    shouldContinue = false;
+                  }
+                }
+
+                std::map<std::string, std::string>::iterator itN = allPlugs.find(aCommand.device);
+                std::string anAddr = itN->second;
+                std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+                NimBLEClient* pClient = nullptr;
+                if (NimBLEDevice::getClientListSize()) {
+                  pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
+                  if (pClient) {
+                    if (pClient->isConnected()) {
+                      unsubscribeToNotify(pClient);
+                      if (disconnectAfter) {
+                        pClient->disconnect();
+                      }
+                    }
+                  }
+                }
+
+                if (lastCommandWasBusy && retryPlugOnBusy) {
+                  requeue = true;
+                  botsToWaitFor[aCommand.device] = true;
+                  lastCommandWasBusy = false;
+                  getSettingsAfter = false;
+
+                  lastCommandSent[anAddr] = 0;
+                }
+                else if ((retryPlugActionNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount))) {
+                  printAString("current retry...");
+                  printAString(aCommand.currentTry);
+
+                  requeue = true;
+                  botsToWaitFor[aCommand.device] = true;
+                  lastCommandWasBusy = false;
+                  getSettingsAfter = false;
+                }
+                else {
+                  std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
+                  if (itP != botsToWaitFor.end())
+                  {
+                    botsToWaitFor.erase(aCommand.device);
+                  }
+                }
+                waitForResponse = false;
+                noResponse = false;
+              }
+
               else if (isCurtainDevice(aCommand.device.c_str()))
               {
                 controlMQTT(aCommand.device, aCommand.payload, disconnectAfter);
                 std::string anAddr;
-                if (getCurtainResponse) {
-                  while (noResponse && shouldContinue )
-                  {
-                    waitForResponse = true;
-                    printAString("waiting for response...");
 
-                    if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
-                      shouldContinue = false;
-                    }
+                while (noResponse && shouldContinue )
+                {
+                  waitForResponse = true;
+                  printAString("waiting for response...");
+
+                  if ((millis() - timeSent) > (waitForResponseSec * 1000)) {
+                    shouldContinue = false;
                   }
-                  std::map<std::string, std::string>::iterator itN = allCurtains.find(aCommand.device);
-                  anAddr = itN->second;
-                  std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
-                  NimBLEClient* pClient = nullptr;
-                  if (NimBLEDevice::getClientListSize()) {
-                    pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
-                    if (pClient) {
-                      if (pClient->isConnected()) {
-                        unsubscribeToNotify(pClient);
-                        if (disconnectAfter) {
-                          pClient->disconnect();
-                        }
+                }
+                std::map<std::string, std::string>::iterator itN = allCurtains.find(aCommand.device);
+                anAddr = itN->second;
+                std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+                NimBLEClient* pClient = nullptr;
+                if (NimBLEDevice::getClientListSize()) {
+                  pClient = NimBLEDevice::getClientByPeerAddress(anAddr);
+                  if (pClient) {
+                    if (pClient->isConnected()) {
+                      unsubscribeToNotify(pClient);
+                      if (disconnectAfter) {
+                        pClient->disconnect();
                       }
                     }
                   }
-                  if (lastCommandWasBusy && retryCurtainOnBusy) {
-                    requeue = true;
-                    botsToWaitFor[aCommand.device] = true;
-                    lastCommandWasBusy = false;
-                    lastCommandSent[anAddr] = 0;
-                  }
-                  else if (retryCurtainNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount)) {
-                    printAString("current retry...");
-                    printAString(aCommand.currentTry);
+                }
+                if (lastCommandWasBusy && retryCurtainOnBusy) {
+                  requeue = true;
+                  botsToWaitFor[aCommand.device] = true;
+                  lastCommandWasBusy = false;
+                  lastCommandSent[anAddr] = 0;
+                }
+                else if (retryCurtainNoResponse && noResponse && (aCommand.currentTry <= noResponseRetryAmount)) {
+                  printAString("current retry...");
+                  printAString(aCommand.currentTry);
 
-                    requeue = true;
-                    botsToWaitFor[aCommand.device] = true;
-                    lastCommandWasBusy = false;
-                  }
-                  else {
-                    std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
-                    if (itP != botsToWaitFor.end())
-                    {
-                      botsToWaitFor.erase(aCommand.device);
-                    }
+                  requeue = true;
+                  botsToWaitFor[aCommand.device] = true;
+                  lastCommandWasBusy = false;
+                }
+                else {
+                  std::map<std::string, bool>::iterator itP = botsToWaitFor.find(aCommand.device);
+                  if (itP != botsToWaitFor.end())
+                  {
+                    botsToWaitFor.erase(aCommand.device);
                   }
                 }
+
+                waitForResponse = false;
+                noResponse = false;
               }
-              waitForResponse = false;
-              noResponse = false;
             }
 
             std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aCommand.device);
@@ -5072,7 +5575,7 @@ bool sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string & aName, const
         doc["status"] = "errorRequestInfo";
         doc["command"] = command;
         serializeJson(doc, aBuffer);
-        addToPublish(deviceStatusTopic.c_str(),  aBuffer);
+        client.publish(deviceStatusTopic.c_str(),  aBuffer);
       }
       return isSuccess;
     }
@@ -5090,7 +5593,7 @@ bool sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string & aName, const
         doc["status"] = "connected";
         doc["command"] = command;
         serializeJson(doc, aBuffer);
-        addToPublish(deviceStatusTopic.c_str(),  aBuffer);
+        client.publish(deviceStatusTopic.c_str(),  aBuffer);
       }
       else {
         if (count > tryConnecting) {
@@ -5098,7 +5601,7 @@ bool sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string & aName, const
           doc["status"] = "errorConnect";
           doc["command"] = command;
           serializeJson(doc, aBuffer);
-          addToPublish(deviceStatusTopic.c_str(),  aBuffer);
+          client.publish(deviceStatusTopic.c_str(),  aBuffer);
         }
       }
     }
@@ -5120,7 +5623,7 @@ bool sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string & aName, const
             doc["status"] = "commandSent";
             doc["command"] = command;
             serializeJson(doc, aBuffer);
-            addToPublish(deviceStatusTopic.c_str(), aBuffer);
+            client.publish(deviceStatusTopic.c_str(), aBuffer);
           }
           lastCommandSentPublished = false;
           if (strcmp(command, "REQUESTSETTINGS") != 0 && strcmp(command, "GETSETTINGS") != 0) {
@@ -5179,7 +5682,7 @@ bool sendToDevice(NimBLEAdvertisedDevice * advDevice, std::string & aName, const
             doc["status"] = "errorCommand";
             doc["command"] = command;
             serializeJson(doc, aBuffer);
-            addToPublish(deviceStatusTopic.c_str(),  aBuffer);
+            client.publish(deviceStatusTopic.c_str(),  aBuffer);
           }
         }
       }
@@ -5251,6 +5754,15 @@ bool controlMQTT(std::string & device, std::string payload, bool disconnectAfter
     std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
     deviceAddr = anAddr.c_str();
     deviceTopic = motionTopic;
+  }
+
+  itS = allPlugs.find(device.c_str());
+  if (itS != allPlugs.end())
+  {
+    anAddr = itS->second;
+    std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+    deviceAddr = anAddr.c_str();
+    deviceTopic = plugTopic;
   }
 
   bool diffDevice = false;
@@ -5464,6 +5976,14 @@ void requestInfoMQTT(std::string & payload) {
         deviceAddr = anAddr.c_str();
         deviceTopic = motionTopic;
       }
+      itS = allPlugs.find(aName);
+      if (itS != allPlugs.end())
+      {
+        anAddr = itS->second;
+        std::transform(anAddr.begin(), anAddr.end(), anAddr.begin(), to_lower());
+        deviceAddr = anAddr.c_str();
+        deviceTopic = plugTopic;
+      }
     }
     if (deviceAddr != "") {
       deviceTopic = deviceTopic + aName;
@@ -5492,148 +6012,1596 @@ void onConnectionEstablished() {
   std::string aDevice;
   std::map<std::string, std::string>::iterator it;
 
-  if (!deviceHasBooted) {
-    deviceHasBooted = true;
-    if (ledOnBootScan) {
-      digitalWrite(LED_PIN, ledONValue);
+  if (manualDebugStartESP32WithMQTT) {
+    client.subscribe((ESPMQTTTopic + "/manualstart").c_str(), [aDevice] (const String & payload)  {
+      if ((payload != NULL) && !(payload.isEmpty())) {
+        printAString("Manually starting ESP32...");
+        manualDebugStartESP32WithMQTT = false;
+        client.unsubscribe((ESPMQTTTopic + "/manualstart").c_str());
+        onConnectionEstablished();
+      }
+    });
+  }
+
+  else {
+    if (!deviceHasBooted) {
+      deviceHasBooted = true;
+      if (ledOnBootScan) {
+        digitalWrite(LED_PIN, ledONValue);
+      }
+      client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"boot\"}");
+      client.publish((esp32Topic + "/firmware").c_str(), versionNum, true);
+
+      delay(100);
+      it = allBots.begin();
+      while (it != allBots.end())
+      {
+        std::string deviceStr ;
+        aDevice = it->first.c_str();
+        client.subscribe((botTopic + aDevice + "/assumedstate").c_str(), [aDevice] (const String & payload)  {
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            printAString("state MQTT Received (from retained)...updating ON/OFF simulate states");
+
+            if (isBotDevice(aDevice)) {
+              std::map<std::string, std::string>::iterator itP = allBots.find(aDevice);
+              if (itP != allBots.end())
+              {
+                std::string aMac = itP->second.c_str();
+                std::map<std::string, bool>::iterator itZ = botsInPressMode.find(aMac);
+                std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
+                std::map<std::string, bool>::iterator itI = botsSimulatedStates.find(aDevice);
+
+                if (itE != botsSimulateONOFFinPRESSmode.end())
+                {
+                  printAString("settings the value");
+                  if ((strcmp(payload.c_str(), "OFF") == 0)) {
+                    if (itI == botsSimulatedStates.end()) {
+                      botsSimulatedStates[aDevice] = false;
+                    }
+
+                  } else if ((strcmp(payload.c_str(), "ON") == 0)) {
+                    if (itI == botsSimulatedStates.end()) {
+                      botsSimulatedStates[aDevice] = true;
+                    }
+                  }
+                }
+              }
+            }
+          }
+          client.unsubscribe((botTopic + aDevice + "/assumedstate").c_str());
+        });
+
+        client.subscribe((botTopic + aDevice + "/settings").c_str(), [aDevice] (const String & payload)  {
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            printAString("settings MQTT Received (from retained)...updating firmware/timers/hold");
+            StaticJsonDocument<100> docIn;
+            if (isBotDevice(aDevice)) {
+              printAString("going thru bot settings retained");
+              std::map<std::string, std::string>::iterator itP = allBots.find(aDevice);
+              if (itP != allBots.end())
+              {
+                std::string aMac = itP->second.c_str();
+                deserializeJson(docIn, payload.c_str());
+                if (docIn.containsKey("firmware")) {
+                  printAString("contains firmware");
+                  const char * firmware = docIn["firmware"];
+                  botFirmwares[aMac] = firmware;
+                }
+                if (docIn.containsKey("timers")) {
+                  printAString("contains timers");
+                  botNumTimers[aMac] = docIn["timers"];
+                }
+                if (docIn.containsKey("hold")) {
+                  printAString("contains hold");
+                  botHoldSecs[aMac] = docIn["hold"];
+                }
+                if (docIn.containsKey("inverted")) {
+                  printAString("contains inverted");
+                  botInverteds[aMac] = docIn["inverted"];
+                }
+              }
+            }
+          }
+          client.unsubscribe((botTopic + aDevice + "/settings").c_str());
+        });
+        it++;
+      }
     }
-    client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"boot\"}");
-    delay(100);
+    addToPublish(lastWill, "online", true);
+
+    it = allCurtains.begin();
+    while (it != allCurtains.end())
+    {
+      std::string deviceStr ;
+      aDevice = it->first.c_str();
+      client.subscribe((curtainTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
+        if ((payload != NULL) && !(payload.isEmpty())) {
+          printAString("Control MQTT Received...");
+          if (pScan->isScanning() || isRescanning) {
+            if (pScan->isScanning()) {
+              pScan->stop();
+            }
+            allSwitchbotsScanned = {};
+            forceRescan = true;
+            lastUpdateTimes = {};
+          }
+          if (!commandQueue.isFull()) {
+            if (immediateCurtainStateUpdate && isCurtainDevice(aDevice)) {
+              std::string deviceStateTopic = curtainTopic + aDevice + "/state";
+              std::string devicePosTopic = curtainTopic + aDevice + "/position";
+              std::map<std::string, std::string>::iterator itP = allCurtains.find(aDevice);
+              if (itP != allCurtains.end())
+              {
+                std::string aMac = itP->second.c_str();
+
+                String tempPayload = payload.c_str();
+                int dotIndex = tempPayload.indexOf(".");
+                if (dotIndex >= 0) {
+                  tempPayload.remove(dotIndex, tempPayload.length() - 1);
+                }
+
+                bool isNum = is_number(tempPayload.c_str());
+
+                if (isNum) {
+                  int aVal;
+                  sscanf(tempPayload.c_str(), "%d", &aVal);
+                  if (aVal < 0) {
+                    aVal = 0;
+                  }
+                  else if (aVal > 100) {
+                    aVal = 100;
+                  }
+                  StaticJsonDocument<50> docPos;
+                  char aBuffer[100];
+                  docPos["pos"] = aVal;
+                  serializeJson(docPos, aBuffer);
+                  addToPublish(devicePosTopic.c_str(), aBuffer);
+                }
+                else if ((strcmp(payload.c_str(), "OPEN") == 0))  {
+                  addToPublish(deviceStateTopic.c_str(), "OPEN", true);
+                } else if ((strcmp(payload.c_str(), "CLOSE") == 0))  {
+                  addToPublish(deviceStateTopic.c_str(), "CLOSE", true);
+                } else if ((strcmp(payload.c_str(), "PAUSE") == 0)) {
+                  addToPublish(deviceStateTopic.c_str(), "PAUSE", true);
+                }
+              }
+            }
+            struct QueueCommand queueCommand;
+            queueCommand.payload = payload.c_str();
+            queueCommand.topic = ESPMQTTTopic + "/control";
+            queueCommand.device = aDevice;
+            queueCommand.disconnectAfter = true;
+            queueCommand.priority = false;
+            queueCommand.currentTry = 1;
+            commandQueue.enqueue(queueCommand);
+          }
+          else {
+            client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+          }
+        }
+      });
+
+      it++;
+    }
+
     it = allBots.begin();
     while (it != allBots.end())
     {
       std::string deviceStr ;
       aDevice = it->first.c_str();
-      client.subscribe((botTopic + aDevice + "/assumedstate").c_str(), [aDevice] (const String & payload)  {
+
+      client.subscribe((botTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
         if ((payload != NULL) && !(payload.isEmpty())) {
-          printAString("state MQTT Received (from retained)...updating ON/OFF simulate states");
+          printAString("Control MQTT Received...");
 
-          if (isBotDevice(aDevice)) {
-            std::map<std::string, std::string>::iterator itP = allBots.find(aDevice);
-            if (itP != allBots.end())
-            {
-              std::string aMac = itP->second.c_str();
-              std::map<std::string, bool>::iterator itZ = botsInPressMode.find(aMac);
-              std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
-              std::map<std::string, bool>::iterator itI = botsSimulatedStates.find(aDevice);
-
-              if (itE != botsSimulateONOFFinPRESSmode.end())
-              {
-                printAString("settings the value");
-                if ((strcmp(payload.c_str(), "OFF") == 0)) {
-                  if (itI == botsSimulatedStates.end()) {
-                    botsSimulatedStates[aDevice] = false;
+          std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
+          std::string deviceStateTopic = botTopic + aDevice + "/state";
+          if (itE != botsSimulateONOFFinPRESSmode.end() && ((strcmp(payload.c_str(), "STATEOFF") == 0) || (strcmp(payload.c_str(), "STATEON") == 0))) {
+            std::string deviceAssumedStateTopic = botTopic + aDevice + "/assumedstate";
+            if (strcmp(payload.c_str(), "STATEOFF") == 0) {
+              botsSimulatedStates[aDevice] = false;
+              addToPublish(deviceStateTopic.c_str(), "OFF", true);
+              addToPublish(deviceAssumedStateTopic.c_str(), "OFF", true);
+            }
+            else if (strcmp(payload.c_str(), "STATEON") == 0) {
+              botsSimulatedStates[aDevice] = true;
+              addToPublish(deviceStateTopic.c_str(), "ON", true);
+              addToPublish(deviceAssumedStateTopic.c_str(), "ON", true);
+            }
+          }
+          else {
+            if (pScan->isScanning() || isRescanning) {
+              if (pScan->isScanning()) {
+                pScan->stop();
+              }
+              allSwitchbotsScanned = {};
+              forceRescan = true;
+              lastUpdateTimes = {};
+            }
+            if (!commandQueue.isFull()) {
+              if (isBotDevice(aDevice)) {
+                std::map<std::string, std::string>::iterator itP = allBots.find(aDevice);
+                if (itP != allBots.end())
+                {
+                  std::string aMac = itP->second.c_str();
+                  std::map<std::string, bool>::iterator itZ = botsInPressMode.find(aMac);
+                  std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
+                  if (immediateBotStateUpdate) {
+                    if (itZ != botsInPressMode.end() && itE == botsSimulateONOFFinPRESSmode.end())
+                    {
+                      addToPublish(deviceStateTopic.c_str(), "OFF", true);
+                    }
+                    else {
+                      if ((strcmp(payload.c_str(), "OFF") == 0)) {
+                        addToPublish(deviceStateTopic.c_str(), "OFF", true);
+                      } else if ((strcmp(payload.c_str(), "ON") == 0)) {
+                        addToPublish(deviceStateTopic.c_str(), "ON", true);
+                      }
+                    }
                   }
 
-                } else if ((strcmp(payload.c_str(), "ON") == 0)) {
-                  if (itI == botsSimulatedStates.end()) {
-                    botsSimulatedStates[aDevice] = true;
+                  int aHold = -1;
+                  std::string commandString = "";
+                  if (itE != botsSimulateONOFFinPRESSmode.end())
+                  {
+                    if (strcmp(payload.c_str(), "OFF") == 0) {
+                      commandString = "OFF";
+                      std::map<std::string, int>::iterator itI = botsSimulatedOFFHoldTimes.find(aDevice);
+                      if (itI != botsSimulatedOFFHoldTimes.end())
+                      {
+                        aHold = itI->second;
+                      }
+                    }
+
+                    else if (strcmp(payload.c_str(), "ON") == 0) {
+                      commandString = "ON";
+                      std::map<std::string, int>::iterator itI = botsSimulatedONHoldTimes.find(aDevice);
+                      if (itI != botsSimulatedONHoldTimes.end())
+                      {
+                        aHold = itI->second;
+                      }
+                    }
+                  }
+                  if (aHold >= 0) {
+                    performHoldPressSequence(aDevice, commandString, aHold);
+                  }
+                  else {
+                    struct QueueCommand queueCommand;
+                    queueCommand.payload = payload.c_str();
+                    queueCommand.topic = ESPMQTTTopic + "/control";
+                    queueCommand.device = aDevice;
+                    queueCommand.disconnectAfter = true;
+                    queueCommand.priority = false;
+                    queueCommand.currentTry = 1;
+                    commandQueue.enqueue(queueCommand);
                   }
                 }
               }
             }
-          }
-        }
-        client.unsubscribe((botTopic + aDevice + "/assumedstate").c_str());
-      });
-
-      client.subscribe((botTopic + aDevice + "/settings").c_str(), [aDevice] (const String & payload)  {
-        if ((payload != NULL) && !(payload.isEmpty())) {
-          printAString("settings MQTT Received (from retained)...updating firmware/timers/hold");
-          StaticJsonDocument<100> docIn;
-          if (isBotDevice(aDevice)) {
-            printAString("going thru bot settings retained");
-            std::map<std::string, std::string>::iterator itP = allBots.find(aDevice);
-            if (itP != allBots.end())
-            {
-              std::string aMac = itP->second.c_str();
-              deserializeJson(docIn, payload.c_str());
-              if (docIn.containsKey("firmware")) {
-                printAString("contains firmware");
-                const char * firmware = docIn["firmware"];
-                botFirmwares[aMac] = firmware;
-              }
-              if (docIn.containsKey("timers")) {
-                printAString("contains timers");
-                botNumTimers[aMac] = docIn["timers"];
-              }
-              if (docIn.containsKey("hold")) {
-                printAString("contains hold");
-                botHoldSecs[aMac] = docIn["hold"];
-              }
-              if (docIn.containsKey("inverted")) {
-                printAString("contains inverted");
-                botInverteds[aMac] = docIn["inverted"];
-              }
+            else {
+              client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
             }
           }
         }
-        client.unsubscribe((botTopic + aDevice + "/settings").c_str());
       });
+
       it++;
     }
-  }
-  addToPublish(lastWill, "online", true);
 
-  it = allCurtains.begin();
-  while (it != allCurtains.end())
-  {
-    std::string deviceStr ;
-    aDevice = it->first.c_str();
-    client.subscribe((curtainTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
-      if ((payload != NULL) && !(payload.isEmpty())) {
-        printAString("Control MQTT Received...");
-        if (pScan->isScanning() || isRescanning) {
-          if (pScan->isScanning()) {
-            pScan->stop();
+
+    it = allPlugs.begin();
+    while (it != allPlugs.end())
+    {
+      std::string deviceStr ;
+      aDevice = it->first.c_str();
+
+      client.subscribe((plugTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
+        if ((payload != NULL) && !(payload.isEmpty())) {
+          printAString("Control MQTT Received...");
+          std::string deviceStateTopic = plugTopic + aDevice + "/state";
+
+          if (pScan->isScanning() || isRescanning) {
+            if (pScan->isScanning()) {
+              pScan->stop();
+            }
+            allSwitchbotsScanned = {};
+            forceRescan = true;
+            lastUpdateTimes = {};
           }
-          allSwitchbotsScanned = {};
-          forceRescan = true;
-          lastUpdateTimes = {};
-        }
-        if (!commandQueue.isFull()) {
-          if (immediateCurtainStateUpdate && isCurtainDevice(aDevice)) {
-            std::string deviceStateTopic = curtainTopic + aDevice + "/state";
-            std::string devicePosTopic = curtainTopic + aDevice + "/position";
-            std::map<std::string, std::string>::iterator itP = allCurtains.find(aDevice);
-            if (itP != allCurtains.end())
-            {
-              std::string aMac = itP->second.c_str();
-
-              String tempPayload = payload.c_str();
-              int dotIndex = tempPayload.indexOf(".");
-              if (dotIndex >= 0) {
-                tempPayload.remove(dotIndex, tempPayload.length() - 1);
-              }
-
-              bool isNum = is_number(tempPayload.c_str());
-
-              if (isNum) {
-                int aVal;
-                sscanf(tempPayload.c_str(), "%d", &aVal);
-                if (aVal < 0) {
-                  aVal = 0;
+          if (!commandQueue.isFull()) {
+            if (isPlugDevice(aDevice)) {
+              std::map<std::string, std::string>::iterator itP = allPlugs.find(aDevice);
+              if (itP != allPlugs.end())
+              {
+                std::string aMac = itP->second.c_str();
+                if (immediatePlugStateUpdate) {
+                  if ((strcmp(payload.c_str(), "OFF") == 0)) {
+                    addToPublish(deviceStateTopic.c_str(), "OFF", true);
+                  } else if ((strcmp(payload.c_str(), "ON") == 0)) {
+                    addToPublish(deviceStateTopic.c_str(), "ON", true);
+                  }
                 }
-                else if (aVal > 100) {
-                  aVal = 100;
-                }
-                StaticJsonDocument<50> docPos;
-                char aBuffer[100];
-                docPos["pos"] = aVal;
-                serializeJson(docPos, aBuffer);
-                addToPublish(devicePosTopic.c_str(), aBuffer);
-              }
-              else if ((strcmp(payload.c_str(), "OPEN") == 0))  {
-                addToPublish(deviceStateTopic.c_str(), "OPEN", true);
-              } else if ((strcmp(payload.c_str(), "CLOSE") == 0))  {
-                addToPublish(deviceStateTopic.c_str(), "CLOSE", true);
-              } else if ((strcmp(payload.c_str(), "PAUSE") == 0)) {
-                addToPublish(deviceStateTopic.c_str(), "PAUSE", true);
+                struct QueueCommand queueCommand;
+                queueCommand.payload = payload.c_str();
+                queueCommand.topic = ESPMQTTTopic + "/control";
+                queueCommand.device = aDevice;
+                queueCommand.disconnectAfter = true;
+                queueCommand.priority = false;
+                queueCommand.currentTry = 1;
+                commandQueue.enqueue(queueCommand);
               }
             }
           }
+          else {
+            client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+          }
+        }
+      });
+
+      it++;
+    }
+
+    it = allMeters.begin();
+    while (it != allMeters.end())
+    {
+      std::string deviceStr ;
+      aDevice = it->first.c_str();
+      client.subscribe((meterTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
+        if ((payload != NULL) && !(payload.isEmpty())) {
+          printAString("Control MQTT Received...");
+          bool skip = false;
+          if (isRescanning) {
+            if (pScan->isScanning() || isRescanning) {
+              if (pScan->isScanning()) {
+                pScan->stop();
+              }
+              allSwitchbotsScanned = {};
+              forceRescan = true;
+              lastUpdateTimes = {};
+            }
+            if ((strcmp(payload.c_str(), "REQUESTINFO") == 0) || (strcmp(payload.c_str(), "GETINFO") == 0)) {
+              skip = true;
+            }
+          }
+          if (!skip) {
+            if (!commandQueue.isFull()) {
+              struct QueueCommand queueCommand;
+              queueCommand.payload = payload.c_str();
+              queueCommand.topic = ESPMQTTTopic + "/control";
+              queueCommand.device = aDevice;
+              queueCommand.disconnectAfter = true;
+              queueCommand.priority = false;
+              queueCommand.currentTry = 1;
+              commandQueue.enqueue(queueCommand);
+            }
+            else {
+              client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+            }
+          }
+        }
+      });
+
+      it++;
+    }
+
+    it = allContactSensors.begin();
+    while (it != allContactSensors.end())
+    {
+      std::string deviceStr ;
+      aDevice = it->first.c_str();
+      client.subscribe((contactTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
+        if ((payload != NULL) && !(payload.isEmpty())) {
+          printAString("Control MQTT Received...");
+          bool skip = false;
+          if (isRescanning) {
+            if (pScan->isScanning() || isRescanning) {
+              if (pScan->isScanning()) {
+                pScan->stop();
+              }
+              allSwitchbotsScanned = {};
+              forceRescan = true;
+              lastUpdateTimes = {};
+            }
+            if ((strcmp(payload.c_str(), "REQUESTINFO") == 0) || (strcmp(payload.c_str(), "GETINFO") == 0)) {
+              skip = true;
+            }
+          }
+          if (!skip) {
+            if (!commandQueue.isFull()) {
+              struct QueueCommand queueCommand;
+              queueCommand.payload = payload.c_str();
+              queueCommand.topic = ESPMQTTTopic + "/control";
+              queueCommand.device = aDevice;
+              queueCommand.disconnectAfter = true;
+              queueCommand.priority = false;
+              queueCommand.currentTry = 1;
+              commandQueue.enqueue(queueCommand);
+            }
+            else {
+              client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+            }
+          }
+        }
+      });
+
+
+
+      if (!isMeshNode && meshContactSensors && enableMesh) {
+        client.subscribe((contactTopic + aDevice + "/buttoncount").c_str(), [aDevice] (const String & payload)  {
+
+          printAString("START contactTopic + aDevice + buttoncount");
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            printAString("MQTT meshButtonCount received...");
+            std::string anAddr;
+            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+            if (itY != allSwitchbots.end())
+            {
+              anAddr = itY->second;
+              bool isNum = is_number(payload.c_str());
+              if (isNum) {
+                int buttonCount;
+                sscanf(payload.c_str(), "%d", &buttonCount);
+                if (buttonCount != 0) {
+                  std::map<std::string, int>::iterator itE = buttonCounts.find(anAddr);
+                  if (itE != buttonCounts.end())
+                  {
+                    int bCount = itE->second;
+
+                    if ((bCount < buttonCount) ||  ((bCount > 10) && (buttonCount < 5))) {
+                      buttonCounts[anAddr] = buttonCount;
+                      std::string deviceButtonTopic = contactTopic + aDevice + "/button";
+                      //addToPublish(deviceButtonTopic.c_str(), "PUSHED", false);
+                      client.publish(deviceButtonTopic.c_str(), "PUSHED", false);
+                      lastButton[anAddr] = millis();
+                    }
+                  }
+                }
+              }
+            }
+          }
+          printAString("END contactTopic + aDevice + buttoncount");
+        });
+
+        client.subscribe((contactTopic + aDevice + "/outcount").c_str(), [aDevice] (const String & payload)  {
+          printAString("START contactTopic + aDevice + outcount");
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            printAString("MQTT meshOutCount received...");
+            std::string anAddr;
+            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+            if (itY != allSwitchbots.end())
+            {
+              anAddr = itY->second;
+              bool isNum = is_number(payload.c_str());
+              if (isNum) {
+                int outCount;
+                sscanf(payload.c_str(), "%d", &outCount);
+                if (outCount != 0) {
+                  std::map<std::string, int>::iterator itE = outCounts.find(anAddr);
+                  if (itE != outCounts.end())
+                  {
+                    int bCount = itE->second;
+
+                    if ((bCount < outCount) ||  ((bCount == 3) && (outCount == 1))) {
+                      outCounts[anAddr] = outCount;
+                      std::string deviceOutTopic = contactTopic + aDevice + "/out";
+                      //addToPublish(deviceOutTopic.c_str(), "EXITED", false);
+                      client.publish(deviceOutTopic.c_str(), "EXITED", false);
+                      lastOut[anAddr] = millis();
+                    }
+                  }
+                }
+              }
+            }
+          }
+          printAString("END contactTopic + aDevice + outcount");
+        });
+
+        client.subscribe((contactTopic + aDevice + "/incount").c_str(), [aDevice] (const String & payload)  {
+          printAString("START contactTopic + aDevice + incount");
+          if ((payload != NULL) && !(payload.isEmpty())) {
+            printAString("MQTT meshInCount received...");
+            std::string anAddr;
+            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+            if (itY != allSwitchbots.end())
+            {
+              anAddr = itY->second;
+              bool isNum = is_number(payload.c_str());
+              if (isNum) {
+                int inCount;
+                sscanf(payload.c_str(), "%d", &inCount);
+                if (inCount != 0) {
+                  std::map<std::string, int>::iterator itE = entranceCounts.find(anAddr);
+                  if (itE != entranceCounts.end())
+                  {
+                    int bCount = itE->second;
+                    if ((bCount < inCount) ||  ((bCount == 3) && (inCount == 1))) {
+                      entranceCounts[anAddr] = inCount;
+                      std::string deviceInTopic = contactTopic + aDevice + "/in";
+                      //addToPublish(deviceInTopic.c_str(), "ENTERED", false);
+                      client.publish(deviceInTopic.c_str(), "ENTERED", false);
+                      lastIn[anAddr] = millis();
+                    }
+                  }
+                }
+              }
+            }
+          }
+          printAString("END contactTopic + aDevice + outcount");
+        });
+
+      }
+
+      if (meshContactSensors && enableMesh) {
+        if (countMotionToAvoidDuplicates) {
+          client.subscribe((contactTopic + aDevice + "/motioncount").c_str(), [aDevice] (const String & payload)  {
+            printAString("START contactTopic + aDevice + motioncount");
+            if ((payload != NULL) && !(payload.isEmpty())) {
+              printAString("MQTT meshMotionCount received...");
+              std::string anAddr;
+              std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+              if (itY != allSwitchbots.end())
+              {
+                anAddr = itY->second;
+                bool isNum = is_number(payload.c_str());
+                if (isNum) {
+                  int newMeshMotionCount;
+                  sscanf(payload.c_str(), "%d", &newMeshMotionCount);
+                  if (newMeshMotionCount != 0) {
+                    std::map<std::string, int>::iterator itWE = motionCounts.find(anAddr.c_str());
+                    int motionCount = 0;
+                    if (itWE != motionCounts.end())
+                    {
+                      motionCount = itWE->second;
+                    }
+
+                    itWE = meshMotionCounts.find(anAddr.c_str());
+                    int meshMotionCount = 0;
+                    if (itWE != meshMotionCounts.end())
+                    {
+                      meshMotionCount = itWE->second;
+                    }
+
+                    itWE = noMotionCounts.find(anAddr.c_str());
+                    int noMotionCount = 0;
+                    if (itWE != noMotionCounts.end())
+                    {
+                      noMotionCount = itWE->second;
+                    }
+
+                    itWE = meshNoMotionCounts.find(anAddr.c_str());
+                    int meshNoMotionCount = 0;
+                    if (itWE != meshNoMotionCounts.end())
+                    {
+                      meshNoMotionCount = itWE->second;
+                    }
+
+                    if ((motionCount == 0) && (meshMotionCount == 0)) {
+                      meshMotionCounts[anAddr.c_str()] = newMeshMotionCount;
+                      motionCounts[anAddr.c_str()] = newMeshMotionCount;
+                    }
+                    else if (meshMotionCount != 0)
+                    {
+                      if ((meshMotionCount < newMeshMotionCount) ||  ((meshMotionCount > 40) && (newMeshMotionCount < 10))) {
+                        motionMeshStates[anAddr.c_str()] = "MOTION";
+                        meshMotionCounts[anAddr.c_str()] = newMeshMotionCount;
+                        if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                          std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
+                          addToPublish(deviceMotionTopic.c_str(), "MOTION", true);
+                        }
+                        if (motionCount != newMeshMotionCount) {
+                          updateMotionCount[anAddr.c_str()] = millis();
+                          updateMeshMotionCount[anAddr.c_str()] = newMeshMotionCount;
+                        }
+                      }
+                      else if ((meshMotionCount == newMeshMotionCount) && (noMotionCount == meshNoMotionCount)) {
+                        std::map<std::string, std::string>::iterator itH = motionMeshStates.find(anAddr.c_str());
+                        if (itH != motionMeshStates.end())
+                        {
+                          std::string motionState = itH->second.c_str();
+                          if (strcmp(motionState.c_str(), "MOTION") == 0) {
+                            if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                              std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
+                              addToPublish(deviceMotionTopic.c_str(), "MOTION", true);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            printAString("END contactTopic + aDevice + motioncount");
+          });
+
+          client.subscribe((contactTopic + aDevice + "/nomotioncount").c_str(), [aDevice] (const String & payload)  {
+            printAString("START contactTopic + aDevice + nomotioncount");
+            if ((payload != NULL) && !(payload.isEmpty())) {
+              printAString("MQTT meshNoMotionCount received...");
+              std::string anAddr;
+              std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+              if (itY != allSwitchbots.end())
+              {
+                anAddr = itY->second;
+                bool isNum = is_number(payload.c_str());
+                if (isNum) {
+                  int newMeshNoMotionCount;
+                  sscanf(payload.c_str(), "%d", &newMeshNoMotionCount);
+                  if (newMeshNoMotionCount != 0) {
+                    std::map<std::string, int>::iterator itWE = noMotionCounts.find(anAddr.c_str());
+                    int noMotionCount = 0;
+                    if (itWE != noMotionCounts.end())
+                    {
+                      noMotionCount = itWE->second;
+                    }
+
+                    itWE = meshNoMotionCounts.find(anAddr.c_str());
+                    int meshNoMotionCount = 0;
+                    if (itWE != meshNoMotionCounts.end())
+                    {
+                      meshNoMotionCount = itWE->second;
+                    }
+
+                    itWE = motionCounts.find(anAddr.c_str());
+                    int motionCount = 0;
+                    if (itWE != motionCounts.end())
+                    {
+                      motionCount = itWE->second;
+                    }
+
+                    itWE = meshMotionCounts.find(anAddr.c_str());
+                    int meshMotionCount = 0;
+                    if (itWE != meshMotionCounts.end())
+                    {
+                      meshMotionCount = itWE->second;
+                    }
+
+                    if ((noMotionCount == 0) && (meshNoMotionCount == 0)) {
+                      meshNoMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
+                      noMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
+                    }
+                    else if (meshNoMotionCount != 0)
+                    {
+                      if ((meshNoMotionCount < newMeshNoMotionCount) ||  ((meshNoMotionCount > 40) && (newMeshNoMotionCount < 10))) {
+                        motionMeshStates[anAddr.c_str()] = "NO MOTION";
+                        meshNoMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
+                        if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                          std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
+                          addToPublish(deviceMotionTopic.c_str(), "NO MOTION", true);
+                        }
+                        if (noMotionCount != newMeshNoMotionCount) {
+                          updateNoMotionCount[anAddr.c_str()] = millis();
+                          updateMeshNoMotionCount[anAddr.c_str()] = newMeshNoMotionCount;
+                        }
+                      }
+                      else if ((meshNoMotionCount == newMeshNoMotionCount) && (motionCount == meshMotionCount)) {
+                        std::map<std::string, std::string>::iterator itH = motionMeshStates.find(anAddr.c_str());
+                        if (itH != motionMeshStates.end())
+                        {
+                          std::string motionState = itH->second.c_str();
+                          if (strcmp(motionState.c_str(), "NO MOTION") == 0) {
+                            if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                              std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
+                              addToPublish(deviceMotionTopic.c_str(), "NO MOTION", true);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            printAString("END contactTopic + aDevice + nomotioncount");
+          });
+
+        }
+
+        if (countContactToAvoidDuplicates) {
+          client.subscribe((contactTopic + aDevice + "/closedcount").c_str(), [aDevice] (const String & payload)  {
+            printAString("START contactTopic + aDevice + closedcount");
+            if ((payload != NULL) && !(payload.isEmpty())) {
+              printAString("MQTT meshClosedCount received...");
+              std::string anAddr;
+              std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+              if (itY != allSwitchbots.end())
+              {
+                anAddr = itY->second;
+                bool isNum = is_number(payload.c_str());
+                if (isNum) {
+                  int newMeshClosedCount;
+                  sscanf(payload.c_str(), "%d", &newMeshClosedCount);
+                  if (newMeshClosedCount != 0) {
+                    std::map<std::string, int>::iterator itWE = closedCounts.find(anAddr.c_str());
+                    int closedCount = 0;
+                    if (itWE != closedCounts.end())
+                    {
+                      closedCount = itWE->second;
+                    }
+
+                    itWE = meshClosedCounts.find(anAddr.c_str());
+                    int meshClosedCount = 0;
+                    if (itWE != meshClosedCounts.end())
+                    {
+                      meshClosedCount = itWE->second;
+                    }
+
+                    itWE = openCounts.find(anAddr.c_str());
+                    int openCount = 0;
+                    if (itWE != openCounts.end())
+                    {
+                      openCount = itWE->second;
+                    }
+
+                    itWE = meshOpenCounts.find(anAddr.c_str());
+                    int meshOpenCount = 0;
+                    if (itWE != meshOpenCounts.end())
+                    {
+                      meshOpenCount = itWE->second;
+                    }
+
+                    itWE = timeoutCounts.find(anAddr.c_str());
+                    int timeoutCount = 0;
+                    if (itWE != timeoutCounts.end())
+                    {
+                      timeoutCount = itWE->second;
+                    }
+
+                    itWE = meshTimeoutCounts.find(anAddr.c_str());
+                    int meshTimeoutCount = 0;
+                    if (itWE != meshTimeoutCounts.end())
+                    {
+                      meshTimeoutCount = itWE->second;
+                    }
+
+                    if ((closedCount == 0) && (meshClosedCount == 0)) {
+                      meshClosedCounts[anAddr.c_str()] = newMeshClosedCount;
+                      closedCounts[anAddr.c_str()] = newMeshClosedCount;
+                    }
+                    else if (meshClosedCount != 0)
+                    {
+                      if ((meshClosedCount < newMeshClosedCount) ||  ((meshClosedCount > 40) && (newMeshClosedCount < 10))) {
+                        contactMeshStates[anAddr.c_str()] = "CLOSED";
+                        meshClosedCounts[anAddr.c_str()] = newMeshClosedCount;
+                        if (!isMeshNode && onlyAllowRootESPToPublishContact) {
+                          std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+                          std::string deviceStateTopic = contactTopic + aDevice + "/state";
+                          std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
+                          addToPublish(deviceContactTopic.c_str(), "CLOSED", true);
+                          addToPublish(deviceStateTopic.c_str(), "CLOSED", true);
+                          addToPublish(deviceBinContactTopic.c_str(), "CLOSED", true);
+                        }
+                        if (closedCount != newMeshClosedCount) {
+                          updateClosedCount[anAddr.c_str()] = millis();
+                          updateMeshClosedCount[anAddr.c_str()] = newMeshClosedCount;
+                        }
+                      }
+                      else if ((meshClosedCount == newMeshClosedCount) && (openCount == meshOpenCount) && (timeoutCount == meshTimeoutCount)) {
+                        std::map<std::string, std::string>::iterator itH = contactMeshStates.find(anAddr.c_str());
+                        if (itH != contactMeshStates.end())
+                        {
+                          std::string contactState = itH->second.c_str();
+                          if (strcmp(contactState.c_str(), "CLOSED") == 0) {
+                            if (!isMeshNode && onlyAllowRootESPToPublishContact) {
+                              std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+                              std::string deviceStateTopic = contactTopic + aDevice + "/state";
+                              std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
+                              addToPublish(deviceContactTopic.c_str(), "CLOSED", true);
+                              addToPublish(deviceStateTopic.c_str(), "CLOSED", true);
+                              addToPublish(deviceBinContactTopic.c_str(), "CLOSED", true);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            printAString("END contactTopic + aDevice + closedcount");
+          });
+
+          client.subscribe((contactTopic + aDevice + "/opencount").c_str(), [aDevice] (const String & payload)  {
+            printAString("START contactTopic + aDevice + opencount");
+            if ((payload != NULL) && !(payload.isEmpty())) {
+              printAString("MQTT meshOpenCount received...");
+              std::string anAddr;
+              std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+              if (itY != allSwitchbots.end())
+              {
+                anAddr = itY->second;
+                bool isNum = is_number(payload.c_str());
+                if (isNum) {
+                  int newMeshOpenCount;
+                  sscanf(payload.c_str(), "%d", &newMeshOpenCount);
+                  if (newMeshOpenCount != 0) {
+                    std::map<std::string, int>::iterator itWE = closedCounts.find(anAddr.c_str());
+                    int closedCount = 0;
+                    if (itWE != closedCounts.end())
+                    {
+                      closedCount = itWE->second;
+                    }
+
+                    itWE = meshClosedCounts.find(anAddr.c_str());
+                    int meshClosedCount = 0;
+                    if (itWE != meshClosedCounts.end())
+                    {
+                      meshClosedCount = itWE->second;
+                    }
+
+                    itWE = openCounts.find(anAddr.c_str());
+                    int openCount = 0;
+                    if (itWE != openCounts.end())
+                    {
+                      openCount = itWE->second;
+                    }
+
+                    itWE = meshOpenCounts.find(anAddr.c_str());
+                    int meshOpenCount = 0;
+                    if (itWE != meshOpenCounts.end())
+                    {
+                      meshOpenCount = itWE->second;
+                    }
+
+                    itWE = timeoutCounts.find(anAddr.c_str());
+                    int timeoutCount = 0;
+                    if (itWE != timeoutCounts.end())
+                    {
+                      timeoutCount = itWE->second;
+                    }
+
+                    itWE = meshTimeoutCounts.find(anAddr.c_str());
+                    int meshTimeoutCount = 0;
+                    if (itWE != meshTimeoutCounts.end())
+                    {
+                      meshTimeoutCount = itWE->second;
+                    }
+
+                    if ((openCount == 0) && (meshOpenCount == 0)) {
+                      meshOpenCounts[anAddr.c_str()] = newMeshOpenCount;
+                      openCounts[anAddr.c_str()] = newMeshOpenCount;
+                    }
+                    else if (meshOpenCount != 0)
+                    {
+                      if ((meshOpenCount < newMeshOpenCount) || ((meshOpenCount > 40) && (newMeshOpenCount < 10)))  {
+                        contactMeshStates[anAddr.c_str()] = "OPEN";
+                        meshOpenCounts[anAddr.c_str()] = newMeshOpenCount;
+                        lastContacts[aDevice.c_str()] = millis();
+                        if (!isMeshNode && onlyAllowRootESPToPublishContact) {
+                          // addToPublish("esp32mesh1/" + aDevice + "/contact", "OPENFROMMESH+", true);
+                          std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+                          std::string deviceStateTopic = contactTopic + aDevice + "/state";
+                          std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
+                          addToPublish(deviceContactTopic.c_str(), "OPEN", true);
+                          addToPublish(deviceStateTopic.c_str(), "OPEN", true);
+                          addToPublish(deviceBinContactTopic.c_str(), "OPEN", true);
+                          addToPublish((contactTopic + aDevice + "/lastcontact"), 0, true);
+                        }
+
+                        if (openCount != newMeshOpenCount) {
+                          updateOpenCount[anAddr.c_str()] = millis();
+                          updateMeshOpenCount[anAddr.c_str()] = newMeshOpenCount;
+                        }
+                      }
+                      else if ((meshOpenCount == newMeshOpenCount) && (closedCount == meshClosedCount) && (timeoutCount == meshTimeoutCount)) {
+                        std::map<std::string, std::string>::iterator itH = contactMeshStates.find(anAddr.c_str());
+                        if (itH != contactMeshStates.end())
+                        {
+                          std::string contactState = itH->second.c_str();
+                          if (strcmp(contactState.c_str(), "OPEN") == 0) {
+                            lastContacts[aDevice.c_str()] = millis();
+                            if (!isMeshNode && onlyAllowRootESPToPublishContact) {
+                              std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+                              std::string deviceStateTopic = contactTopic + aDevice + "/state";
+                              std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
+                              addToPublish(deviceContactTopic.c_str(), "OPEN", true);
+                              addToPublish(deviceStateTopic.c_str(), "OPEN", true);
+                              addToPublish(deviceBinContactTopic.c_str(), "OPEN", true);
+                              addToPublish((contactTopic + aDevice + "/lastcontact"), 0, true);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            printAString("END contactTopic + aDevice + closedcount");
+          });
+
+          client.subscribe((contactTopic + aDevice + "/timeoutcount").c_str(), [aDevice] (const String & payload)  {
+            printAString("START contactTopic + aDevice + timeoutcount");
+            if ((payload != NULL) && !(payload.isEmpty())) {
+              printAString("MQTT meshTimeoutCount received...");
+              std::string anAddr;
+              std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+              if (itY != allSwitchbots.end())
+              {
+                anAddr = itY->second;
+                bool isNum = is_number(payload.c_str());
+                if (isNum) {
+                  int newMeshTimeoutCount;
+                  sscanf(payload.c_str(), "%d", &newMeshTimeoutCount);
+                  if (newMeshTimeoutCount != 0) {
+                    std::map<std::string, int>::iterator itWE = closedCounts.find(anAddr.c_str());
+                    int closedCount = 0;
+                    if (itWE != closedCounts.end())
+                    {
+                      closedCount = itWE->second;
+                    }
+
+                    itWE = meshClosedCounts.find(anAddr.c_str());
+                    int meshClosedCount = 0;
+                    if (itWE != meshClosedCounts.end())
+                    {
+                      meshClosedCount = itWE->second;
+                    }
+
+                    itWE = openCounts.find(anAddr.c_str());
+                    int openCount = 0;
+                    if (itWE != openCounts.end())
+                    {
+                      openCount = itWE->second;
+                    }
+
+                    itWE = meshOpenCounts.find(anAddr.c_str());
+                    int meshOpenCount = 0;
+                    if (itWE != meshOpenCounts.end())
+                    {
+                      meshOpenCount = itWE->second;
+                    }
+
+                    itWE = timeoutCounts.find(anAddr.c_str());
+                    int timeoutCount = 0;
+                    if (itWE != timeoutCounts.end())
+                    {
+                      timeoutCount = itWE->second;
+                    }
+
+                    itWE = meshTimeoutCounts.find(anAddr.c_str());
+                    int meshTimeoutCount = 0;
+                    if (itWE != meshTimeoutCounts.end())
+                    {
+                      meshTimeoutCount = itWE->second;
+                    }
+
+                    if ((timeoutCount == 0) && (meshTimeoutCount == 0)) {
+                      meshTimeoutCounts[anAddr.c_str()] = newMeshTimeoutCount;
+                      timeoutCounts[anAddr.c_str()] = newMeshTimeoutCount;
+                    }
+                    else if (meshTimeoutCount != 0)
+                    {
+                      if ((meshTimeoutCount < newMeshTimeoutCount) ||  ((meshTimeoutCount > 40) && (newMeshTimeoutCount < 10))) {
+                        contactMeshStates[anAddr.c_str()] = "TIMEOUT";
+                        meshTimeoutCounts[anAddr.c_str()] = newMeshTimeoutCount;
+                        lastContacts[aDevice.c_str()] = millis();
+                        if (!isMeshNode && onlyAllowRootESPToPublishContact) {
+                          std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+                          std::string deviceStateTopic = contactTopic + aDevice + "/state";
+                          std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
+                          addToPublish(deviceContactTopic.c_str(), "TIMEOUT", true);
+                          addToPublish(deviceStateTopic.c_str(), "TIMEOUT", true);
+                          addToPublish(deviceBinContactTopic.c_str(), "OPEN", true);
+                        }
+                        if (timeoutCount != newMeshTimeoutCount) {
+                          updateTimeoutCount[anAddr.c_str()] = millis();
+                          updateMeshTimeoutCount[anAddr.c_str()] = newMeshTimeoutCount;
+                        }
+                      }
+                      else if ((meshTimeoutCount == newMeshTimeoutCount) && (openCount == meshOpenCount) && (closedCount == meshClosedCount)) {
+                        std::map<std::string, std::string>::iterator itH = contactMeshStates.find(anAddr.c_str());
+                        if (itH != contactMeshStates.end())
+                        {
+                          std::string contactState = itH->second.c_str();
+                          if (strcmp(contactState.c_str(), "TIMEOUT") == 0) {
+                            lastContacts[aDevice.c_str()] = millis();
+                            if (!isMeshNode && onlyAllowRootESPToPublishContact) {
+                              std::string deviceContactTopic = contactTopic + aDevice + "/contact";
+                              std::string deviceStateTopic = contactTopic + aDevice + "/state";
+                              std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
+                              addToPublish(deviceContactTopic.c_str(), "TIMEOUT", true);
+                              addToPublish(deviceStateTopic.c_str(), "TIMEOUT", true);
+                              addToPublish(deviceBinContactTopic.c_str(), "OPEN", true);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            printAString("END contactTopic + aDevice + timeoutcount");
+          });
+        }
+
+        if (countLightToAvoidDuplicates) {
+          client.subscribe((contactTopic + aDevice + "/darkcount").c_str(), [aDevice] (const String & payload)  {
+            printAString("START contactTopic + aDevice + darkcount");
+            if ((payload != NULL) && !(payload.isEmpty())) {
+              printAString("MQTT meshDarkCount received...");
+              std::string anAddr;
+              std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+              if (itY != allSwitchbots.end())
+              {
+                anAddr = itY->second;
+                bool isNum = is_number(payload.c_str());
+                if (isNum) {
+                  int newMeshDarkCount;
+                  sscanf(payload.c_str(), "%d", &newMeshDarkCount);
+                  if (newMeshDarkCount != 0) {
+                    std::map<std::string, int>::iterator itWE = darkCounts.find(anAddr.c_str());
+                    int darkCount = 0;
+                    if (itWE != darkCounts.end())
+                    {
+                      darkCount = itWE->second;
+                    }
+
+                    itWE = meshDarkCounts.find(anAddr.c_str());
+                    int meshDarkCount = 0;
+                    if (itWE != meshDarkCounts.end())
+                    {
+                      meshDarkCount = itWE->second;
+                    }
+
+                    itWE = brightCounts.find(anAddr.c_str());
+                    int brightCount = 0;
+                    if (itWE != brightCounts.end())
+                    {
+                      brightCount = itWE->second;
+                    }
+
+                    itWE = meshBrightCounts.find(anAddr.c_str());
+                    int meshBrightCount = 0;
+                    if (itWE != meshBrightCounts.end())
+                    {
+                      meshBrightCount = itWE->second;
+                    }
+
+                    if ((darkCount == 0) && (meshDarkCount == 0)) {
+                      meshDarkCounts[anAddr.c_str()] = newMeshDarkCount;
+                      darkCounts[anAddr.c_str()] = newMeshDarkCount;
+                    }
+                    else if (meshDarkCount != 0)
+                    {
+                      if ((meshDarkCount < newMeshDarkCount) ||  ((meshDarkCount > 40) && (newMeshDarkCount < 10))) {
+                        lightMeshStates[anAddr.c_str()] = "DARK";
+                        meshDarkCounts[anAddr.c_str()] = newMeshDarkCount;
+                        if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                          std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
+                          addToPublish(deviceLightTopic.c_str(), "DARK", true);
+                        }
+                        if (darkCount != newMeshDarkCount) {
+                          updateDarkCount[anAddr.c_str()] = millis();
+                          updateMeshDarkCount[anAddr.c_str()] = newMeshDarkCount;
+                        }
+                      }
+                      else if ((meshDarkCount == newMeshDarkCount) && (brightCount == meshBrightCount)) {
+                        std::map<std::string, std::string>::iterator itH = lightMeshStates.find(anAddr.c_str());
+                        if (itH != lightMeshStates.end())
+                        {
+                          std::string illuminanceState = itH->second.c_str();
+                          if (strcmp(illuminanceState.c_str(), "DARK") == 0) {
+                            if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                              std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
+                              addToPublish(deviceLightTopic.c_str(), "DARK", true);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            printAString("END contactTopic + aDevice + darkcount");
+          });
+
+          client.subscribe((contactTopic + aDevice + "/brightcount").c_str(), [aDevice] (const String & payload)  {
+            printAString("START contactTopic + aDevice + brightcount");
+            if ((payload != NULL) && !(payload.isEmpty())) {
+              printAString("MQTT meshBrightCount received...");
+              std::string anAddr;
+              std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+              if (itY != allSwitchbots.end())
+              {
+                anAddr = itY->second;
+                bool isNum = is_number(payload.c_str());
+                if (isNum) {
+                  int newMeshBrightCount;
+                  sscanf(payload.c_str(), "%d", &newMeshBrightCount);
+                  if (newMeshBrightCount != 0) {
+                    std::map<std::string, int>::iterator itWE = brightCounts.find(anAddr.c_str());
+                    int brightCount = 0;
+                    if (itWE != brightCounts.end())
+                    {
+                      brightCount = itWE->second;
+                    }
+
+                    itWE = meshBrightCounts.find(anAddr.c_str());
+                    int meshBrightCount = 0;
+                    if (itWE != meshBrightCounts.end())
+                    {
+                      meshBrightCount = itWE->second;
+                    }
+
+                    itWE = darkCounts.find(anAddr.c_str());
+                    int darkCount = 0;
+                    if (itWE != darkCounts.end())
+                    {
+                      darkCount = itWE->second;
+                    }
+
+                    itWE = meshDarkCounts.find(anAddr.c_str());
+                    int meshDarkCount = 0;
+                    if (itWE != meshDarkCounts.end())
+                    {
+                      meshDarkCount = itWE->second;
+                    }
+
+                    if ((brightCount == 0) && (meshBrightCount == 0)) {
+                      meshBrightCounts[anAddr.c_str()] = newMeshBrightCount;
+                      brightCounts[anAddr.c_str()] = newMeshBrightCount;
+                    }
+                    else if (meshBrightCount != 0)
+                    {
+                      if ((meshBrightCount < newMeshBrightCount) ||  ((meshBrightCount > 40) && (newMeshBrightCount < 10))) {
+                        lightMeshStates[anAddr.c_str()] = "BRIGHT";
+                        meshBrightCounts[anAddr.c_str()] = newMeshBrightCount;
+                        if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                          std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
+                          addToPublish(deviceLightTopic.c_str(), "BRIGHT", true);
+                        }
+                        if (brightCount != newMeshBrightCount) {
+                          updateBrightCount[anAddr.c_str()] = millis();
+                          updateMeshBrightCount[anAddr.c_str()] = newMeshBrightCount;
+                        }
+                      }
+                      else if ((meshBrightCount == newMeshBrightCount) && (darkCount == meshDarkCount)) {
+                        std::map<std::string, std::string>::iterator itH = lightMeshStates.find(anAddr.c_str());
+                        if (itH != lightMeshStates.end())
+                        {
+                          std::string illuminanceState = itH->second.c_str();
+                          if (strcmp(illuminanceState.c_str(), "BRIGHT") == 0) {
+                            if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                              std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
+                              addToPublish(deviceLightTopic.c_str(), "BRIGHT", true);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            printAString("END contactTopic + aDevice + brightcount");
+          });
+        }
+      }
+
+      it++;
+    }
+
+    it = allMotionSensors.begin();
+    while (it != allMotionSensors.end())
+    {
+      std::string deviceStr ;
+      aDevice = it->first.c_str();
+      client.subscribe((motionTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
+        if ((payload != NULL) && !(payload.isEmpty())) {
+          printAString("Control MQTT Received...");
+          bool skip = false;
+          if (isRescanning) {
+            if (pScan->isScanning() || isRescanning) {
+              if (pScan->isScanning()) {
+                pScan->stop();
+              }
+              allSwitchbotsScanned = {};
+              forceRescan = true;
+              lastUpdateTimes = {};
+            }
+            if ((strcmp(payload.c_str(), "REQUESTINFO") == 0) || (strcmp(payload.c_str(), "GETINFO") == 0)) {
+              skip = true;
+            }
+          }
+          if (!skip) {
+            if (!commandQueue.isFull()) {
+              struct QueueCommand queueCommand;
+              queueCommand.payload = payload.c_str();
+              queueCommand.topic = ESPMQTTTopic + "/control";
+              queueCommand.device = aDevice;
+              queueCommand.disconnectAfter = true;
+              queueCommand.priority = false;
+              queueCommand.currentTry = 1;
+              commandQueue.enqueue(queueCommand);
+            }
+            else {
+              client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+            }
+          }
+        }
+      });
+
+      if (meshMotionSensors && enableMesh) {
+        if (countMotionToAvoidDuplicates) {
+          client.subscribe((motionTopic + aDevice + "/motioncount").c_str(), [aDevice] (const String & payload)  {
+            printAString("START motionTopic + aDevice + motioncount");
+            if ((payload != NULL) && !(payload.isEmpty())) {
+              printAString("MQTT meshMotionCount received...");
+              std::string anAddr;
+              std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+              if (itY != allSwitchbots.end())
+              {
+                anAddr = itY->second;
+                bool isNum = is_number(payload.c_str());
+                if (isNum) {
+                  int newMeshMotionCount;
+                  sscanf(payload.c_str(), "%d", &newMeshMotionCount);
+                  if (newMeshMotionCount != 0) {
+                    std::map<std::string, int>::iterator itWE = motionCounts.find(anAddr.c_str());
+                    int motionCount = 0;
+                    if (itWE != motionCounts.end())
+                    {
+                      motionCount = itWE->second;
+                    }
+
+                    itWE = meshMotionCounts.find(anAddr.c_str());
+                    int meshMotionCount = 0;
+                    if (itWE != meshMotionCounts.end())
+                    {
+                      meshMotionCount = itWE->second;
+                    }
+
+                    itWE = noMotionCounts.find(anAddr.c_str());
+                    int noMotionCount = 0;
+                    if (itWE != noMotionCounts.end())
+                    {
+                      noMotionCount = itWE->second;
+                    }
+
+                    itWE = meshNoMotionCounts.find(anAddr.c_str());
+                    int meshNoMotionCount = 0;
+                    if (itWE != meshNoMotionCounts.end())
+                    {
+                      meshNoMotionCount = itWE->second;
+                    }
+
+                    if ((motionCount == 0) && (meshMotionCount == 0)) {
+                      meshMotionCounts[anAddr.c_str()] = newMeshMotionCount;
+                      motionCounts[anAddr.c_str()] = newMeshMotionCount;
+                    }
+                    else if (meshMotionCount != 0)
+                    {
+                      if ((meshMotionCount < newMeshMotionCount) ||  ((meshMotionCount > 40) && (newMeshMotionCount < 10))) {
+                        motionMeshStates[anAddr.c_str()] = "MOTION";
+                        meshMotionCounts[anAddr.c_str()] = newMeshMotionCount;
+                        if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                          std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
+                          addToPublish(deviceMotionTopic.c_str(), "MOTION", true);
+                          std::string deviceStateTopic = motionTopic + aDevice + "/state";
+                          addToPublish(deviceStateTopic.c_str(), "MOTION", true);
+                        }
+                        if (motionCount != newMeshMotionCount) {
+                          updateMotionCount[anAddr.c_str()] = millis();
+                          updateMeshMotionCount[anAddr.c_str()] = newMeshMotionCount;
+                        }
+                      }
+                      else if ((meshMotionCount == newMeshMotionCount) && (noMotionCount == meshNoMotionCount)) {
+                        std::map<std::string, std::string>::iterator itH = motionMeshStates.find(anAddr.c_str());
+                        if (itH != motionMeshStates.end())
+                        {
+                          std::string motionState = itH->second.c_str();
+                          if (strcmp(motionState.c_str(), "MOTION") == 0) {
+                            if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                              std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
+                              addToPublish(deviceMotionTopic.c_str(), "MOTION", true);
+                              std::string deviceStateTopic = motionTopic + aDevice + "/state";
+                              addToPublish(deviceStateTopic.c_str(), "MOTION", true);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            printAString("END motionTopic + aDevice + motioncount");
+          });
+
+          client.subscribe((motionTopic + aDevice + "/nomotioncount").c_str(), [aDevice] (const String & payload)  {
+            printAString("START motionTopic + aDevice + nomotioncount");
+            if ((payload != NULL) && !(payload.isEmpty())) {
+              printAString("MQTT meshNoMotionCount received...");
+              std::string anAddr;
+              std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+              if (itY != allSwitchbots.end())
+              {
+                anAddr = itY->second;
+                bool isNum = is_number(payload.c_str());
+                if (isNum) {
+                  int newMeshNoMotionCount;
+                  sscanf(payload.c_str(), "%d", &newMeshNoMotionCount);
+                  if (newMeshNoMotionCount != 0) {
+                    std::map<std::string, int>::iterator itWE = noMotionCounts.find(anAddr.c_str());
+                    int noMotionCount = 0;
+                    if (itWE != noMotionCounts.end())
+                    {
+                      noMotionCount = itWE->second;
+                    }
+
+                    itWE = meshNoMotionCounts.find(anAddr.c_str());
+                    int meshNoMotionCount = 0;
+                    if (itWE != meshNoMotionCounts.end())
+                    {
+                      meshNoMotionCount = itWE->second;
+                    }
+
+                    itWE = motionCounts.find(anAddr.c_str());
+                    int motionCount = 0;
+                    if (itWE != motionCounts.end())
+                    {
+                      motionCount = itWE->second;
+                    }
+
+                    itWE = meshMotionCounts.find(anAddr.c_str());
+                    int meshMotionCount = 0;
+                    if (itWE != meshMotionCounts.end())
+                    {
+                      meshMotionCount = itWE->second;
+                    }
+
+                    if ((noMotionCount == 0) && (meshNoMotionCount == 0)) {
+                      meshNoMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
+                      noMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
+                    }
+                    else if (meshNoMotionCount != 0)
+                    {
+                      if ((meshNoMotionCount < newMeshNoMotionCount) ||  ((meshNoMotionCount > 40) && (newMeshNoMotionCount < 10))) {
+                        motionMeshStates[anAddr.c_str()] = "NO MOTION";
+                        meshNoMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
+                        if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                          std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
+                          addToPublish(deviceMotionTopic.c_str(), "NO MOTION", true);
+                        }
+                        if (noMotionCount != newMeshNoMotionCount) {
+                          updateNoMotionCount[anAddr.c_str()] = millis();
+                          updateMeshNoMotionCount[anAddr.c_str()] = newMeshNoMotionCount;
+                        }
+                      }
+                      else if ((meshNoMotionCount == newMeshNoMotionCount) && (motionCount == meshMotionCount)) {
+                        std::map<std::string, std::string>::iterator itH = motionMeshStates.find(anAddr.c_str());
+                        if (itH != motionMeshStates.end())
+                        {
+                          std::string motionState = itH->second.c_str();
+                          if (strcmp(motionState.c_str(), "NO MOTION") == 0) {
+                            if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
+                              std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
+                              addToPublish(deviceMotionTopic.c_str(), "NO MOTION", true);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            printAString("END motionTopic + aDevice + nomotioncount");
+          });
+
+        }
+
+        if (countLightToAvoidDuplicates) {
+          client.subscribe((motionTopic + aDevice + "/darkcount").c_str(), [aDevice] (const String & payload)  {
+            printAString("START motionTopic + aDevice + darkcount");
+            if ((payload != NULL) && !(payload.isEmpty())) {
+              printAString("MQTT meshDarkCount received...");
+              std::string anAddr;
+              std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+              if (itY != allSwitchbots.end())
+              {
+                anAddr = itY->second;
+                bool isNum = is_number(payload.c_str());
+                if (isNum) {
+                  int newMeshDarkCount;
+                  sscanf(payload.c_str(), "%d", &newMeshDarkCount);
+                  if (newMeshDarkCount != 0) {
+                    std::map<std::string, int>::iterator itWE = darkCounts.find(anAddr.c_str());
+                    int darkCount = 0;
+                    if (itWE != darkCounts.end())
+                    {
+                      darkCount = itWE->second;
+                    }
+
+                    itWE = meshDarkCounts.find(anAddr.c_str());
+                    int meshDarkCount = 0;
+                    if (itWE != meshDarkCounts.end())
+                    {
+                      meshDarkCount = itWE->second;
+                    }
+
+                    itWE = brightCounts.find(anAddr.c_str());
+                    int brightCount = 0;
+                    if (itWE != brightCounts.end())
+                    {
+                      brightCount = itWE->second;
+                    }
+
+                    itWE = meshBrightCounts.find(anAddr.c_str());
+                    int meshBrightCount = 0;
+                    if (itWE != meshBrightCounts.end())
+                    {
+                      meshBrightCount = itWE->second;
+                    }
+
+                    if ((darkCount == 0) && (meshDarkCount == 0)) {
+                      meshDarkCounts[anAddr.c_str()] = newMeshDarkCount;
+                      darkCounts[anAddr.c_str()] = newMeshDarkCount;
+                    }
+                    else if (meshDarkCount != 0)
+                    {
+                      if ((meshDarkCount < newMeshDarkCount) ||  ((meshDarkCount > 40) && (newMeshDarkCount < 10))) {
+                        lightMeshStates[anAddr.c_str()] = "DARK";
+                        meshDarkCounts[anAddr.c_str()] = newMeshDarkCount;
+                        if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                          std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
+                          addToPublish(deviceLightTopic.c_str(), "DARK", true);
+                        }
+                        if (darkCount != newMeshDarkCount) {
+                          updateDarkCount[anAddr.c_str()] = millis();
+                          updateMeshDarkCount[anAddr.c_str()] = newMeshDarkCount;
+                        }
+                      }
+                      else if ((meshDarkCount == newMeshDarkCount) && (brightCount == meshBrightCount)) {
+                        std::map<std::string, std::string>::iterator itH = lightMeshStates.find(anAddr.c_str());
+                        if (itH != lightMeshStates.end())
+                        {
+                          std::string illuminanceState = itH->second.c_str();
+                          if (strcmp(illuminanceState.c_str(), "DARK") == 0) {
+                            if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                              std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
+                              addToPublish(deviceLightTopic.c_str(), "DARK", true);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            printAString("END motionTopic + aDevice + darkcount");
+          });
+
+          client.subscribe((motionTopic + aDevice + "/brightcount").c_str(), [aDevice] (const String & payload)  {
+            printAString("START motionTopic + aDevice + brightcount");
+            if ((payload != NULL) && !(payload.isEmpty())) {
+              printAString("MQTT meshBrightCount received...");
+              std::string anAddr;
+              std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
+              if (itY != allSwitchbots.end())
+              {
+                anAddr = itY->second;
+                bool isNum = is_number(payload.c_str());
+                if (isNum) {
+                  int newMeshBrightCount;
+                  sscanf(payload.c_str(), "%d", &newMeshBrightCount);
+                  if (newMeshBrightCount != 0) {
+                    std::map<std::string, int>::iterator itWE = brightCounts.find(anAddr.c_str());
+                    int brightCount = 0;
+                    if (itWE != brightCounts.end())
+                    {
+                      brightCount = itWE->second;
+                    }
+
+                    itWE = meshBrightCounts.find(anAddr.c_str());
+                    int meshBrightCount = 0;
+                    if (itWE != meshBrightCounts.end())
+                    {
+                      meshBrightCount = itWE->second;
+                    }
+
+                    itWE = darkCounts.find(anAddr.c_str());
+                    int darkCount = 0;
+                    if (itWE != darkCounts.end())
+                    {
+                      darkCount = itWE->second;
+                    }
+
+                    itWE = meshDarkCounts.find(anAddr.c_str());
+                    int meshDarkCount = 0;
+                    if (itWE != meshDarkCounts.end())
+                    {
+                      meshDarkCount = itWE->second;
+                    }
+
+                    if ((brightCount == 0) && (meshBrightCount == 0)) {
+                      meshBrightCounts[anAddr.c_str()] = newMeshBrightCount;
+                      brightCounts[anAddr.c_str()] = newMeshBrightCount;
+                    }
+                    else if (meshBrightCount != 0)
+                    {
+                      if ((meshBrightCount < newMeshBrightCount) ||  ((meshBrightCount > 40) && (newMeshBrightCount < 10))) {
+                        lightMeshStates[anAddr.c_str()] = "BRIGHT";
+                        meshBrightCounts[anAddr.c_str()] = newMeshBrightCount;
+                        if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                          std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
+                          addToPublish(deviceLightTopic.c_str(), "BRIGHT", true);
+                        }
+                        if (brightCount != newMeshBrightCount) {
+                          updateBrightCount[anAddr.c_str()] = millis();
+                          updateMeshBrightCount[anAddr.c_str()] = newMeshBrightCount;
+                        }
+                      }
+                      else if ((meshBrightCount == newMeshBrightCount) && (darkCount == meshDarkCount)) {
+                        std::map<std::string, std::string>::iterator itH = lightMeshStates.find(anAddr.c_str());
+                        if (itH != lightMeshStates.end())
+                        {
+                          std::string illuminanceState = itH->second.c_str();
+                          if (strcmp(illuminanceState.c_str(), "BRIGHT") == 0) {
+                            if (!isMeshNode && onlyAllowRootESPToPublishLight) {
+                              std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
+                              addToPublish(deviceLightTopic.c_str(), "BRIGHT", true);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            printAString("END motionTopic + aDevice + brightcount");
+          });
+        }
+      }
+      it++;
+    }
+
+    client.subscribe(requestInfoStdStr.c_str(), [] (const String & payload)  {
+      if ((payload != NULL) && !(payload.isEmpty())) {
+        printAString("Request Info MQTT Received...");
+        bool skip = false;
+        if (isRescanning) {
+          if (pScan->isScanning() || isRescanning) {
+            if (pScan->isScanning()) {
+              pScan->stop();
+            }
+            allSwitchbotsScanned = {};
+            forceRescan = true;
+            lastUpdateTimes = {};
+          }
+          skip = true;
+        }
+        if (!skip) {
+          if (!commandQueue.isFull()) {
+            struct QueueCommand queueCommand;
+            queueCommand.payload = payload.c_str();
+            queueCommand.topic = ESPMQTTTopic + "/requestInfo";
+            queueCommand.disconnectAfter = true;
+            queueCommand.priority = false;
+            queueCommand.currentTry = 1;
+            commandQueue.enqueue(queueCommand);
+          }
+          else {
+            client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+          }
+        }
+      }
+    });
+
+    client.subscribe(requestSettingsStdStr.c_str(), [] (const String & payload)  {
+      if ((payload != NULL) && !(payload.isEmpty())) {
+        printAString("Request Settings MQTT Received...");
+        if (!commandQueue.isFull()) {
+          StaticJsonDocument<100> docIn;
+          deserializeJson(docIn, payload.c_str());
+          const char * aDevice = docIn["id"];
           struct QueueCommand queueCommand;
-          queueCommand.payload = payload.c_str();
+          queueCommand.payload = "REQUESTSETTINGS";
           queueCommand.topic = ESPMQTTTopic + "/control";
           queueCommand.device = aDevice;
           queueCommand.disconnectAfter = true;
@@ -5647,1353 +7615,18 @@ void onConnectionEstablished() {
       }
     });
 
-    it++;
-  }
-
-  it = allBots.begin();
-  while (it != allBots.end())
-  {
-    std::string deviceStr ;
-    aDevice = it->first.c_str();
-
-    client.subscribe((botTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
+    client.subscribe(setModeStdStr.c_str(), [] (const String & payload)  {
       if ((payload != NULL) && !(payload.isEmpty())) {
-        printAString("Control MQTT Received...");
-
-        std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
-        std::string deviceStateTopic = botTopic + aDevice + "/state";
-        if (itE != botsSimulateONOFFinPRESSmode.end() && ((strcmp(payload.c_str(), "STATEOFF") == 0) || (strcmp(payload.c_str(), "STATEON") == 0))) {
-          std::string deviceAssumedStateTopic = botTopic + aDevice + "/assumedstate";
-          if (strcmp(payload.c_str(), "STATEOFF") == 0) {
-            botsSimulatedStates[aDevice] = false;
-            addToPublish(deviceStateTopic.c_str(), "OFF", true);
-            addToPublish(deviceAssumedStateTopic.c_str(), "OFF", true);
-          }
-          else if (strcmp(payload.c_str(), "STATEON") == 0) {
-            botsSimulatedStates[aDevice] = true;
-            addToPublish(deviceStateTopic.c_str(), "ON", true);
-            addToPublish(deviceAssumedStateTopic.c_str(), "ON", true);
-          }
-        }
-        else {
-          if (pScan->isScanning() || isRescanning) {
-            if (pScan->isScanning()) {
-              pScan->stop();
-            }
-            allSwitchbotsScanned = {};
-            forceRescan = true;
-            lastUpdateTimes = {};
-          }
-          if (!commandQueue.isFull()) {
-            if (isBotDevice(aDevice)) {
-              std::map<std::string, std::string>::iterator itP = allBots.find(aDevice);
-              if (itP != allBots.end())
-              {
-                std::string aMac = itP->second.c_str();
-                std::map<std::string, bool>::iterator itZ = botsInPressMode.find(aMac);
-                std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
-                if (immediateBotStateUpdate) {
-                  if (itZ != botsInPressMode.end() && itE == botsSimulateONOFFinPRESSmode.end())
-                  {
-                    addToPublish(deviceStateTopic.c_str(), "OFF", true);
-                  }
-                  else {
-                    if ((strcmp(payload.c_str(), "OFF") == 0)) {
-                      addToPublish(deviceStateTopic.c_str(), "OFF", true);
-                    } else if ((strcmp(payload.c_str(), "ON") == 0)) {
-                      addToPublish(deviceStateTopic.c_str(), "ON", true);
-                    }
-                  }
-                }
-
-                int aHold = -1;
-                std::string commandString = "";
-                if (itE != botsSimulateONOFFinPRESSmode.end())
-                {
-                  if (strcmp(payload.c_str(), "OFF") == 0) {
-                    commandString = "OFF";
-                    std::map<std::string, int>::iterator itI = botsSimulatedOFFHoldTimes.find(aDevice);
-                    if (itI != botsSimulatedOFFHoldTimes.end())
-                    {
-                      aHold = itI->second;
-                    }
-                  }
-
-                  else if (strcmp(payload.c_str(), "ON") == 0) {
-                    commandString = "ON";
-                    std::map<std::string, int>::iterator itI = botsSimulatedONHoldTimes.find(aDevice);
-                    if (itI != botsSimulatedONHoldTimes.end())
-                    {
-                      aHold = itI->second;
-                    }
-                  }
-                }
-                if (aHold >= 0) {
-                  performHoldPressSequence(aDevice, commandString, aHold);
-                }
-                else {
-                  struct QueueCommand queueCommand;
-                  queueCommand.payload = payload.c_str();
-                  queueCommand.topic = ESPMQTTTopic + "/control";
-                  queueCommand.device = aDevice;
-                  queueCommand.disconnectAfter = true;
-                  queueCommand.priority = false;
-                  queueCommand.currentTry = 1;
-                  commandQueue.enqueue(queueCommand);
-                }
-              }
-            }
-          }
-          else {
-            client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
-          }
-        }
-      }
-    });
-
-    it++;
-  }
-
-  it = allMeters.begin();
-  while (it != allMeters.end())
-  {
-    std::string deviceStr ;
-    aDevice = it->first.c_str();
-    client.subscribe((meterTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
-      if ((payload != NULL) && !(payload.isEmpty())) {
-        printAString("Control MQTT Received...");
-        bool skip = false;
-        if (isRescanning) {
-          if (pScan->isScanning() || isRescanning) {
-            if (pScan->isScanning()) {
-              pScan->stop();
-            }
-            allSwitchbotsScanned = {};
-            forceRescan = true;
-            lastUpdateTimes = {};
-          }
-          if ((strcmp(payload.c_str(), "REQUESTINFO") == 0) || (strcmp(payload.c_str(), "GETINFO") == 0)) {
-            skip = true;
-          }
-        }
-        if (!skip) {
-          if (!commandQueue.isFull()) {
-            struct QueueCommand queueCommand;
-            queueCommand.payload = payload.c_str();
-            queueCommand.topic = ESPMQTTTopic + "/control";
-            queueCommand.device = aDevice;
-            queueCommand.disconnectAfter = true;
-            queueCommand.priority = false;
-            queueCommand.currentTry = 1;
-            commandQueue.enqueue(queueCommand);
-          }
-          else {
-            client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
-          }
-        }
-      }
-    });
-
-    it++;
-  }
-
-  it = allContactSensors.begin();
-  while (it != allContactSensors.end())
-  {
-    std::string deviceStr ;
-    aDevice = it->first.c_str();
-    client.subscribe((contactTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
-      if ((payload != NULL) && !(payload.isEmpty())) {
-        printAString("Control MQTT Received...");
-        bool skip = false;
-        if (isRescanning) {
-          if (pScan->isScanning() || isRescanning) {
-            if (pScan->isScanning()) {
-              pScan->stop();
-            }
-            allSwitchbotsScanned = {};
-            forceRescan = true;
-            lastUpdateTimes = {};
-          }
-          if ((strcmp(payload.c_str(), "REQUESTINFO") == 0) || (strcmp(payload.c_str(), "GETINFO") == 0)) {
-            skip = true;
-          }
-        }
-        if (!skip) {
-          if (!commandQueue.isFull()) {
-            struct QueueCommand queueCommand;
-            queueCommand.payload = payload.c_str();
-            queueCommand.topic = ESPMQTTTopic + "/control";
-            queueCommand.device = aDevice;
-            queueCommand.disconnectAfter = true;
-            queueCommand.priority = false;
-            queueCommand.currentTry = 1;
-            commandQueue.enqueue(queueCommand);
-          }
-          else {
-            client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
-          }
-        }
-      }
-    });
-
-
-
-    if (!isMeshNode && meshContactSensors && enableMesh) {
-      client.subscribe((contactTopic + aDevice + "/buttoncount").c_str(), [aDevice] (const String & payload)  {
-
-        printAString("START contactTopic + aDevice + buttoncount");
-        if ((payload != NULL) && !(payload.isEmpty())) {
-          printAString("MQTT meshButtonCount received...");
-          std::string anAddr;
-          std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
-          if (itY != allSwitchbots.end())
-          {
-            anAddr = itY->second;
-            bool isNum = is_number(payload.c_str());
-            if (isNum) {
-              int buttonCount;
-              sscanf(payload.c_str(), "%d", &buttonCount);
-              if (buttonCount != 0) {
-                std::map<std::string, int>::iterator itE = buttonCounts.find(anAddr);
-                if (itE != buttonCounts.end())
-                {
-                  int bCount = itE->second;
-
-                  if ((bCount < buttonCount) ||  ((bCount > 10) && (buttonCount < 5))) {
-                    buttonCounts[anAddr] = buttonCount;
-                    std::string deviceButtonTopic = contactTopic + aDevice + "/button";
-                    //addToPublish(deviceButtonTopic.c_str(), "PUSHED", false);
-                    client.publish(deviceButtonTopic.c_str(), "PUSHED", false);
-                    lastButton[anAddr] = millis();
-                  }
-                }
-              }
-            }
-          }
-        }
-        printAString("END contactTopic + aDevice + buttoncount");
-      });
-
-      client.subscribe((contactTopic + aDevice + "/outcount").c_str(), [aDevice] (const String & payload)  {
-        printAString("START contactTopic + aDevice + outcount");
-        if ((payload != NULL) && !(payload.isEmpty())) {
-          printAString("MQTT meshOutCount received...");
-          std::string anAddr;
-          std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
-          if (itY != allSwitchbots.end())
-          {
-            anAddr = itY->second;
-            bool isNum = is_number(payload.c_str());
-            if (isNum) {
-              int outCount;
-              sscanf(payload.c_str(), "%d", &outCount);
-              if (outCount != 0) {
-                std::map<std::string, int>::iterator itE = outCounts.find(anAddr);
-                if (itE != outCounts.end())
-                {
-                  int bCount = itE->second;
-
-                  if ((bCount < outCount) ||  ((bCount == 3) && (outCount == 1))) {
-                    outCounts[anAddr] = outCount;
-                    std::string deviceOutTopic = contactTopic + aDevice + "/out";
-                    //addToPublish(deviceOutTopic.c_str(), "EXITED", false);
-                    client.publish(deviceOutTopic.c_str(), "EXITED", false);
-                    lastOut[anAddr] = millis();
-                  }
-                }
-              }
-            }
-          }
-        }
-        printAString("END contactTopic + aDevice + outcount");
-      });
-
-      client.subscribe((contactTopic + aDevice + "/incount").c_str(), [aDevice] (const String & payload)  {
-        printAString("START contactTopic + aDevice + incount");
-        if ((payload != NULL) && !(payload.isEmpty())) {
-          printAString("MQTT meshInCount received...");
-          std::string anAddr;
-          std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
-          if (itY != allSwitchbots.end())
-          {
-            anAddr = itY->second;
-            bool isNum = is_number(payload.c_str());
-            if (isNum) {
-              int inCount;
-              sscanf(payload.c_str(), "%d", &inCount);
-              if (inCount != 0) {
-                std::map<std::string, int>::iterator itE = entranceCounts.find(anAddr);
-                if (itE != entranceCounts.end())
-                {
-                  int bCount = itE->second;
-                  if ((bCount < inCount) ||  ((bCount == 3) && (inCount == 1))) {
-                    entranceCounts[anAddr] = inCount;
-                    std::string deviceInTopic = contactTopic + aDevice + "/in";
-                    //addToPublish(deviceInTopic.c_str(), "ENTERED", false);
-                    client.publish(deviceInTopic.c_str(), "ENTERED", false);
-                    lastIn[anAddr] = millis();
-                  }
-                }
-              }
-            }
-          }
-        }
-        printAString("END contactTopic + aDevice + outcount");
-      });
-
-    }
-
-    if (meshContactSensors && enableMesh) {
-      if (countMotionToAvoidDuplicates) {
-        client.subscribe((contactTopic + aDevice + "/motioncount").c_str(), [aDevice] (const String & payload)  {
-          printAString("START contactTopic + aDevice + motioncount");
-          if ((payload != NULL) && !(payload.isEmpty())) {
-            printAString("MQTT meshMotionCount received...");
-            std::string anAddr;
-            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
-            if (itY != allSwitchbots.end())
-            {
-              anAddr = itY->second;
-              bool isNum = is_number(payload.c_str());
-              if (isNum) {
-                int newMeshMotionCount;
-                sscanf(payload.c_str(), "%d", &newMeshMotionCount);
-                if (newMeshMotionCount != 0) {
-                  std::map<std::string, int>::iterator itWE = motionCounts.find(anAddr.c_str());
-                  int motionCount = 0;
-                  if (itWE != motionCounts.end())
-                  {
-                    motionCount = itWE->second;
-                  }
-
-                  itWE = meshMotionCounts.find(anAddr.c_str());
-                  int meshMotionCount = 0;
-                  if (itWE != meshMotionCounts.end())
-                  {
-                    meshMotionCount = itWE->second;
-                  }
-
-                  itWE = noMotionCounts.find(anAddr.c_str());
-                  int noMotionCount = 0;
-                  if (itWE != noMotionCounts.end())
-                  {
-                    noMotionCount = itWE->second;
-                  }
-
-                  itWE = meshNoMotionCounts.find(anAddr.c_str());
-                  int meshNoMotionCount = 0;
-                  if (itWE != meshNoMotionCounts.end())
-                  {
-                    meshNoMotionCount = itWE->second;
-                  }
-
-                  if ((motionCount == 0) && (meshMotionCount == 0)) {
-                    meshMotionCounts[anAddr.c_str()] = newMeshMotionCount;
-                    motionCounts[anAddr.c_str()] = newMeshMotionCount;
-                  }
-                  else if (meshMotionCount != 0)
-                  {
-                    if ((meshMotionCount < newMeshMotionCount) ||  ((meshMotionCount > 40) && (newMeshMotionCount < 10))) {
-                      motionMeshStates[anAddr.c_str()] = "MOTION";
-                      meshMotionCounts[anAddr.c_str()] = newMeshMotionCount;
-                      if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
-                        std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
-                        addToPublish(deviceMotionTopic.c_str(), "MOTION", true);
-                      }
-                      if (motionCount != newMeshMotionCount) {
-                        updateMotionCount[anAddr.c_str()] = millis();
-                        updateMeshMotionCount[anAddr.c_str()] = newMeshMotionCount;
-                      }
-                    }
-                    else if ((meshMotionCount == newMeshMotionCount) && (noMotionCount == meshNoMotionCount)) {
-                      std::map<std::string, std::string>::iterator itH = motionMeshStates.find(anAddr.c_str());
-                      if (itH != motionMeshStates.end())
-                      {
-                        std::string motionState = itH->second.c_str();
-                        if (strcmp(motionState.c_str(), "MOTION") == 0) {
-                          if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
-                            std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
-                            addToPublish(deviceMotionTopic.c_str(), "MOTION", true);
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          printAString("END contactTopic + aDevice + motioncount");
-        });
-
-        client.subscribe((contactTopic + aDevice + "/nomotioncount").c_str(), [aDevice] (const String & payload)  {
-          printAString("START contactTopic + aDevice + nomotioncount");
-          if ((payload != NULL) && !(payload.isEmpty())) {
-            printAString("MQTT meshNoMotionCount received...");
-            std::string anAddr;
-            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
-            if (itY != allSwitchbots.end())
-            {
-              anAddr = itY->second;
-              bool isNum = is_number(payload.c_str());
-              if (isNum) {
-                int newMeshNoMotionCount;
-                sscanf(payload.c_str(), "%d", &newMeshNoMotionCount);
-                if (newMeshNoMotionCount != 0) {
-                  std::map<std::string, int>::iterator itWE = noMotionCounts.find(anAddr.c_str());
-                  int noMotionCount = 0;
-                  if (itWE != noMotionCounts.end())
-                  {
-                    noMotionCount = itWE->second;
-                  }
-
-                  itWE = meshNoMotionCounts.find(anAddr.c_str());
-                  int meshNoMotionCount = 0;
-                  if (itWE != meshNoMotionCounts.end())
-                  {
-                    meshNoMotionCount = itWE->second;
-                  }
-
-                  itWE = motionCounts.find(anAddr.c_str());
-                  int motionCount = 0;
-                  if (itWE != motionCounts.end())
-                  {
-                    motionCount = itWE->second;
-                  }
-
-                  itWE = meshMotionCounts.find(anAddr.c_str());
-                  int meshMotionCount = 0;
-                  if (itWE != meshMotionCounts.end())
-                  {
-                    meshMotionCount = itWE->second;
-                  }
-
-                  if ((noMotionCount == 0) && (meshNoMotionCount == 0)) {
-                    meshNoMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
-                    noMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
-                  }
-                  else if (meshNoMotionCount != 0)
-                  {
-                    if ((meshNoMotionCount < newMeshNoMotionCount) ||  ((meshNoMotionCount > 40) && (newMeshNoMotionCount < 10))) {
-                      motionMeshStates[anAddr.c_str()] = "NO MOTION";
-                      meshNoMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
-                      if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
-                        std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
-                        addToPublish(deviceMotionTopic.c_str(), "NO MOTION", true);
-                      }
-                      if (noMotionCount != newMeshNoMotionCount) {
-                        updateNoMotionCount[anAddr.c_str()] = millis();
-                        updateMeshNoMotionCount[anAddr.c_str()] = newMeshNoMotionCount;
-                      }
-                    }
-                    else if ((meshNoMotionCount == newMeshNoMotionCount) && (motionCount == meshMotionCount)) {
-                      std::map<std::string, std::string>::iterator itH = motionMeshStates.find(anAddr.c_str());
-                      if (itH != motionMeshStates.end())
-                      {
-                        std::string motionState = itH->second.c_str();
-                        if (strcmp(motionState.c_str(), "NO MOTION") == 0) {
-                          if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
-                            std::string deviceMotionTopic = contactTopic + aDevice + "/motion";
-                            addToPublish(deviceMotionTopic.c_str(), "NO MOTION", true);
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          printAString("END contactTopic + aDevice + nomotioncount");
-        });
-
-      }
-
-      if (countContactToAvoidDuplicates) {
-        client.subscribe((contactTopic + aDevice + "/closedcount").c_str(), [aDevice] (const String & payload)  {
-          printAString("START contactTopic + aDevice + closedcount");
-          if ((payload != NULL) && !(payload.isEmpty())) {
-            printAString("MQTT meshClosedCount received...");
-            std::string anAddr;
-            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
-            if (itY != allSwitchbots.end())
-            {
-              anAddr = itY->second;
-              bool isNum = is_number(payload.c_str());
-              if (isNum) {
-                int newMeshClosedCount;
-                sscanf(payload.c_str(), "%d", &newMeshClosedCount);
-                if (newMeshClosedCount != 0) {
-                  std::map<std::string, int>::iterator itWE = closedCounts.find(anAddr.c_str());
-                  int closedCount = 0;
-                  if (itWE != closedCounts.end())
-                  {
-                    closedCount = itWE->second;
-                  }
-
-                  itWE = meshClosedCounts.find(anAddr.c_str());
-                  int meshClosedCount = 0;
-                  if (itWE != meshClosedCounts.end())
-                  {
-                    meshClosedCount = itWE->second;
-                  }
-
-                  itWE = openCounts.find(anAddr.c_str());
-                  int openCount = 0;
-                  if (itWE != openCounts.end())
-                  {
-                    openCount = itWE->second;
-                  }
-
-                  itWE = meshOpenCounts.find(anAddr.c_str());
-                  int meshOpenCount = 0;
-                  if (itWE != meshOpenCounts.end())
-                  {
-                    meshOpenCount = itWE->second;
-                  }
-
-                  itWE = timeoutCounts.find(anAddr.c_str());
-                  int timeoutCount = 0;
-                  if (itWE != timeoutCounts.end())
-                  {
-                    timeoutCount = itWE->second;
-                  }
-
-                  itWE = meshTimeoutCounts.find(anAddr.c_str());
-                  int meshTimeoutCount = 0;
-                  if (itWE != meshTimeoutCounts.end())
-                  {
-                    meshTimeoutCount = itWE->second;
-                  }
-
-                  if ((closedCount == 0) && (meshClosedCount == 0)) {
-                    meshClosedCounts[anAddr.c_str()] = newMeshClosedCount;
-                    closedCounts[anAddr.c_str()] = newMeshClosedCount;
-                  }
-                  else if (meshClosedCount != 0)
-                  {
-                    if ((meshClosedCount < newMeshClosedCount) ||  ((meshClosedCount > 40) && (newMeshClosedCount < 10))) {
-                      contactMeshStates[anAddr.c_str()] = "CLOSED";
-                      meshClosedCounts[anAddr.c_str()] = newMeshClosedCount;
-                      if (!isMeshNode && onlyAllowRootESPToPublishContact) {
-                        std::string deviceContactTopic = contactTopic + aDevice + "/contact";
-                        std::string deviceStateTopic = contactTopic + aDevice + "/state";
-                        std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
-                        addToPublish(deviceContactTopic.c_str(), "CLOSED", true);
-                        addToPublish(deviceStateTopic.c_str(), "CLOSED", true);
-                        addToPublish(deviceBinContactTopic.c_str(), "CLOSED", true);
-                      }
-                      if (closedCount != newMeshClosedCount) {
-                        updateClosedCount[anAddr.c_str()] = millis();
-                        updateMeshClosedCount[anAddr.c_str()] = newMeshClosedCount;
-                      }
-                    }
-                    else if ((meshClosedCount == newMeshClosedCount) && (openCount == meshOpenCount) && (timeoutCount == meshTimeoutCount)) {
-                      std::map<std::string, std::string>::iterator itH = contactMeshStates.find(anAddr.c_str());
-                      if (itH != contactMeshStates.end())
-                      {
-                        std::string contactState = itH->second.c_str();
-                        if (strcmp(contactState.c_str(), "CLOSED") == 0) {
-                          if (!isMeshNode && onlyAllowRootESPToPublishContact) {
-                            std::string deviceContactTopic = contactTopic + aDevice + "/contact";
-                            std::string deviceStateTopic = contactTopic + aDevice + "/state";
-                            std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
-                            addToPublish(deviceContactTopic.c_str(), "CLOSED", true);
-                            addToPublish(deviceStateTopic.c_str(), "CLOSED", true);
-                            addToPublish(deviceBinContactTopic.c_str(), "CLOSED", true);
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          printAString("END contactTopic + aDevice + closedcount");
-        });
-
-        client.subscribe((contactTopic + aDevice + "/opencount").c_str(), [aDevice] (const String & payload)  {
-          printAString("START contactTopic + aDevice + opencount");
-          if ((payload != NULL) && !(payload.isEmpty())) {
-            printAString("MQTT meshOpenCount received...");
-            std::string anAddr;
-            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
-            if (itY != allSwitchbots.end())
-            {
-              anAddr = itY->second;
-              bool isNum = is_number(payload.c_str());
-              if (isNum) {
-                int newMeshOpenCount;
-                sscanf(payload.c_str(), "%d", &newMeshOpenCount);
-                if (newMeshOpenCount != 0) {
-                  std::map<std::string, int>::iterator itWE = closedCounts.find(anAddr.c_str());
-                  int closedCount = 0;
-                  if (itWE != closedCounts.end())
-                  {
-                    closedCount = itWE->second;
-                  }
-
-                  itWE = meshClosedCounts.find(anAddr.c_str());
-                  int meshClosedCount = 0;
-                  if (itWE != meshClosedCounts.end())
-                  {
-                    meshClosedCount = itWE->second;
-                  }
-
-                  itWE = openCounts.find(anAddr.c_str());
-                  int openCount = 0;
-                  if (itWE != openCounts.end())
-                  {
-                    openCount = itWE->second;
-                  }
-
-                  itWE = meshOpenCounts.find(anAddr.c_str());
-                  int meshOpenCount = 0;
-                  if (itWE != meshOpenCounts.end())
-                  {
-                    meshOpenCount = itWE->second;
-                  }
-
-                  itWE = timeoutCounts.find(anAddr.c_str());
-                  int timeoutCount = 0;
-                  if (itWE != timeoutCounts.end())
-                  {
-                    timeoutCount = itWE->second;
-                  }
-
-                  itWE = meshTimeoutCounts.find(anAddr.c_str());
-                  int meshTimeoutCount = 0;
-                  if (itWE != meshTimeoutCounts.end())
-                  {
-                    meshTimeoutCount = itWE->second;
-                  }
-
-                  if ((openCount == 0) && (meshOpenCount == 0)) {
-                    meshOpenCounts[anAddr.c_str()] = newMeshOpenCount;
-                    openCounts[anAddr.c_str()] = newMeshOpenCount;
-                  }
-                  else if (meshOpenCount != 0)
-                  {
-                    if ((meshOpenCount < newMeshOpenCount) || ((meshOpenCount > 40) && (newMeshOpenCount < 10)))  {
-                      contactMeshStates[anAddr.c_str()] = "OPEN";
-                      meshOpenCounts[anAddr.c_str()] = newMeshOpenCount;
-                      lastContacts[aDevice.c_str()] = millis();
-                      if (!isMeshNode && onlyAllowRootESPToPublishContact) {
-                        // addToPublish("esp32mesh1/" + aDevice + "/contact", "OPENFROMMESH+", true);
-                        std::string deviceContactTopic = contactTopic + aDevice + "/contact";
-                        std::string deviceStateTopic = contactTopic + aDevice + "/state";
-                        std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
-                        addToPublish(deviceContactTopic.c_str(), "OPEN", true);
-                        addToPublish(deviceStateTopic.c_str(), "OPEN", true);
-                        addToPublish(deviceBinContactTopic.c_str(), "OPEN", true);
-                        addToPublish((contactTopic + aDevice + "/lastcontact"), 0, true);
-                      }
-
-                      if (openCount != newMeshOpenCount) {
-                        updateOpenCount[anAddr.c_str()] = millis();
-                        updateMeshOpenCount[anAddr.c_str()] = newMeshOpenCount;
-                      }
-                    }
-                    else if ((meshOpenCount == newMeshOpenCount) && (closedCount == meshClosedCount) && (timeoutCount == meshTimeoutCount)) {
-                      std::map<std::string, std::string>::iterator itH = contactMeshStates.find(anAddr.c_str());
-                      if (itH != contactMeshStates.end())
-                      {
-                        std::string contactState = itH->second.c_str();
-                        if (strcmp(contactState.c_str(), "OPEN") == 0) {
-                          lastContacts[aDevice.c_str()] = millis();
-                          if (!isMeshNode && onlyAllowRootESPToPublishContact) {
-                            std::string deviceContactTopic = contactTopic + aDevice + "/contact";
-                            std::string deviceStateTopic = contactTopic + aDevice + "/state";
-                            std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
-                            addToPublish(deviceContactTopic.c_str(), "OPEN", true);
-                            addToPublish(deviceStateTopic.c_str(), "OPEN", true);
-                            addToPublish(deviceBinContactTopic.c_str(), "OPEN", true);
-                            addToPublish((contactTopic + aDevice + "/lastcontact"), 0, true);
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          printAString("END contactTopic + aDevice + closedcount");
-        });
-
-        client.subscribe((contactTopic + aDevice + "/timeoutcount").c_str(), [aDevice] (const String & payload)  {
-          printAString("START contactTopic + aDevice + timeoutcount");
-          if ((payload != NULL) && !(payload.isEmpty())) {
-            printAString("MQTT meshTimeoutCount received...");
-            std::string anAddr;
-            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
-            if (itY != allSwitchbots.end())
-            {
-              anAddr = itY->second;
-              bool isNum = is_number(payload.c_str());
-              if (isNum) {
-                int newMeshTimeoutCount;
-                sscanf(payload.c_str(), "%d", &newMeshTimeoutCount);
-                if (newMeshTimeoutCount != 0) {
-                  std::map<std::string, int>::iterator itWE = closedCounts.find(anAddr.c_str());
-                  int closedCount = 0;
-                  if (itWE != closedCounts.end())
-                  {
-                    closedCount = itWE->second;
-                  }
-
-                  itWE = meshClosedCounts.find(anAddr.c_str());
-                  int meshClosedCount = 0;
-                  if (itWE != meshClosedCounts.end())
-                  {
-                    meshClosedCount = itWE->second;
-                  }
-
-                  itWE = openCounts.find(anAddr.c_str());
-                  int openCount = 0;
-                  if (itWE != openCounts.end())
-                  {
-                    openCount = itWE->second;
-                  }
-
-                  itWE = meshOpenCounts.find(anAddr.c_str());
-                  int meshOpenCount = 0;
-                  if (itWE != meshOpenCounts.end())
-                  {
-                    meshOpenCount = itWE->second;
-                  }
-
-                  itWE = timeoutCounts.find(anAddr.c_str());
-                  int timeoutCount = 0;
-                  if (itWE != timeoutCounts.end())
-                  {
-                    timeoutCount = itWE->second;
-                  }
-
-                  itWE = meshTimeoutCounts.find(anAddr.c_str());
-                  int meshTimeoutCount = 0;
-                  if (itWE != meshTimeoutCounts.end())
-                  {
-                    meshTimeoutCount = itWE->second;
-                  }
-
-                  if ((timeoutCount == 0) && (meshTimeoutCount == 0)) {
-                    meshTimeoutCounts[anAddr.c_str()] = newMeshTimeoutCount;
-                    timeoutCounts[anAddr.c_str()] = newMeshTimeoutCount;
-                  }
-                  else if (meshTimeoutCount != 0)
-                  {
-                    if ((meshTimeoutCount < newMeshTimeoutCount) ||  ((meshTimeoutCount > 40) && (newMeshTimeoutCount < 10))) {
-                      contactMeshStates[anAddr.c_str()] = "TIMEOUT";
-                      meshTimeoutCounts[anAddr.c_str()] = newMeshTimeoutCount;
-                      lastContacts[aDevice.c_str()] = millis();
-                      if (!isMeshNode && onlyAllowRootESPToPublishContact) {
-                        std::string deviceContactTopic = contactTopic + aDevice + "/contact";
-                        std::string deviceStateTopic = contactTopic + aDevice + "/state";
-                        std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
-                        addToPublish(deviceContactTopic.c_str(), "TIMEOUT", true);
-                        addToPublish(deviceStateTopic.c_str(), "TIMEOUT", true);
-                        addToPublish(deviceBinContactTopic.c_str(), "OPEN", true);
-                      }
-                      if (timeoutCount != newMeshTimeoutCount) {
-                        updateTimeoutCount[anAddr.c_str()] = millis();
-                        updateMeshTimeoutCount[anAddr.c_str()] = newMeshTimeoutCount;
-                      }
-                    }
-                    else if ((meshTimeoutCount == newMeshTimeoutCount) && (openCount == meshOpenCount) && (closedCount == meshClosedCount)) {
-                      std::map<std::string, std::string>::iterator itH = contactMeshStates.find(anAddr.c_str());
-                      if (itH != contactMeshStates.end())
-                      {
-                        std::string contactState = itH->second.c_str();
-                        if (strcmp(contactState.c_str(), "TIMEOUT") == 0) {
-                          lastContacts[aDevice.c_str()] = millis();
-                          if (!isMeshNode && onlyAllowRootESPToPublishContact) {
-                            std::string deviceContactTopic = contactTopic + aDevice + "/contact";
-                            std::string deviceStateTopic = contactTopic + aDevice + "/state";
-                            std::string deviceBinContactTopic = contactTopic + aDevice + "/bin";
-                            addToPublish(deviceContactTopic.c_str(), "TIMEOUT", true);
-                            addToPublish(deviceStateTopic.c_str(), "TIMEOUT", true);
-                            addToPublish(deviceBinContactTopic.c_str(), "OPEN", true);
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          printAString("END contactTopic + aDevice + timeoutcount");
-        });
-      }
-
-      if (countLightToAvoidDuplicates) {
-        client.subscribe((contactTopic + aDevice + "/darkcount").c_str(), [aDevice] (const String & payload)  {
-          printAString("START contactTopic + aDevice + darkcount");
-          if ((payload != NULL) && !(payload.isEmpty())) {
-            printAString("MQTT meshDarkCount received...");
-            std::string anAddr;
-            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
-            if (itY != allSwitchbots.end())
-            {
-              anAddr = itY->second;
-              bool isNum = is_number(payload.c_str());
-              if (isNum) {
-                int newMeshDarkCount;
-                sscanf(payload.c_str(), "%d", &newMeshDarkCount);
-                if (newMeshDarkCount != 0) {
-                  std::map<std::string, int>::iterator itWE = darkCounts.find(anAddr.c_str());
-                  int darkCount = 0;
-                  if (itWE != darkCounts.end())
-                  {
-                    darkCount = itWE->second;
-                  }
-
-                  itWE = meshDarkCounts.find(anAddr.c_str());
-                  int meshDarkCount = 0;
-                  if (itWE != meshDarkCounts.end())
-                  {
-                    meshDarkCount = itWE->second;
-                  }
-
-                  itWE = brightCounts.find(anAddr.c_str());
-                  int brightCount = 0;
-                  if (itWE != brightCounts.end())
-                  {
-                    brightCount = itWE->second;
-                  }
-
-                  itWE = meshBrightCounts.find(anAddr.c_str());
-                  int meshBrightCount = 0;
-                  if (itWE != meshBrightCounts.end())
-                  {
-                    meshBrightCount = itWE->second;
-                  }
-
-                  if ((darkCount == 0) && (meshDarkCount == 0)) {
-                    meshDarkCounts[anAddr.c_str()] = newMeshDarkCount;
-                    darkCounts[anAddr.c_str()] = newMeshDarkCount;
-                  }
-                  else if (meshDarkCount != 0)
-                  {
-                    if ((meshDarkCount < newMeshDarkCount) ||  ((meshDarkCount > 40) && (newMeshDarkCount < 10))) {
-                      lightMeshStates[anAddr.c_str()] = "DARK";
-                      meshDarkCounts[anAddr.c_str()] = newMeshDarkCount;
-                      if (!isMeshNode && onlyAllowRootESPToPublishLight) {
-                        std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
-                        addToPublish(deviceLightTopic.c_str(), "DARK", true);
-                      }
-                      if (darkCount != newMeshDarkCount) {
-                        updateDarkCount[anAddr.c_str()] = millis();
-                        updateMeshDarkCount[anAddr.c_str()] = newMeshDarkCount;
-                      }
-                    }
-                    else if ((meshDarkCount == newMeshDarkCount) && (brightCount == meshBrightCount)) {
-                      std::map<std::string, std::string>::iterator itH = lightMeshStates.find(anAddr.c_str());
-                      if (itH != lightMeshStates.end())
-                      {
-                        std::string illuminanceState = itH->second.c_str();
-                        if (strcmp(illuminanceState.c_str(), "DARK") == 0) {
-                          if (!isMeshNode && onlyAllowRootESPToPublishLight) {
-                            std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
-                            addToPublish(deviceLightTopic.c_str(), "DARK", true);
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          printAString("END contactTopic + aDevice + darkcount");
-        });
-
-        client.subscribe((contactTopic + aDevice + "/brightcount").c_str(), [aDevice] (const String & payload)  {
-          printAString("START contactTopic + aDevice + brightcount");
-          if ((payload != NULL) && !(payload.isEmpty())) {
-            printAString("MQTT meshBrightCount received...");
-            std::string anAddr;
-            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
-            if (itY != allSwitchbots.end())
-            {
-              anAddr = itY->second;
-              bool isNum = is_number(payload.c_str());
-              if (isNum) {
-                int newMeshBrightCount;
-                sscanf(payload.c_str(), "%d", &newMeshBrightCount);
-                if (newMeshBrightCount != 0) {
-                  std::map<std::string, int>::iterator itWE = brightCounts.find(anAddr.c_str());
-                  int brightCount = 0;
-                  if (itWE != brightCounts.end())
-                  {
-                    brightCount = itWE->second;
-                  }
-
-                  itWE = meshBrightCounts.find(anAddr.c_str());
-                  int meshBrightCount = 0;
-                  if (itWE != meshBrightCounts.end())
-                  {
-                    meshBrightCount = itWE->second;
-                  }
-
-                  itWE = darkCounts.find(anAddr.c_str());
-                  int darkCount = 0;
-                  if (itWE != darkCounts.end())
-                  {
-                    darkCount = itWE->second;
-                  }
-
-                  itWE = meshDarkCounts.find(anAddr.c_str());
-                  int meshDarkCount = 0;
-                  if (itWE != meshDarkCounts.end())
-                  {
-                    meshDarkCount = itWE->second;
-                  }
-
-                  if ((brightCount == 0) && (meshBrightCount == 0)) {
-                    meshBrightCounts[anAddr.c_str()] = newMeshBrightCount;
-                    brightCounts[anAddr.c_str()] = newMeshBrightCount;
-                  }
-                  else if (meshBrightCount != 0)
-                  {
-                    if ((meshBrightCount < newMeshBrightCount) ||  ((meshBrightCount > 40) && (newMeshBrightCount < 10))) {
-                      lightMeshStates[anAddr.c_str()] = "BRIGHT";
-                      meshBrightCounts[anAddr.c_str()] = newMeshBrightCount;
-                      if (!isMeshNode && onlyAllowRootESPToPublishLight) {
-                        std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
-                        addToPublish(deviceLightTopic.c_str(), "BRIGHT", true);
-                      }
-                      if (brightCount != newMeshBrightCount) {
-                        updateBrightCount[anAddr.c_str()] = millis();
-                        updateMeshBrightCount[anAddr.c_str()] = newMeshBrightCount;
-                      }
-                    }
-                    else if ((meshBrightCount == newMeshBrightCount) && (darkCount == meshDarkCount)) {
-                      std::map<std::string, std::string>::iterator itH = lightMeshStates.find(anAddr.c_str());
-                      if (itH != lightMeshStates.end())
-                      {
-                        std::string illuminanceState = itH->second.c_str();
-                        if (strcmp(illuminanceState.c_str(), "BRIGHT") == 0) {
-                          if (!isMeshNode && onlyAllowRootESPToPublishLight) {
-                            std::string deviceLightTopic = contactTopic + aDevice + "/illuminance";
-                            addToPublish(deviceLightTopic.c_str(), "BRIGHT", true);
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          printAString("END contactTopic + aDevice + brightcount");
-        });
-      }
-    }
-
-    it++;
-  }
-
-  it = allMotionSensors.begin();
-  while (it != allMotionSensors.end())
-  {
-    std::string deviceStr ;
-    aDevice = it->first.c_str();
-    client.subscribe((motionTopic + aDevice + "/set").c_str(), [aDevice] (const String & payload)  {
-      if ((payload != NULL) && !(payload.isEmpty())) {
-        printAString("Control MQTT Received...");
-        bool skip = false;
-        if (isRescanning) {
-          if (pScan->isScanning() || isRescanning) {
-            if (pScan->isScanning()) {
-              pScan->stop();
-            }
-            allSwitchbotsScanned = {};
-            forceRescan = true;
-            lastUpdateTimes = {};
-          }
-          if ((strcmp(payload.c_str(), "REQUESTINFO") == 0) || (strcmp(payload.c_str(), "GETINFO") == 0)) {
-            skip = true;
-          }
-        }
-        if (!skip) {
-          if (!commandQueue.isFull()) {
-            struct QueueCommand queueCommand;
-            queueCommand.payload = payload.c_str();
-            queueCommand.topic = ESPMQTTTopic + "/control";
-            queueCommand.device = aDevice;
-            queueCommand.disconnectAfter = true;
-            queueCommand.priority = false;
-            queueCommand.currentTry = 1;
-            commandQueue.enqueue(queueCommand);
-          }
-          else {
-            client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
-          }
-        }
-      }
-    });
-
-    if (meshMotionSensors && enableMesh) {
-      if (countMotionToAvoidDuplicates) {
-        client.subscribe((motionTopic + aDevice + "/motioncount").c_str(), [aDevice] (const String & payload)  {
-          printAString("START motionTopic + aDevice + motioncount");
-          if ((payload != NULL) && !(payload.isEmpty())) {
-            printAString("MQTT meshMotionCount received...");
-            std::string anAddr;
-            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
-            if (itY != allSwitchbots.end())
-            {
-              anAddr = itY->second;
-              bool isNum = is_number(payload.c_str());
-              if (isNum) {
-                int newMeshMotionCount;
-                sscanf(payload.c_str(), "%d", &newMeshMotionCount);
-                if (newMeshMotionCount != 0) {
-                  std::map<std::string, int>::iterator itWE = motionCounts.find(anAddr.c_str());
-                  int motionCount = 0;
-                  if (itWE != motionCounts.end())
-                  {
-                    motionCount = itWE->second;
-                  }
-
-                  itWE = meshMotionCounts.find(anAddr.c_str());
-                  int meshMotionCount = 0;
-                  if (itWE != meshMotionCounts.end())
-                  {
-                    meshMotionCount = itWE->second;
-                  }
-
-                  itWE = noMotionCounts.find(anAddr.c_str());
-                  int noMotionCount = 0;
-                  if (itWE != noMotionCounts.end())
-                  {
-                    noMotionCount = itWE->second;
-                  }
-
-                  itWE = meshNoMotionCounts.find(anAddr.c_str());
-                  int meshNoMotionCount = 0;
-                  if (itWE != meshNoMotionCounts.end())
-                  {
-                    meshNoMotionCount = itWE->second;
-                  }
-
-                  if ((motionCount == 0) && (meshMotionCount == 0)) {
-                    meshMotionCounts[anAddr.c_str()] = newMeshMotionCount;
-                    motionCounts[anAddr.c_str()] = newMeshMotionCount;
-                  }
-                  else if (meshMotionCount != 0)
-                  {
-                    if ((meshMotionCount < newMeshMotionCount) ||  ((meshMotionCount > 40) && (newMeshMotionCount < 10))) {
-                      motionMeshStates[anAddr.c_str()] = "MOTION";
-                      meshMotionCounts[anAddr.c_str()] = newMeshMotionCount;
-                      if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
-                        std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
-                        addToPublish(deviceMotionTopic.c_str(), "MOTION", true);
-                        std::string deviceStateTopic = motionTopic + aDevice + "/state";
-                        addToPublish(deviceStateTopic.c_str(), "MOTION", true);
-                      }
-                      if (motionCount != newMeshMotionCount) {
-                        updateMotionCount[anAddr.c_str()] = millis();
-                        updateMeshMotionCount[anAddr.c_str()] = newMeshMotionCount;
-                      }
-                    }
-                    else if ((meshMotionCount == newMeshMotionCount) && (noMotionCount == meshNoMotionCount)) {
-                      std::map<std::string, std::string>::iterator itH = motionMeshStates.find(anAddr.c_str());
-                      if (itH != motionMeshStates.end())
-                      {
-                        std::string motionState = itH->second.c_str();
-                        if (strcmp(motionState.c_str(), "MOTION") == 0) {
-                          if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
-                            std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
-                            addToPublish(deviceMotionTopic.c_str(), "MOTION", true);
-                            std::string deviceStateTopic = motionTopic + aDevice + "/state";
-                            addToPublish(deviceStateTopic.c_str(), "MOTION", true);
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          printAString("END motionTopic + aDevice + motioncount");
-        });
-
-        client.subscribe((motionTopic + aDevice + "/nomotioncount").c_str(), [aDevice] (const String & payload)  {
-          printAString("START motionTopic + aDevice + nomotioncount");
-          if ((payload != NULL) && !(payload.isEmpty())) {
-            printAString("MQTT meshNoMotionCount received...");
-            std::string anAddr;
-            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
-            if (itY != allSwitchbots.end())
-            {
-              anAddr = itY->second;
-              bool isNum = is_number(payload.c_str());
-              if (isNum) {
-                int newMeshNoMotionCount;
-                sscanf(payload.c_str(), "%d", &newMeshNoMotionCount);
-                if (newMeshNoMotionCount != 0) {
-                  std::map<std::string, int>::iterator itWE = noMotionCounts.find(anAddr.c_str());
-                  int noMotionCount = 0;
-                  if (itWE != noMotionCounts.end())
-                  {
-                    noMotionCount = itWE->second;
-                  }
-
-                  itWE = meshNoMotionCounts.find(anAddr.c_str());
-                  int meshNoMotionCount = 0;
-                  if (itWE != meshNoMotionCounts.end())
-                  {
-                    meshNoMotionCount = itWE->second;
-                  }
-
-                  itWE = motionCounts.find(anAddr.c_str());
-                  int motionCount = 0;
-                  if (itWE != motionCounts.end())
-                  {
-                    motionCount = itWE->second;
-                  }
-
-                  itWE = meshMotionCounts.find(anAddr.c_str());
-                  int meshMotionCount = 0;
-                  if (itWE != meshMotionCounts.end())
-                  {
-                    meshMotionCount = itWE->second;
-                  }
-
-                  if ((noMotionCount == 0) && (meshNoMotionCount == 0)) {
-                    meshNoMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
-                    noMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
-                  }
-                  else if (meshNoMotionCount != 0)
-                  {
-                    if ((meshNoMotionCount < newMeshNoMotionCount) ||  ((meshNoMotionCount > 40) && (newMeshNoMotionCount < 10))) {
-                      motionMeshStates[anAddr.c_str()] = "NO MOTION";
-                      meshNoMotionCounts[anAddr.c_str()] = newMeshNoMotionCount;
-                      if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
-                        std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
-                        addToPublish(deviceMotionTopic.c_str(), "NO MOTION", true);
-                      }
-                      if (noMotionCount != newMeshNoMotionCount) {
-                        updateNoMotionCount[anAddr.c_str()] = millis();
-                        updateMeshNoMotionCount[anAddr.c_str()] = newMeshNoMotionCount;
-                      }
-                    }
-                    else if ((meshNoMotionCount == newMeshNoMotionCount) && (motionCount == meshMotionCount)) {
-                      std::map<std::string, std::string>::iterator itH = motionMeshStates.find(anAddr.c_str());
-                      if (itH != motionMeshStates.end())
-                      {
-                        std::string motionState = itH->second.c_str();
-                        if (strcmp(motionState.c_str(), "NO MOTION") == 0) {
-                          if (!isMeshNode && onlyAllowRootESPToPublishMotion) {
-                            std::string deviceMotionTopic = motionTopic + aDevice + "/motion";
-                            addToPublish(deviceMotionTopic.c_str(), "NO MOTION", true);
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          printAString("END motionTopic + aDevice + nomotioncount");
-        });
-
-      }
-
-      if (countLightToAvoidDuplicates) {
-        client.subscribe((motionTopic + aDevice + "/darkcount").c_str(), [aDevice] (const String & payload)  {
-          printAString("START motionTopic + aDevice + darkcount");
-          if ((payload != NULL) && !(payload.isEmpty())) {
-            printAString("MQTT meshDarkCount received...");
-            std::string anAddr;
-            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
-            if (itY != allSwitchbots.end())
-            {
-              anAddr = itY->second;
-              bool isNum = is_number(payload.c_str());
-              if (isNum) {
-                int newMeshDarkCount;
-                sscanf(payload.c_str(), "%d", &newMeshDarkCount);
-                if (newMeshDarkCount != 0) {
-                  std::map<std::string, int>::iterator itWE = darkCounts.find(anAddr.c_str());
-                  int darkCount = 0;
-                  if (itWE != darkCounts.end())
-                  {
-                    darkCount = itWE->second;
-                  }
-
-                  itWE = meshDarkCounts.find(anAddr.c_str());
-                  int meshDarkCount = 0;
-                  if (itWE != meshDarkCounts.end())
-                  {
-                    meshDarkCount = itWE->second;
-                  }
-
-                  itWE = brightCounts.find(anAddr.c_str());
-                  int brightCount = 0;
-                  if (itWE != brightCounts.end())
-                  {
-                    brightCount = itWE->second;
-                  }
-
-                  itWE = meshBrightCounts.find(anAddr.c_str());
-                  int meshBrightCount = 0;
-                  if (itWE != meshBrightCounts.end())
-                  {
-                    meshBrightCount = itWE->second;
-                  }
-
-                  if ((darkCount == 0) && (meshDarkCount == 0)) {
-                    meshDarkCounts[anAddr.c_str()] = newMeshDarkCount;
-                    darkCounts[anAddr.c_str()] = newMeshDarkCount;
-                  }
-                  else if (meshDarkCount != 0)
-                  {
-                    if ((meshDarkCount < newMeshDarkCount) ||  ((meshDarkCount > 40) && (newMeshDarkCount < 10))) {
-                      lightMeshStates[anAddr.c_str()] = "DARK";
-                      meshDarkCounts[anAddr.c_str()] = newMeshDarkCount;
-                      if (!isMeshNode && onlyAllowRootESPToPublishLight) {
-                        std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
-                        addToPublish(deviceLightTopic.c_str(), "DARK", true);
-                      }
-                      if (darkCount != newMeshDarkCount) {
-                        updateDarkCount[anAddr.c_str()] = millis();
-                        updateMeshDarkCount[anAddr.c_str()] = newMeshDarkCount;
-                      }
-                    }
-                    else if ((meshDarkCount == newMeshDarkCount) && (brightCount == meshBrightCount)) {
-                      std::map<std::string, std::string>::iterator itH = lightMeshStates.find(anAddr.c_str());
-                      if (itH != lightMeshStates.end())
-                      {
-                        std::string illuminanceState = itH->second.c_str();
-                        if (strcmp(illuminanceState.c_str(), "DARK") == 0) {
-                          if (!isMeshNode && onlyAllowRootESPToPublishLight) {
-                            std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
-                            addToPublish(deviceLightTopic.c_str(), "DARK", true);
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          printAString("END motionTopic + aDevice + darkcount");
-        });
-
-        client.subscribe((motionTopic + aDevice + "/brightcount").c_str(), [aDevice] (const String & payload)  {
-          printAString("START motionTopic + aDevice + brightcount");
-          if ((payload != NULL) && !(payload.isEmpty())) {
-            printAString("MQTT meshBrightCount received...");
-            std::string anAddr;
-            std::map<std::string, std::string>::iterator itY = allSwitchbots.find(aDevice);
-            if (itY != allSwitchbots.end())
-            {
-              anAddr = itY->second;
-              bool isNum = is_number(payload.c_str());
-              if (isNum) {
-                int newMeshBrightCount;
-                sscanf(payload.c_str(), "%d", &newMeshBrightCount);
-                if (newMeshBrightCount != 0) {
-                  std::map<std::string, int>::iterator itWE = brightCounts.find(anAddr.c_str());
-                  int brightCount = 0;
-                  if (itWE != brightCounts.end())
-                  {
-                    brightCount = itWE->second;
-                  }
-
-                  itWE = meshBrightCounts.find(anAddr.c_str());
-                  int meshBrightCount = 0;
-                  if (itWE != meshBrightCounts.end())
-                  {
-                    meshBrightCount = itWE->second;
-                  }
-
-                  itWE = darkCounts.find(anAddr.c_str());
-                  int darkCount = 0;
-                  if (itWE != darkCounts.end())
-                  {
-                    darkCount = itWE->second;
-                  }
-
-                  itWE = meshDarkCounts.find(anAddr.c_str());
-                  int meshDarkCount = 0;
-                  if (itWE != meshDarkCounts.end())
-                  {
-                    meshDarkCount = itWE->second;
-                  }
-
-                  if ((brightCount == 0) && (meshBrightCount == 0)) {
-                    meshBrightCounts[anAddr.c_str()] = newMeshBrightCount;
-                    brightCounts[anAddr.c_str()] = newMeshBrightCount;
-                  }
-                  else if (meshBrightCount != 0)
-                  {
-                    if ((meshBrightCount < newMeshBrightCount) ||  ((meshBrightCount > 40) && (newMeshBrightCount < 10))) {
-                      lightMeshStates[anAddr.c_str()] = "BRIGHT";
-                      meshBrightCounts[anAddr.c_str()] = newMeshBrightCount;
-                      if (!isMeshNode && onlyAllowRootESPToPublishLight) {
-                        std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
-                        addToPublish(deviceLightTopic.c_str(), "BRIGHT", true);
-                      }
-                      if (brightCount != newMeshBrightCount) {
-                        updateBrightCount[anAddr.c_str()] = millis();
-                        updateMeshBrightCount[anAddr.c_str()] = newMeshBrightCount;
-                      }
-                    }
-                    else if ((meshBrightCount == newMeshBrightCount) && (darkCount == meshDarkCount)) {
-                      std::map<std::string, std::string>::iterator itH = lightMeshStates.find(anAddr.c_str());
-                      if (itH != lightMeshStates.end())
-                      {
-                        std::string illuminanceState = itH->second.c_str();
-                        if (strcmp(illuminanceState.c_str(), "BRIGHT") == 0) {
-                          if (!isMeshNode && onlyAllowRootESPToPublishLight) {
-                            std::string deviceLightTopic = motionTopic + aDevice + "/illuminance";
-                            addToPublish(deviceLightTopic.c_str(), "BRIGHT", true);
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          printAString("END motionTopic + aDevice + brightcount");
-        });
-      }
-    }
-    it++;
-  }
-
-  client.subscribe(requestInfoStdStr.c_str(), [] (const String & payload)  {
-    if ((payload != NULL) && !(payload.isEmpty())) {
-      printAString("Request Info MQTT Received...");
-      bool skip = false;
-      if (isRescanning) {
-        if (pScan->isScanning() || isRescanning) {
-          if (pScan->isScanning()) {
-            pScan->stop();
-          }
-          allSwitchbotsScanned = {};
-          forceRescan = true;
-          lastUpdateTimes = {};
-        }
-        skip = true;
-      }
-      if (!skip) {
+        printAString("setMode  MQTT Received...");
         if (!commandQueue.isFull()) {
+          StaticJsonDocument<100> docIn;
+          deserializeJson(docIn, payload.c_str());
+          const char * aDevice = docIn["id"];
+          const char * aMode = docIn["mode"];
           struct QueueCommand queueCommand;
-          queueCommand.payload = payload.c_str();
-          queueCommand.topic = ESPMQTTTopic + "/requestInfo";
+          queueCommand.payload = aMode;
+          queueCommand.topic = ESPMQTTTopic + "/control";
+          queueCommand.device = aDevice;
           queueCommand.disconnectAfter = true;
           queueCommand.priority = false;
           queueCommand.currentTry = 1;
@@ -7003,116 +7636,21 @@ void onConnectionEstablished() {
           client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
         }
       }
-    }
-  });
+    });
 
-  client.subscribe(requestSettingsStdStr.c_str(), [] (const String & payload)  {
-    if ((payload != NULL) && !(payload.isEmpty())) {
-      printAString("Request Settings MQTT Received...");
-      if (!commandQueue.isFull()) {
-        StaticJsonDocument<100> docIn;
-        deserializeJson(docIn, payload.c_str());
-        const char * aDevice = docIn["id"];
-        struct QueueCommand queueCommand;
-        queueCommand.payload = "REQUESTSETTINGS";
-        queueCommand.topic = ESPMQTTTopic + "/control";
-        queueCommand.device = aDevice;
-        queueCommand.disconnectAfter = true;
-        queueCommand.priority = false;
-        queueCommand.currentTry = 1;
-        commandQueue.enqueue(queueCommand);
-      }
-      else {
-        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
-      }
-    }
-  });
-
-  client.subscribe(setModeStdStr.c_str(), [] (const String & payload)  {
-    if ((payload != NULL) && !(payload.isEmpty())) {
-      printAString("setMode  MQTT Received...");
-      if (!commandQueue.isFull()) {
-        StaticJsonDocument<100> docIn;
-        deserializeJson(docIn, payload.c_str());
-        const char * aDevice = docIn["id"];
-        const char * aMode = docIn["mode"];
-        struct QueueCommand queueCommand;
-        queueCommand.payload = aMode;
-        queueCommand.topic = ESPMQTTTopic + "/control";
-        queueCommand.device = aDevice;
-        queueCommand.disconnectAfter = true;
-        queueCommand.priority = false;
-        queueCommand.currentTry = 1;
-        commandQueue.enqueue(queueCommand);
-      }
-      else {
-        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
-      }
-    }
-  });
-
-  client.subscribe(setHoldStdStr.c_str(), [] (const String & payload)  {
-    if ((payload != NULL) && !(payload.isEmpty())) {
-      printAString("setHold MQTT Received...");
-      if (!commandQueue.isFull()) {
-        StaticJsonDocument<100> docIn;
-        deserializeJson(docIn, payload.c_str());
-        const char * aDevice = docIn["id"];
-        int aHold = docIn["hold"];
-        String holdString = String(aHold);
-        struct QueueCommand queueCommand;
-        queueCommand.payload = holdString.c_str();
-        queueCommand.topic = ESPMQTTTopic + "/control";
-        queueCommand.device = aDevice;
-        queueCommand.disconnectAfter = true;
-        queueCommand.priority = false;
-        queueCommand.currentTry = 1;
-        commandQueue.enqueue(queueCommand);
-      }
-      else {
-        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
-      }
-    }
-  });
-
-  client.subscribe(holdPressStdStr.c_str(), [] (const String & payload)  {
-    if ((payload != NULL) && !(payload.isEmpty())) {
-      printAString("holdPress MQTT Received...");
-      if (!commandQueue.isFull()) {
-        StaticJsonDocument<100> docIn;
-        deserializeJson(docIn, payload.c_str());
-        const char * aDevice = docIn["id"];
-        int aHold = docIn["hold"];
-        performHoldPress(aDevice, aHold);
-      }
-      else {
-        client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
-      }
-    }
-  });
-
-  client.subscribe(rescanStdStr.c_str(), [] (const String & payload)  {
-    if ((payload != NULL) && !(payload.isEmpty())) {
-      printAString("Rescan MQTT Received...");
-
-      bool skip = false;
-      if (isRescanning) {
-        if (pScan->isScanning() || isRescanning) {
-          if (pScan->isScanning()) {
-            pScan->stop();
-          }
-          allSwitchbotsScanned = {};
-          forceRescan = true;
-          lastUpdateTimes = {};
-        }
-        skip = true;
-      }
-      if (!skip) {
-
+    client.subscribe(setHoldStdStr.c_str(), [] (const String & payload)  {
+      if ((payload != NULL) && !(payload.isEmpty())) {
+        printAString("setHold MQTT Received...");
         if (!commandQueue.isFull()) {
+          StaticJsonDocument<100> docIn;
+          deserializeJson(docIn, payload.c_str());
+          const char * aDevice = docIn["id"];
+          int aHold = docIn["hold"];
+          String holdString = String(aHold);
           struct QueueCommand queueCommand;
-          queueCommand.payload = payload.c_str();
-          queueCommand.topic = ESPMQTTTopic + "/rescan";
+          queueCommand.payload = holdString.c_str();
+          queueCommand.topic = ESPMQTTTopic + "/control";
+          queueCommand.device = aDevice;
           queueCommand.disconnectAfter = true;
           queueCommand.priority = false;
           queueCommand.currentTry = 1;
@@ -7122,12 +7660,61 @@ void onConnectionEstablished() {
           client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
         }
       }
-    }
-  });
+    });
 
-  publishHomeAssistantDiscoveryESPConfig();
-  discoveredDevices = {};
+    client.subscribe(holdPressStdStr.c_str(), [] (const String & payload)  {
+      if ((payload != NULL) && !(payload.isEmpty())) {
+        printAString("holdPress MQTT Received...");
+        if (!commandQueue.isFull()) {
+          StaticJsonDocument<100> docIn;
+          deserializeJson(docIn, payload.c_str());
+          const char * aDevice = docIn["id"];
+          int aHold = docIn["hold"];
+          performHoldPress(aDevice, aHold);
+        }
+        else {
+          client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+        }
+      }
+    });
 
+    client.subscribe(rescanStdStr.c_str(), [] (const String & payload)  {
+      if ((payload != NULL) && !(payload.isEmpty())) {
+        printAString("Rescan MQTT Received...");
+
+        bool skip = false;
+        if (isRescanning) {
+          if (pScan->isScanning() || isRescanning) {
+            if (pScan->isScanning()) {
+              pScan->stop();
+            }
+            allSwitchbotsScanned = {};
+            forceRescan = true;
+            lastUpdateTimes = {};
+          }
+          skip = true;
+        }
+        if (!skip) {
+
+          if (!commandQueue.isFull()) {
+            struct QueueCommand queueCommand;
+            queueCommand.payload = payload.c_str();
+            queueCommand.topic = ESPMQTTTopic + "/rescan";
+            queueCommand.disconnectAfter = true;
+            queueCommand.priority = false;
+            queueCommand.currentTry = 1;
+            commandQueue.enqueue(queueCommand);
+          }
+          else {
+            client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"errorQueueFull\"}");
+          }
+        }
+      }
+    });
+
+    publishHomeAssistantDiscoveryESPConfig();
+    discoveredDevices = {};
+  }
 }
 
 bool connectToServer(NimBLEAdvertisedDevice * advDeviceToUse) {
@@ -7193,29 +7780,35 @@ bool sendCurtainCommandBytes(NimBLERemoteCharacteristic * pChr, byte * bArray, i
   if (pChr == nullptr) {
     return false;
   }
-  if (getCurtainResponse) {
-    return sendCommandBytesWithResponse(pChr, bArray, aSize);
-  }
-  else {
-    return sendCommandBytesNoResponse(pChr, bArray, aSize);
-  }
+  return sendCommandBytesWithResponse(pChr, bArray, aSize);
 }
 
 bool sendBotCommandBytes(NimBLERemoteCharacteristic * pChr, byte * bArray, int aSize ) {
   if (pChr == nullptr) {
     return false;
   }
-  if (getBotResponse) {
-    return sendCommandBytesWithResponse(pChr, bArray, aSize);
+  return sendCommandBytesWithResponse(pChr, bArray, aSize);
+}
+
+bool sendPlugCommandBytes(NimBLERemoteCharacteristic * pChr, byte * bArray, int aSize ) {
+  if (pChr == nullptr) {
+    return false;
   }
-  else {
-    return sendCommandBytesNoResponse(pChr, bArray, aSize);
-  }
+  return sendCommandBytesWithResponse(pChr, bArray, aSize);
 }
 
 bool isBotDevice(std::string aDevice) {
   std::map<std::string, std::string>::iterator itS = allBots.find(aDevice);
   if (itS != allBots.end())
+  {
+    return true;
+  }
+  return false;
+}
+
+bool isPlugDevice(std::string aDevice) {
+  std::map<std::string, std::string>::iterator itS = allPlugs.find(aDevice);
+  if (itS != allPlugs.end())
   {
     return true;
   }
@@ -7267,6 +7860,8 @@ bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int
   byte bArrayPress[] = {0x57, 0x01};
   byte bArrayOn[] = {0x57, 0x01, 0x01};
   byte bArrayOff[] = {0x57, 0x01, 0x02};
+  byte bArrayPlugOn[] = {0x57, 0x0F, 0x50, 0x01, 0x01, 0x80};
+  byte bArrayPlugOff[] = {0x57, 0x0F, 0x50, 0x01, 0x01, 0x00};
   byte bArrayOpen[] =  {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, 0x00};
   byte bArrayClose[] = {0x57, 0x0F, 0x45, 0x01, 0x05, 0xFF, 0x64};
   byte bArrayPause[] = {0x57, 0x0F, 0x45, 0x01, 0x00, 0xFF};
@@ -7316,15 +7911,15 @@ bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int
   }
   if (isBotDevice(aDevice))
   {
-    if (getBotResponse) {
-      returnValue = subscribeToNotify(advDeviceToUse);
-    }
+    returnValue = subscribeToNotify(advDeviceToUse);
   }
   else if (isCurtainDevice(aDevice))
   {
-    if (getCurtainResponse) {
-      returnValue = subscribeToNotify(advDeviceToUse);
-    }
+    returnValue = subscribeToNotify(advDeviceToUse);
+  }
+  else if (isPlugDevice(aDevice))
+  {
+    returnValue = subscribeToNotify(advDeviceToUse);
   }
   bool skipWaitAfter = false;
   if (returnValue) {
@@ -7413,37 +8008,49 @@ bool sendCommand(NimBLEAdvertisedDevice * advDeviceToUse, const char * type, int
             }
           }
           else if (strcmp(type, "ON") == 0) {
-            if (aPass == "") {
-              wasSuccess = sendBotCommandBytes(pChr, bArrayOn, 3);
-            }
-            else {
-              byte anArray[7];
-              for (int i = 0; i < 7; i++) {
-                if (i >= 2 &&  i <= 5) {
-                  anArray[i] = aPassCRC[i - 2];
-                }
-                else {
-                  anArray[i] = bArrayOnPass[i];
-                }
+            if (isBotDevice(aDevice)) {
+              if (aPass == "") {
+                wasSuccess = sendBotCommandBytes(pChr, bArrayOn, 3);
               }
-              wasSuccess = sendBotCommandBytes(pChr, anArray , 7);
+              else {
+                byte anArray[7];
+                for (int i = 0; i < 7; i++) {
+                  if (i >= 2 &&  i <= 5) {
+                    anArray[i] = aPassCRC[i - 2];
+                  }
+                  else {
+                    anArray[i] = bArrayOnPass[i];
+                  }
+                }
+                wasSuccess = sendBotCommandBytes(pChr, anArray , 7);
+              }
             }
+            if (isPlugDevice(aDevice)) {
+              wasSuccess = sendPlugCommandBytes(pChr, bArrayPlugOn, 6);
+
+            }
+
           }
           else if (strcmp(type, "OFF") == 0) {
-            if (aPass == "") {
-              wasSuccess = sendBotCommandBytes(pChr, bArrayOff, 3);
-            }
-            else {
-              byte anArray[7];
-              for (int i = 0; i < 7; i++) {
-                if (i >= 2 &&  i <= 5) {
-                  anArray[i] = aPassCRC[i - 2];
-                }
-                else {
-                  anArray[i] = bArrayOffPass[i];
-                }
+            if (isBotDevice(aDevice)) {
+              if (aPass == "") {
+                wasSuccess = sendBotCommandBytes(pChr, bArrayOff, 3);
               }
-              wasSuccess = sendBotCommandBytes(pChr, anArray , 7);
+              else {
+                byte anArray[7];
+                for (int i = 0; i < 7; i++) {
+                  if (i >= 2 &&  i <= 5) {
+                    anArray[i] = aPassCRC[i - 2];
+                  }
+                  else {
+                    anArray[i] = bArrayOffPass[i];
+                  }
+                }
+                wasSuccess = sendBotCommandBytes(pChr, anArray , 7);
+              }
+            }
+            if (isPlugDevice(aDevice)) {
+              wasSuccess = sendPlugCommandBytes(pChr, bArrayPlugOff, 6);
             }
           }
           else if (strcmp(type, "OPEN") == 0) {
@@ -7705,7 +8312,7 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       statDoc["status"] = "commandSent";
       statDoc["command"] = aCommand;
       serializeJson(statDoc, aBuffer);
-      addToPublish(deviceStatusTopic.c_str(), aBuffer);
+      client.publish(deviceStatusTopic.c_str(), aBuffer);
       lastCommandSentPublished = true;
     }
 
@@ -7737,7 +8344,7 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       statDoc["value"] = byte1;
       statDoc["command"] = aCommand;
       serializeJson(statDoc, aBuffer);
-      addToPublish(deviceStatusTopic.c_str(), aBuffer);
+      client.publish(deviceStatusTopic.c_str(), aBuffer);
     }
     if (length == 3) {
       StaticJsonDocument<60> statDoc;
@@ -7787,7 +8394,7 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       statDoc["value"] = byte1;
       statDoc["command"] = aCommand;
       serializeJson(statDoc, aBuffer);
-      addToPublish(deviceStatusTopic.c_str(), aBuffer);
+      client.publish(deviceStatusTopic.c_str(), aBuffer);
     }
     else if (length == 13) {
       StaticJsonDocument<50> statDoc;
@@ -7795,7 +8402,7 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       statDoc["command"] = aCommand;
       lastCommandWasBusy = false;
       serializeJson(statDoc, aBuffer);
-      addToPublish(deviceStatusTopic.c_str(), aBuffer);
+      client.publish(deviceStatusTopic.c_str(), aBuffer);
 
       /**** THESE SETTINGS ARE ALSO COLLECTED BY A SCAN SO IT IS REDUNDANT. Commented out because of RSSI. The rest works****/
       /*
@@ -7866,7 +8473,7 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       statDoc["status"] = "commandSent";
       statDoc["command"] = aCommand;
       serializeJson(statDoc, aBuffer);
-      addToPublish(deviceStatusTopic.c_str(), aBuffer);
+      client.publish(deviceStatusTopic.c_str(), aBuffer);
       lastCommandSentPublished = true;
     }
     if (length < 3) {
@@ -7901,18 +8508,52 @@ void notifyCB(NimBLERemoteCharacteristic * pRemoteCharacteristic, uint8_t* pData
       statDoc["value"] = byte1;
       statDoc["command"] = aCommand;
       serializeJson(statDoc, aBuffer);
-      addToPublish(deviceStatusTopic.c_str(), aBuffer);
+      client.publish(deviceStatusTopic.c_str(), aBuffer);
     }
   }
 
-  NimBLEClient* pClient = nullptr;
-  if (NimBLEDevice::getClientListSize()) {
-    pClient = NimBLEDevice::getClientByPeerAddress(deviceMac);
-    if (pClient) {
-      if (pClient->isConnected()) {
-        unsubscribeToNotify(pClient);
-        //pClient->disconnect();
+  else if (deviceName == plugName) {
+    deviceStatusTopic = plugTopic + aDevice + "/status";
+    deviceSettingsTopic = plugTopic + aDevice + "/settings";
+    deviceAttrTopic = plugTopic + aDevice + "/attributes";
+
+    if (!lastCommandSentPublished) {
+      StaticJsonDocument<50> statDoc;
+      statDoc["status"] = "commandSent";
+      statDoc["command"] = aCommand;
+      serializeJson(statDoc, aBuffer);
+      client.publish(deviceStatusTopic.c_str(), aBuffer);
+      lastCommandSentPublished = true;
+    }
+    if (length < 2) {
+      return;
+    }
+    else if (length == 2) {
+      Serial.println("length:");
+      Serial.println(length);
+      StaticJsonDocument<50> statDoc;
+      uint8_t byte1 = pData[0];
+
+      printAString("The response value from plug: ");
+      printAString(byte1);
+      if (byte1 == 3) {
+        statDoc["status"] = "busy";
+        lastCommandWasBusy = true;
       }
+      //SUCCESS == 1 or == 5 for plugTopic ????? just assuming based on bot
+      else if (byte1 == 1 || byte1 == 5) {
+        statDoc["status"] = "success";
+        lastCommandWasBusy = false;
+      }
+      else {
+        statDoc["status"] = "failed";
+        lastCommandWasBusy = false;
+      }
+      statDoc["value"] = byte1;
+      statDoc["command"] = aCommand;
+      serializeJson(statDoc, aBuffer);
+      client.publish(deviceStatusTopic.c_str(), aBuffer);
     }
   }
+
 }
