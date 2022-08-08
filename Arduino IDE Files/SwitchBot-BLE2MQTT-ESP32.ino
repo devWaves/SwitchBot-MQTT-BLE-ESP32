@@ -344,7 +344,7 @@
 /* Enter all the switchbot device MAC addresses in the lists below */
 
 /* If using multiple ESP32s - ESP32 can be meshed together for better motion/contact/meter performance */
-/* Bot and Curtains: (CANNOT BE MESHED) Enter the MAC addresses of the switchbot devices on the ESP32 closest to the switchbot device */
+/* Bot and Curtains and Plugs: (CANNOT BE MESHED) Enter the MAC addresses of the switchbot devices on the ESP32 closest to the switchbot device */
 /* Motion and Contact and Meter: (CAN BE MESHED) Enter the MAC addresses of the switchbot devices into all or most of the ESP32s */
 
 /* Wifi Settings */
