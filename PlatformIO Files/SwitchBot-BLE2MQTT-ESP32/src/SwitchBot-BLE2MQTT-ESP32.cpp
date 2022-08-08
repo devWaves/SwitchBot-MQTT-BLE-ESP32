@@ -668,6 +668,7 @@ void scanEndedCB(NimBLEScanResults results);
 void rescanEndedCB(NimBLEScanResults results);
 void initialScanEndedCB(NimBLEScanResults results);
 bool isBotDevice(std::string aDevice);
+bool isPlugDevice(std::string aDevice);
 bool isMeterDevice(std::string & aDevice);
 bool isCurtainDevice(std::string aDevice);
 bool isMotionDevice(std::string & aDevice);
