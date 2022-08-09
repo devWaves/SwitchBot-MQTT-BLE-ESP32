@@ -56,6 +56,11 @@ static std::map<std::string, std::string> allMotionSensors = {
   { "motiontwo", "yY:yY:yY:yY:yY:yY" }
 };
 
+/* Switchbot Plug Mini Settings */
+static std::map<std::string, std::string> allPlugs = {
+};
+
+
 
 static const int rescanTime = 21600;                         // Automatically perform a full active scan for device info of all devices every X seconds (default 3 hours). XXXXActiveScanSecs will also active scan on schedule
 
