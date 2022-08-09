@@ -55,6 +55,10 @@ Notes:
  - Mesh multiple ESP32s for better motion/contact/meter performance
  - Active scanning (uses more battery) VS Passive scanning (uses less battery)
 
+<br>
+<br>
+<br>
+
 \<ESPMQTTTopic\> = \<mqtt_main_topic\>/\<host\>
 	
       - Default = switchbot/esp32
