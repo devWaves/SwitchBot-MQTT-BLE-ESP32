@@ -4,9 +4,9 @@ Switchbot local control using ESP32. no switchbot hub used/required. works with 
 
 https://github.com/devWaves/SwitchBot-MQTT-BLE-ESP32
 
-v7.0-preRelease
+v7.0
 
-Created: on May 10
+Created: on Aug 9 2022
   
   Author:
    devWaves
@@ -31,7 +31,7 @@ based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
 Notes:
  - Supports Home Assistant MQTT Discovery
- - Support bots, curtains, temp meters, contact sensors, and motion sensors
+ - Support bots, curtains, temp meters, contact sensors, motion sensors, plug mini
  - It works for button press/on/off
  - It works for curtain open/close/pause/position(%)
  - It can request status values (bots/curtain/meter/motion/contact: battery, mode, state, position, temp etc) using a "rescan" for all devices
@@ -50,6 +50,10 @@ Notes:
  - holdPress = set bot hold value, then call press (without disconnecting in between)
  - Set/Control is prioritized over scanning. While scanning, if a set/control command is received scanning is stopped and resumed later
  - ESP32 can simulate ON/OFF for devices when bot is in PRESS mode. (Cannot guarantee it will always be accurate)
+ - Curtain position will update as curtain is moving
+ - Switchbot device states will always update when state is changed while scanning (active/passive)
+ - Mesh multiple ESP32s for better motion/contact/meter performance
+ - Active scanning (uses more battery) VS Passive scanning (uses less battery)
 
 \<ESPMQTTTopic\> = \<mqtt_main_topic\>/\<host\>
 	
@@ -368,6 +372,48 @@ Notes:
 6. Reboot ESP32 plug it in with 5v usb (no data needed)
 <br>
 <br>
+
+## Steps for OTA update ##
+
+1. Download the latest version of the ESP32 code
+2. Edit the code with your Wifi, MQTT, Switchbot device MAC configurations
+3. Compile a .bin file using the IDE you are using
+	- Arduino = https://randomnerdtutorials.com/bin-binary-files-sketch-arduino-ide/
+	- PlatformIO = https://community.platformio.org/t/how-to-make-bin-file-using-platformio-ide/8491
+4. Open the ESP32 IP address in a web browser 
+5. Upload the new .bin file from the web browser
+6. Check from the web browser that the version is the correct version
+
+<br>
+<br>
+
+
+## Steps for ESP32 Mesh setup (Look at the EXAMPLES folder for different configuration between Primary and Secondary ESP32s ##
+
+1. Decide how many ESP32s you want to use
+2. Choose one ESP32 as the primary and set the host value. Example: ```static const char* host = "esp32";```
+3. Setup the other ESP32s as secondary ESP32s. Set unique host values. Example: ```static const char* host = "esp32mesh1";```
+4. Setup the other ESP32s as secondary ESP32s. Set meshHost to the primary ESP32 host value. Example: ```static const char* meshHost = "esp32"; ```
+5. Decide on the other configurations:
+	- Primary ESP32 can be set to Active and Passive Scan, or Active Scan only (if you are also using switchbot hub/app and what statuses to be synched constantly)
+	- Secondary ESP32s can be set to passive scan only, or active scan less than the primary ESP32
+
+NOTES: 
+
+In a MESH setup, messages will be routed through the primary ESP32. The primary ESP32 will keep counts of things like contact/motion/button pushes to ensure duplicates messages are not sent out. Each ESP32 will receive the BLE data from the device, so performance is greatly increased. The first ESP32 to detect the data change will result in a faster MQTT data publish
+
+Active Scanning:
+
+	- Active Scanning uses more battery on switchbot devices. It requests a read response from the switchbot devices
+	- Active Scanning provides more data like battery info
+	- Active Scanning is required by Bots and Curtains
+	
+Passive Scanning:
+
+	- Passive Scanning uses less battery on switchbot devices. It does not request a read response from the switchbot devices
+	- Passive Scanning does not provide battery info in most cases, but provides state (ON/OFF, temp, contact, motion, humidity ... etc)
+	- Passive Scanning is good enough for Motion, Contact, Meter and Plugs
+
 ## Videos and Tutorials on Youtube ##
 
 by KPeyanski (Language English. based on v6.4. Home Assistant)
@@ -382,3 +428,26 @@ by BangerTech (Language German. based on v6.1. OpenHab)
 <br>
 &nbsp;&nbsp;&nbsp;https://www.youtube.com/watch?v=TmtCwZbDJIU
 
+<br>
+<br>
+
+
+**ESP32 models that I can confirm work**
+* Wemos D1 Mini ESP32
+* ESP32-WROOM-32U
+* QuinLED-ESP32-AE
+* Heltec WiFi Kit 32
+
+**ESP32 models that may not work**
+* ESP32-S2 = No Bluetooth so definitely won't work
+* ESP32-C3 = Less RAM/ROM that the WROOM models
+* ESP32s = Ai-Thinker model. Some users have said they had issues with this model
+* ESP32-solo = Only has one core instead of 2 cores
+
+**Known Supported SwitchBot devices and firmware versions**
+* Bot = Firmware v6.2
+* Curtain = Firmware v4.6
+* Meter/MeterPlus = Firmware v2.7
+* Contact Sensor = Firmware v1.1
+* Motion Sensor = Firmware v1.3
+* Plug Mini = Firmware v1.3
