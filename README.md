@@ -4,9 +4,9 @@ Switchbot local control using ESP32. no switchbot hub used/required. works with 
 
 https://github.com/devWaves/SwitchBot-MQTT-BLE-ESP32
 
-v6.12
+v7.0
 
-Created: on July 29 2022
+Created: on Aug 9 2022
   
   Author:
    devWaves
@@ -31,7 +31,7 @@ based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
 Notes:
  - Supports Home Assistant MQTT Discovery
- - Support bots, curtains, temp meters, contact sensors, and motion sensors
+ - Support bots, curtains, temp meters, contact sensors, motion sensors, plug mini
  - It works for button press/on/off
  - It works for curtain open/close/pause/position(%)
  - It can request status values (bots/curtain/meter/motion/contact: battery, mode, state, position, temp etc) using a "rescan" for all devices
@@ -50,6 +50,14 @@ Notes:
  - holdPress = set bot hold value, then call press (without disconnecting in between)
  - Set/Control is prioritized over scanning. While scanning, if a set/control command is received scanning is stopped and resumed later
  - ESP32 can simulate ON/OFF for devices when bot is in PRESS mode. (Cannot guarantee it will always be accurate)
+ - Curtain position will update as curtain is moving
+ - Switchbot device states will always update when state is changed while scanning (active/passive)
+ - Mesh multiple ESP32s for better motion/contact/meter performance
+ - Active scanning (uses more battery) VS Passive scanning (uses less battery)
+
+<br>
+<br>
+<br>
 
 \<ESPMQTTTopic\> = \<mqtt_main_topic\>/\<host\>
 	
@@ -383,6 +391,33 @@ Notes:
 <br>
 <br>
 
+
+## Steps for ESP32 Mesh setup (Look at the EXAMPLES folder for different configuration between Primary and Secondary ESP32s ##
+
+1. Decide how many ESP32s you want to use
+2. Choose one ESP32 as the primary and set the host value. Example: ```static const char* host = "esp32";```
+3. Setup the other ESP32s as secondary ESP32s. Set unique host values. Example: ```static const char* host = "esp32mesh1";```
+4. Setup the other ESP32s as secondary ESP32s. Set meshHost to the primary ESP32 host value. Example: ```static const char* meshHost = "esp32"; ```
+5. Decide on the other configurations:
+	- Primary ESP32 can be set to Active and Passive Scan, or Active Scan only (if you are also using switchbot hub/app and what statuses to be synched constantly)
+	- Secondary ESP32s can be set to passive scan only, or active scan less than the primary ESP32
+
+NOTES: 
+
+In a MESH setup, messages will be routed through the primary ESP32. The primary ESP32 will keep counts of things like contact/motion/button pushes to ensure duplicates messages are not sent out. Each ESP32 will receive the BLE data from the device, so performance is greatly increased. The first ESP32 to detect the data change will result in a faster MQTT data publish
+
+Active Scanning:
+
+	- Active Scanning uses more battery on switchbot devices. It requests a read response from the switchbot devices
+	- Active Scanning provides more data like battery info
+	- Active Scanning is required by Bots and Curtains
+	
+Passive Scanning:
+
+	- Passive Scanning uses less battery on switchbot devices. It does not request a read response from the switchbot devices
+	- Passive Scanning does not provide battery info in most cases, but provides state (ON/OFF, temp, contact, motion, humidity ... etc)
+	- Passive Scanning is good enough for Motion, Contact, Meter and Plugs
+
 ## Videos and Tutorials on Youtube ##
 
 by KPeyanski (Language English. based on v6.4. Home Assistant)
@@ -419,3 +454,4 @@ by BangerTech (Language German. based on v6.1. OpenHab)
 * Meter/MeterPlus = Firmware v2.7
 * Contact Sensor = Firmware v1.1
 * Motion Sensor = Firmware v1.3
+* Plug Mini = Firmware v1.3
