@@ -406,7 +406,7 @@ NOTES:
 
 In a MESH setup, messages will be routed through the primary ESP32. The primary ESP32 will keep counts of things like contact/motion/button pushes to ensure duplicates messages are not sent out. Each ESP32 will receive the BLE data from the device, so performance is greatly increased. The first ESP32 to detect the data change will result in a faster MQTT data publish
 
-*Meshing only works for motion sensors, contact sensors and temp meters. Add the motion/contact/meter MAC address to all or most meshed ESP32s. Add the Bot and Curtain MACs only once on the ESP32 closest to the device
+*Meshing only works for motion sensors, contact sensors and temp meters. Add the motion/contact/meter MAC address to all or most meshed ESP32s. Add the Bot and Curtain and Plug MACs only once on the ESP32 closest to the device
 
 Active Scanning:
 
