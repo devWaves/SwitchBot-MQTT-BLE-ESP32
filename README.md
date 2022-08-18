@@ -6,7 +6,7 @@ https://github.com/devWaves/SwitchBot-MQTT-BLE-ESP32
 
 v7.1
 
-Created: on Aug 15 2022
+Created: on Aug 17 2022
   
   Author:
    devWaves
