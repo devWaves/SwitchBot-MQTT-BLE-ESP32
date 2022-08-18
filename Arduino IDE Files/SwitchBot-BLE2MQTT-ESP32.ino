@@ -11,9 +11,9 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v7.0
+  v7.1
 
-    Created: on Aug 9 2022
+    Created: on Aug 17 2022
         Author: devWaves
 
         Contributions from:
@@ -362,7 +362,7 @@ static const std::string mqtt_main_topic = "switchbot";             //  MQTT mai
 
 /* Mesh Settings */
 /* Ignore if only one ESP32 is used */
-static const bool enableMesh = true;                                // Ignore if only one ESP32 is used. Set to false
+static const bool enableMesh = false;                               // Ignore if only one ESP32 is used. Set to false
 static const char* meshHost = "";                                   // Ignore if only one ESP32 is used. Ignore if you don't have either meter/contact/motion. Enter the host value of the primary ESP32 if you are using multiple esp32s and you want to mesh them together for better contact/motion
 static const bool meshMeters = true;                                // Mesh meters together if meshHost is set. The meter values will use the meshHost MQTT topics
 static const bool meshContactSensors = true;                        // Mesh contact sensors together if meshHost is set. The contact values will use the meshHost MQTT topics.
@@ -456,8 +456,9 @@ static std::map<std::string, std::string> allBotTypes = {     // OPTIONAL - (DEF
 
 
 /* ESP32 LED Settings */
-//#define LED_BUILTIN 2                              // If your board doesn't have a defined LED_BUILTIN, uncomment this line and replace 2 with the LED pin value
-#define LED_PIN LED_BUILTIN                          // If your board doesn't have a defined LED_BUILTIN (You will get a compile error), uncomment the line above
+#ifndef LED_BUILTIN
+	#define LED_BUILTIN 2                            // If your board doesn't have a defined LED_BUILTIN, replace 2 with the LED pin value
+#endif
 static const bool ledHighEqualsON = true;            // ESP32 board LED ON=HIGH (Default). If your ESP32 LED is turning OFF on scanning and turning ON while IDLE, then set this value to false
 static const bool ledOnBootScan = true;              // Turn on LED during initial boot scan
 static const bool ledOnScan = true;                  // Turn on LED while scanning (non-boot)
@@ -559,7 +560,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v7.0";
+static const String versionNum = "v7.1";
 
 /*
    Server Index Page
@@ -2275,6 +2276,9 @@ void processBotBattery(std::string & aDevice, std::string & deviceMac, std::stri
     batteryValues[aDevice] = battLevel;
     aJsonDoc["batt"] = battLevel;
   }
+  else if (onlyPassiveScan) {
+    shouldPublish = false;
+  }
   else {
     battLevel = batteryValues[aDevice];
     aJsonDoc["batt"] = battLevel;
@@ -2284,6 +2288,7 @@ void processBotBattery(std::string & aDevice, std::string & deviceMac, std::stri
     addToPublish(botTopic + aDevice + "/battery", battLevel, true);
   }
 }
+
 void processCurtainBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish, JsonDocument & aJsonDoc) {
   int battLevel = 0;
   bool shouldPublish = aPublish;
@@ -2292,6 +2297,9 @@ void processCurtainBattery(std::string & aDevice, std::string & deviceMac, std::
     battLevel = (byte2 & 0b01111111);
     batteryValues[aDevice] = battLevel;
     aJsonDoc["batt"] = battLevel;
+  }
+  else if (onlyPassiveScan) {
+    shouldPublish = false;
   }
   else {
     battLevel = batteryValues[aDevice];
@@ -2302,6 +2310,7 @@ void processCurtainBattery(std::string & aDevice, std::string & deviceMac, std::
     addToPublish(curtainTopic + aDevice + "/battery", battLevel, true);
   }
 }
+
 void processMeterBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish, JsonDocument & aJsonDoc) {
   int battLevel = 0;
   bool shouldPublish = aPublish;
@@ -2310,6 +2319,9 @@ void processMeterBattery(std::string & aDevice, std::string & deviceMac, std::st
     battLevel = (byte2 & 0b01111111);
     batteryValues[aDevice] = battLevel;
     aJsonDoc["batt"] = battLevel;
+  }
+  else if (onlyPassiveScan) {
+    shouldPublish = false;
   }
   else {
     battLevel = batteryValues[aDevice];
@@ -2320,6 +2332,7 @@ void processMeterBattery(std::string & aDevice, std::string & deviceMac, std::st
     addToPublish(meterTopic + aDevice + "/battery", battLevel, true);
   }
 }
+
 void processContactBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
   int battLevel = 0;
   bool shouldPublish = aPublish;
@@ -2329,6 +2342,9 @@ void processContactBattery(std::string & aDevice, std::string & deviceMac, std::
     batteryValues[aDevice] = battLevel;
     // aJsonDoc["batt"] = battLevel;
   }
+  else if (onlyPassiveScan) {
+    shouldPublish = false;
+  }
   else {
     battLevel = batteryValues[aDevice];
   }
@@ -2337,6 +2353,7 @@ void processContactBattery(std::string & aDevice, std::string & deviceMac, std::
     addToPublish(contactTopic + aDevice + "/battery", battLevel, true);
   }
 }
+
 void processMotionBattery(std::string & aDevice, std::string & deviceMac, std::string & aValueString, bool isActive, bool aPublish) {
   int battLevel = 0;
   bool shouldPublish = aPublish;
@@ -2345,6 +2362,9 @@ void processMotionBattery(std::string & aDevice, std::string & deviceMac, std::s
     battLevel = (byte2 & 0b01111111);
     batteryValues[aDevice] = battLevel;
     //aJsonDoc["batt"] = battLevel;
+  }
+  else if (onlyPassiveScan) {
+    shouldPublish = false;
   }
   else {
     battLevel = batteryValues[aDevice];
@@ -3494,7 +3514,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"pl_on\":\"OPEN\"," +
                + "\"pl_off\":\"CLOSED\"}").c_str(), true);
 
-  addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/in/config").c_str(), ("{\"~\":\"" + (contactMainTopic + deviceName) + "\"," +
+  addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/in/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " In\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
@@ -3504,7 +3524,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"pl_on\":\"ENTERED\"," +
                + "\"pl_off\":\"IDLE\"}").c_str(), true);
 
-  addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/out/config").c_str(), ("{\"~\":\"" + (contactMainTopic + deviceName) + "\"," +
+  addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/out/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " Out\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
@@ -3514,7 +3534,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"pl_on\":\"EXITED\"," +
                + "\"pl_off\":\"IDLE\"}").c_str(), true);
 
-  addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/button/config").c_str(), ("{\"~\":\"" + (contactMainTopic + deviceName) + "\"," +
+  addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/button/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
                + "\"name\":\"" + deviceName + " Button\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
@@ -3816,7 +3836,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
     void checkToContinueScan() {
       bool stopScan = false;
       if (client.isConnected()) {
-        if (((allContactSensors.size() + allMotionSensors.size() + allPlugs.size()) != 0) || alwaysActiveScan ) {
+        if (((allContactSensors.size() + allMotionSensors.size() + allPlugs.size() + allMeters.size()) != 0) || alwaysActiveScan ) {
           if (allSwitchbotsDev.size() == (allBots.size() + allCurtains.size() + allMeters.size() + allContactSensors.size() + allMotionSensors.size() + allPlugs.size())) {
             if (!initialScanComplete) {
               initialScanComplete = true;
@@ -3890,7 +3910,7 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
       printAString("Advertised Device found: ");
       printAString(advertisedDevice->toString().c_str());
       if (ledOnScan) {
-        digitalWrite(LED_PIN, ledONValue);
+        digitalWrite(LED_BUILTIN, ledONValue);
       }
       publishLastwillOnline();
       std::string advStr = advertisedDevice->getAddress().toString();
@@ -4105,7 +4125,7 @@ void initialScanEndedCB(NimBLEScanResults results) {
   delay(50);
   printAString("initialScanEndedCB");
   if (ledOnBootScan) {
-    digitalWrite(LED_PIN, ledOFFValue);
+    digitalWrite(LED_BUILTIN, ledOFFValue);
   }
   initialScanComplete = true;
   isRescanning = false;
@@ -4129,7 +4149,7 @@ void scanEndedCB(NimBLEScanResults results) {
   }
   pScan->setActiveScan(isActiveScan);
   if (ledOnScan || ledOnCommand) {
-    digitalWrite(LED_PIN, ledOFFValue);
+    digitalWrite(LED_BUILTIN, ledOFFValue);
   }
   allSwitchbotsScanned = {};
   delay(50);
@@ -4153,7 +4173,7 @@ void rescanEndedCB(NimBLEScanResults results) {
   }
   pScan->setActiveScan(isActiveScan);
   if (ledOnScan || ledOnCommand) {
-    digitalWrite(LED_PIN, ledOFFValue);
+    digitalWrite(LED_BUILTIN, ledOFFValue);
   }
   isRescanning = false;
   lastRescan = millis();
@@ -4176,7 +4196,7 @@ void scanForeverEnded(NimBLEScanResults results) {
   yield();
   pScan->setActiveScan(isActiveScan);
   if (ledOnScan || ledOnCommand) {
-    digitalWrite(LED_PIN, ledOFFValue);
+    digitalWrite(LED_BUILTIN, ledOFFValue);
   }
   isRescanning = false;
   allSwitchbotsScanned = {};
@@ -4243,7 +4263,7 @@ void setup () {
   }
 
   forceRescan = false;
-  pinMode (LED_PIN, OUTPUT);
+  pinMode (LED_BUILTIN, OUTPUT);
   Serial.begin(115200);
   // Connect to WiFi network
   WiFi.begin(ssid, password);
@@ -4530,7 +4550,7 @@ void rescan(int seconds) {
 
   delay(50);
   if (ledOnScan) {
-    digitalWrite(LED_PIN, ledONValue);
+    digitalWrite(LED_BUILTIN, ledONValue);
   }
   pScan->start(seconds, rescanEndedCB, true);
 }
@@ -4558,7 +4578,7 @@ void scanForever() {
   delay(50);
   pScan->setActiveScan(isActiveScan);
   if (ledOnScan) {
-    digitalWrite(LED_PIN, ledONValue);
+    digitalWrite(LED_BUILTIN, ledONValue);
   }
   pScan->start(0, scanForeverEnded, true);
 }
@@ -4601,7 +4621,7 @@ void rescanFind(std::string aMac) {
 
   delay(50);
   if (ledOnScan) {
-    digitalWrite(LED_PIN, ledONValue);
+    digitalWrite(LED_BUILTIN, ledONValue);
   }
   pScan->start(infoScanTime, scanEndedCB, true);
 }
@@ -4609,7 +4629,7 @@ void rescanFind(std::string aMac) {
 void getAllBotSettings() {
   if (client.isConnected() && initialScanComplete) {
     if (ledOnBootScan) {
-      digitalWrite(LED_PIN, ledONValue);
+      digitalWrite(LED_BUILTIN, ledONValue);
     }
 
     printAString("In all get bot settings...");
@@ -4657,7 +4677,7 @@ void getAllBotSettings() {
       itT++;
     }
     if (ledOnBootScan) {
-      digitalWrite(LED_PIN, ledOFFValue);
+      digitalWrite(LED_BUILTIN, ledOFFValue);
     }
     printAString("Added all get bot settings...");
   }
@@ -4724,7 +4744,7 @@ void loop () {
       }
     }
 
-    if (((allContactSensors.size() + allMotionSensors.size() + allPlugs.size()) != 0) || alwaysActiveScan) {
+    if (((allContactSensors.size() + allMotionSensors.size() + allPlugs.size() + allMeters.size()) != 0) || alwaysActiveScan) {
       if ((!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning)) {
         bool queueProcessed = false;
         queueProcessed = processQueue();
@@ -4740,7 +4760,7 @@ void loop () {
         bool queueProcessed = false;
         queueProcessed = processQueue();
         if (commandQueue.isEmpty() && queueProcessed && !waitForResponse && !processing && !(pScan->isScanning()) && !isRescanning) {
-          if (scanAfterControl || (!allMeters.empty()) || activeScanOnSchedule) {
+          if (scanAfterControl || activeScanOnSchedule) {
             recurringScan();
           }
         }
@@ -4970,48 +4990,41 @@ bool shouldMQTTUpdateForDevice(std::string & anAddr) {
 
 void recurringScan() {
   if ((millis() - lastScanCheck) >= 200) {
-    //recurringMeterScan();
-    if (!rescanTimes.empty()) {
-      std::string anAddr;
-      std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.begin();
-      while (itS != allSwitchbotsOpp.end())
-      {
-        anAddr = itS->first;
-        std::map<std::string, unsigned long>::iterator itR = rescanTimes.find(anAddr);
-        if (itR != rescanTimes.end())
-        {
-          bool shouldActiveScan = false;
-          shouldActiveScan = shouldActiveScanForDevice(anAddr);
-          if (shouldActiveScan) {
-            if (onlyPassiveScan && initialScanComplete) {
-              isActiveScan = false;
+    std::string anAddr;
+    std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.begin();
+    while (itS != allSwitchbotsOpp.end())
+    {
+      anAddr = itS->first;
+      bool shouldActiveScan = false;
+      shouldActiveScan = shouldActiveScanForDevice(anAddr);
+      if (shouldActiveScan) {
+        if (onlyPassiveScan && initialScanComplete) {
+          isActiveScan = false;
+        }
+        else {
+          isActiveScan = true;
+        }
+        pScan->setActiveScan(isActiveScan);
+        if (!processing && !(pScan->isScanning()) && !isRescanning) {
+          rescanFind(anAddr);
+          delay(100);
+          std::map<std::string, unsigned long>::iterator itR = rescanTimes.find(anAddr);
+          if (itR != rescanTimes.end())
+          {
+            std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(anAddr);
+            std::string deviceName = itS->second.c_str();
+            if (isCurtainDevice(deviceName)) {
+              if ((millis() - (itR->second) ) > (defaultCurtainScanAfterControlSecs * 1000)) {
+                rescanTimes.erase(anAddr);
+              }
             }
             else {
-              isActiveScan = true;
-            }
-            pScan->setActiveScan(isActiveScan);
-            if (!processing && !(pScan->isScanning()) && !isRescanning) {
-              rescanFind(anAddr);
-              delay(100);
-              std::map<std::string, unsigned long>::iterator itR = rescanTimes.find(anAddr);
-              if (itR != rescanTimes.end())
-              {
-                std::map<std::string, std::string>::iterator itS = allSwitchbotsOpp.find(anAddr);
-                std::string deviceName = itS->second.c_str();
-                if (isCurtainDevice(deviceName)) {
-                  if ((millis() - (itR->second) ) > (defaultCurtainScanAfterControlSecs * 1000)) {
-                    rescanTimes.erase(anAddr);
-                  }
-                }
-                else {
-                  rescanTimes.erase(anAddr);
-                }
-              }
+              rescanTimes.erase(anAddr);
             }
           }
         }
-        itS++;
       }
+      itS++;
     }
     lastScanCheck = millis();
   }
@@ -5055,7 +5068,7 @@ bool processRequest(std::string macAdd, std::string aName, const char * command,
         }
       }
       if (ledOnScan) {
-        digitalWrite(LED_PIN, ledONValue);
+        digitalWrite(LED_BUILTIN, ledONValue);
       }
       overrideScan = true;
       rescanFind(macAdd);
@@ -5174,7 +5187,7 @@ bool processQueue() {
   if (!commandQueue.isEmpty()) {
     bool disconnectAfter = true;
     if (ledOnCommand) {
-      digitalWrite(LED_PIN, ledONValue);
+      digitalWrite(LED_BUILTIN, ledONValue);
     }
     if (!waitForResponse) {
       bool requeue = false;
@@ -5261,7 +5274,7 @@ bool processQueue() {
             }
             if (!skipProcess) {
               if (ledOnCommand) {
-                digitalWrite(LED_PIN, ledONValue);
+                digitalWrite(LED_BUILTIN, ledONValue);
               }
               noResponse = true;
               bool shouldContinue = true;
@@ -5503,13 +5516,13 @@ bool processQueue() {
         }
         else if (aCommand.topic == ESPMQTTTopic + "/requestInfo") {
           if (ledOnCommand) {
-            digitalWrite(LED_PIN, ledONValue);
+            digitalWrite(LED_BUILTIN, ledONValue);
           }
           requestInfoMQTT(aCommand.payload);
         }
         else if (aCommand.topic == ESPMQTTTopic + "/rescan") {
           if (ledOnCommand) {
-            digitalWrite(LED_PIN, ledONValue);
+            digitalWrite(LED_BUILTIN, ledONValue);
           }
           rescanMQTT(aCommand.payload);
         }
@@ -5550,7 +5563,7 @@ bool processQueue() {
     client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"idle\"}");
   }
   if (ledOnCommand) {
-    digitalWrite(LED_PIN, ledOFFValue);
+    digitalWrite(LED_BUILTIN, ledOFFValue);
   }
   processing = false;
   return true;
@@ -6028,7 +6041,7 @@ void onConnectionEstablished() {
     if (!deviceHasBooted) {
       deviceHasBooted = true;
       if (ledOnBootScan) {
-        digitalWrite(LED_PIN, ledONValue);
+        digitalWrite(LED_BUILTIN, ledONValue);
       }
       client.publish(ESPMQTTTopic.c_str(), "{\"status\":\"boot\"}");
       client.publish((esp32Topic + "/firmware").c_str(), versionNum, true);
