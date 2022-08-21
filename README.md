@@ -326,11 +326,12 @@ Notes:
 1. Install Arduino IDE
 2. Setup IDE for proper ESP32 type
      https://randomnerdtutorials.com/installing-the-esp32-board-in-arduino-ide-windows-instructions/
-3. Install NimBLEDevice library
-4. Install EspMQTTClient library
-5. Install ArduinoJson library
-6. Install CRC32 library (by Christopher Baker)
-7. Install ArduinoQueue library
+     (Tested working with version 1.0.6 of the ESP32 Core Arduino Library)
+3. Install **NimBLE-Arduino** library (Tested working with version 1.4.0)
+4. Install **EspMQTTClient** library (Tested working with version 1.13.3)
+5. Install **ArduinoJson** library (Tested working with version 6.19.4)
+6. Install **CRC32** library (by Christopher Baker) (Tested working with version 2.0.0)
+7. Install **ArduinoQueue** library (Tested working with version 1.2.5)
 8. Modify code for your Wifi and MQTT configurations and SwitchBot MAC addresses
 
 	Configurations to change can be found in the code under these line...
