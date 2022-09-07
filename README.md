@@ -445,6 +445,11 @@ by BangerTech (Language German. based on v6.1. OpenHab)
 * QuinLED-ESP32-AE
 * Heltec WiFi Kit 32
 
+**ESP32 models/boards that the community has confirmed as working**
+* ESP32-WROOM-32
+  * AZ-Delivery ESP32 Dev KitC v2 - SwitchBot-MQTT-BLE-ESP32 version 6.12
+  * AZ-Delivery ESP32 Dev KitC v4 - SwitchBot-MQTT-BLE-ESP32 version 6.12
+
 **ESP32 models that may not work**
 * ESP32-S2 = No Bluetooth so definitely won't work
 * ESP32-C3 = Less RAM/ROM that the WROOM models
