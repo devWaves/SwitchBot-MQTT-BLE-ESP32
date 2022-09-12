@@ -476,6 +476,9 @@ static const std::string home_assistant_mqtt_prefix = "homeassistant";     // MQ
 static const bool home_assistant_expose_seperate_curtain_position = true;  // When enabled, a seperate sensor will be added that will expose the curtain position. This is useful when using the Prometheus integration to graph curtain positions. The cover entity doesn't expose the position for Prometheus
 static const bool home_assistant_use_opt_mode = false;                     // For bots in switch mode assume on/off right away. Optimistic mode. (Icon will change in HA). If devices were already configured in HA, you need to delete them and reboot esp32
 
+/* ESP32 General Settings */
+static const int includeSensorRecentFailures = true;                       // Include an MQTT sensor counting recent commands sent without a receiving a valid response
+
 /* Switchbot General Settings */
 static const int tryConnecting = 60;                         // How many times to try connecting to bot
 static const int trySending = 30;                            // How many times to try sending command to bot
@@ -3165,6 +3168,16 @@ void publishHomeAssistantDiscoveryESPConfig() {
                + "\"uniq_id\":\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "_firmware\"," +
                + "\"icon\":\"mdi:cog\"," +
                + "\"stat_t\":\"~/firmware\"}").c_str(), true);
+
+  if (includeSensorRecentFailures) {
+    addToPublish((home_assistant_mqtt_prefix + "/sensor/" + host + "/recentFailures/config").c_str(), ("{\"~\":\"" + esp32Topic + "\"," +
+                 + "\"name\":\"" + host + " Recent Failures\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + "ESP32" + "\",\"name\": \"" + host + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "_recentfailures\"," +
+                 + "\"icon\":\"mdi:alert\"," +
+                 + "\"stat_t\":\"~/recentFailures\"}").c_str(), true);
+  }
 }
 
 
@@ -5352,6 +5365,14 @@ bool processQueue() {
                 if (isNum && !lastCommandWasBusy) {
                   getSettingsAfter = true;
                 }
+                if (includeSensorRecentFailures) {
+                  if (noResponse) {
+                    int recentFailures = aCommand.currentTry;
+                    addToPublish((esp32Topic + "/recentFailures").c_str(), recentFailures, true);
+                  } else {
+                    addToPublish((esp32Topic + "/recentFailures").c_str(), "0", true);
+                  }
+                }
                 if (lastCommandWasBusy && retryBotOnBusy) {
                   requeue = true;
                   botsToWaitFor[aCommand.device] = true;
@@ -6122,6 +6143,9 @@ void onConnectionEstablished() {
       }
     }
     addToPublish(lastWill, "online", true);
+    if (includeSensorRecentFailures) {
+      addToPublish((esp32Topic + "/recentFailures").c_str(), "0", true);
+    }
 
     it = allCurtains.begin();
     while (it != allCurtains.end())
