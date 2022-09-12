@@ -448,6 +448,12 @@ static std::map<std::string, std::string> allBotTypes = {     // OPTIONAL - (DEF
             /*{ "switchbotone", 15 },
               { "switchbottwo", 1}*/
           };
+
+          //Add bots to be controlled using ESP32 BOOT button
+          static std::map<std::string, bool> botsControlledByESPButton = {
+            /*{ "switchbotone", true },
+              { "switchbottwo", true}*/
+          };
 /********************************************/
 
 
@@ -460,6 +466,7 @@ static std::map<std::string, std::string> allBotTypes = {     // OPTIONAL - (DEF
 	#define LED_BUILTIN 2                            // If your board doesn't have a defined LED_BUILTIN, replace 2 with the LED pin value
 #endif
 static const bool ledHighEqualsON = true;            // ESP32 board LED ON=HIGH (Default). If your ESP32 LED is turning OFF on scanning and turning ON while IDLE, then set this value to false
+static const bool ledOnESPButtonPress = true;              // Turn on LED during initial boot scan
 static const bool ledOnBootScan = true;              // Turn on LED during initial boot scan
 static const bool ledOnScan = true;                  // Turn on LED while scanning (non-boot)
 static const bool ledOnCommand = true;               // Turn on LED while MQTT command is processing. If scanning, LED will blink after scan completes. You may not notice it, there is no delay after scan
@@ -773,6 +780,7 @@ static std::map<std::string, std::string> deviceTypes;
 static NimBLEScan* pScan;
 static bool isRescanning = false;
 static bool processing = false;
+static bool espButtonPressed = false;
 static bool initialScanComplete = false;
 static bool lastCommandWasBusy = false;
 static bool deviceHasBooted = false;
@@ -4683,6 +4691,70 @@ void getAllBotSettings() {
   }
 }
 
+void pushBotButtons() {
+  if (espButtonPressed) {
+    return;
+  }
+  espButtonPressed = true;
+  if (printSerialOutputForDebugging) {
+    Serial.println("START pushBotButtons");
+  }
+  if (ledOnESPButtonPress) {
+    digitalWrite(LED_BUILTIN, ledONValue);
+  }
+  if (client.isConnected() && initialScanComplete) {
+    std::map<std::string, bool>::iterator itT = botsControlledByESPButton.begin();
+    std::string aDevice;
+    while (itT != botsControlledByESPButton.end())
+    {
+      processing = true;
+      aDevice = itT->first;
+      std::replace( aDevice.begin(), aDevice.end(), ' ', '_');
+      bool shouldCtrl = itT->second;
+      std::map<std::string, std::string>::iterator itN = allBots.find(aDevice);
+      if (shouldCtrl && itN != allBots.end()) {
+        std::string anAddr = itN->second;
+        std::map<std::string, bool>::iterator itP = botsInPressMode.find(anAddr);
+        if (itP != botsInPressMode.end()) {
+          std::map<std::string, bool>::iterator itE = botsSimulateONOFFinPRESSmode.find(aDevice);
+          std::string cmdPayload = "PRESS";
+          if (itE != botsSimulateONOFFinPRESSmode.end()) {
+            std::map<std::string, bool>::iterator itF = botsSimulatedStates.find(aDevice);
+            if (itF != botsSimulatedStates.end())
+            {
+              bool boolState = itF->second;
+              if (boolState) {
+                cmdPayload = "OFF";
+              }
+              else if (!boolState) {
+                cmdPayload = "ON";
+              }
+            }
+          }
+          struct QueueCommand queueCommand;
+          queueCommand.payload = cmdPayload;
+          queueCommand.topic = ESPMQTTTopic + "/control";
+          queueCommand.device = aDevice;
+          queueCommand.disconnectAfter = true;
+          queueCommand.priority = false;
+          queueCommand.currentTry = 1;
+          commandQueue.enqueue(queueCommand);
+        }
+      }
+      processing = false;
+      itT++;
+    }
+  }
+  delay(500);
+  if (ledOnESPButtonPress) {
+    digitalWrite(LED_BUILTIN, ledOFFValue);
+  }
+  if (printSerialOutputForDebugging) {
+    Serial.println("END pushBotButtons");
+  }
+  espButtonPressed = false;
+}
+
 unsigned long retainStartTime = 0;
 bool waitForRetained = true;
 unsigned long lastWebServerReboot = 0;
@@ -4737,6 +4809,9 @@ void loop () {
   if (initialScanComplete && client.isConnected() && !manualDebugStartESP32WithMQTT) {
     if (isRescanning) {
       lastRescan = millis();
+    }
+    if (!processing && !espButtonPressed && digitalRead(0) == LOW) {
+      pushBotButtons();
     }
     if ((!waitForResponse) && (!processing) && (!(pScan->isScanning())) && (!isRescanning)) {
       if (getSettingsOnBoot && !gotSettings ) {
