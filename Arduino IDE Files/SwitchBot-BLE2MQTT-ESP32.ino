@@ -478,6 +478,8 @@ static const bool home_assistant_use_opt_mode = false;                     // Fo
 
 /* ESP32 General Settings */
 static const int includeSensorRecentFailures = true;                       // Include an MQTT sensor counting recent commands sent without a receiving a valid response
+static const int includeSensorSystemInfo = true;                           // Include an MQTT sensor for General ESP32 status updates (System Uptime etc)
+static const int systemInfoTime = 60;                                      // How often to publish General ESP32 status updates (System Uptime etc)
 
 /* Switchbot General Settings */
 static const int tryConnecting = 60;                         // How many times to try connecting to bot
@@ -2447,6 +2449,7 @@ void processMeterRSSI(std::string & aDevice, std::string & deviceMac, long anRSS
 }
 
 static unsigned long lastOnlinePublished = 0;
+static unsigned long lastSystemInfoPoll = 0;
 static unsigned long lastRescan = 0;
 static unsigned long lastScanCheck = 0;
 static bool noResponse = false;
@@ -3177,6 +3180,16 @@ void publishHomeAssistantDiscoveryESPConfig() {
                  + "\"uniq_id\":\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "_recentfailures\"," +
                  + "\"icon\":\"mdi:alert\"," +
                  + "\"stat_t\":\"~/recentFailures\"}").c_str(), true);
+  }
+  if (includeSensorSystemInfo) {
+    addToPublish((home_assistant_mqtt_prefix + "/sensor/" + host + "/systemUptime/config").c_str(), ("{\"~\":\"" + esp32Topic + "\"," +
+                 + "\"name\":\"" + host + " System Uptime\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + "ESP32" + "\",\"name\": \"" + host + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "_systemuptime\"," +
+                 + "\"icon\":\"mdi:flash\"," +
+                 + "\"stat_t\":\"~/systemUptime\"," +
+                 + "\"unit_of_meas\": \"hours\"}").c_str(), true);
   }
 }
 
@@ -4748,6 +4761,9 @@ void loop () {
   }
 
   if (initialScanComplete && client.isConnected() && !manualDebugStartESP32WithMQTT) {
+    if (includeSensorSystemInfo) {
+      deviceInfoPolling();
+    }
     if (isRescanning) {
       lastRescan = millis();
     }
@@ -4786,6 +4802,14 @@ void loop () {
     }
   }
   //printAString("END loop...");
+}
+
+void deviceInfoPolling() {
+  if (lastSystemInfoPoll == 0 || ((millis() - lastSystemInfoPoll) >= (systemInfoTime * 1000))) {
+    lastSystemInfoPoll = millis();
+    float uptime_hours = ((((int)millis() / 1000) / 60.0) / 60.0);
+    addToPublish((esp32Topic + "/systemUptime").c_str(), String(uptime_hours).c_str(), true);
+  }
 }
 
 void recurringRescan() {
@@ -6145,6 +6169,9 @@ void onConnectionEstablished() {
     addToPublish(lastWill, "online", true);
     if (includeSensorRecentFailures) {
       addToPublish((esp32Topic + "/recentFailures").c_str(), "0", true);
+    }
+    if (includeSensorSystemInfo) {
+      addToPublish((esp32Topic + "/systemUptime").c_str(), "0.00", true);
     }
 
     it = allCurtains.begin();
