@@ -480,7 +480,7 @@ static const bool home_assistant_use_opt_mode = false;                     // Fo
 static const int includeSensorRecentFailures = true;                       // Include an MQTT sensor counting recent commands sent without a receiving a valid response
 static const int includeSensorSystemInfo = true;                           // Include an MQTT sensor for General ESP32 status updates (System Uptime etc)
 static const int systemInfoTime = 60;                                      // How often to publish General ESP32 status updates (System Uptime etc)
-static const int includeInfoBtMAC = true;                                  // Include the device bluetooth MAC in system info attributes
+static const int includeInfoBtMAC = false;                                  // Include the device bluetooth MAC in system info attributes
 
 /* Switchbot General Settings */
 static const int tryConnecting = 60;                         // How many times to try connecting to bot
