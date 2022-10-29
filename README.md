@@ -441,9 +441,10 @@ by BangerTech (Language German. based on v6.1. OpenHab)
 
 **ESP32 models that I can confirm work**
 * Wemos D1 Mini ESP32
-* ESP32-WROOM-32U
-* ESP32-WROOM-32
+* ESP32-WROOM-32U (With external antenna)
+* ESP32-WROOM-32  (With internal antenna)
 * QuinLED-ESP32-AE
+* QuinLED-ESP32-AB 
 * Heltec WiFi Kit 32
 
 **ESP32 models/boards that the community has confirmed as working**
