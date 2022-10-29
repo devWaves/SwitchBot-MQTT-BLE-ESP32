@@ -442,8 +442,13 @@ by BangerTech (Language German. based on v6.1. OpenHab)
 **ESP32 models that I can confirm work**
 * Wemos D1 Mini ESP32
 * ESP32-WROOM-32U
+* ESP32-WROOM-32
 * QuinLED-ESP32-AE
 * Heltec WiFi Kit 32
+
+**ESP32 models/boards that the community has confirmed as working**
+* AZ-Delivery ESP32 Dev KitC v2
+* AZ-Delivery ESP32 Dev KitC v4
 
 **ESP32 models that may not work**
 * ESP32-S2 = No Bluetooth so definitely won't work
