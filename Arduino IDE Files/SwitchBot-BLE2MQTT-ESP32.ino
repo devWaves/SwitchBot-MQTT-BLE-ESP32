@@ -476,6 +476,12 @@ static const std::string home_assistant_mqtt_prefix = "homeassistant";     // MQ
 static const bool home_assistant_expose_seperate_curtain_position = true;  // When enabled, a seperate sensor will be added that will expose the curtain position. This is useful when using the Prometheus integration to graph curtain positions. The cover entity doesn't expose the position for Prometheus
 static const bool home_assistant_use_opt_mode = false;                     // For bots in switch mode assume on/off right away. Optimistic mode. (Icon will change in HA). If devices were already configured in HA, you need to delete them and reboot esp32
 
+/* ESP32 General Settings */
+static const int includeSensorRecentFailures = true;                       // Include an MQTT sensor counting recent commands sent without a receiving a valid response
+static const int includeSensorSystemInfo = true;                           // Include an MQTT sensor for General ESP32 status updates (System Uptime etc)
+static const int systemInfoTime = 60;                                      // How often to publish General ESP32 status updates (System Uptime etc)
+static const int includeInfoBtMAC = false;                                  // Include the device bluetooth MAC in system info attributes
+
 /* Switchbot General Settings */
 static const int tryConnecting = 60;                         // How many times to try connecting to bot
 static const int trySending = 30;                            // How many times to try sending command to bot
@@ -771,6 +777,7 @@ static std::map<std::string, bool> botInverteds = {};
 static std::map<std::string, unsigned long> lastCommandSent = {};
 static std::map<std::string, std::string> deviceTypes;
 static NimBLEScan* pScan;
+static std::string bluetooth_mac_address = "";
 static bool isRescanning = false;
 static bool processing = false;
 static bool initialScanComplete = false;
@@ -2444,6 +2451,7 @@ void processMeterRSSI(std::string & aDevice, std::string & deviceMac, long anRSS
 }
 
 static unsigned long lastOnlinePublished = 0;
+static unsigned long lastSystemInfoPoll = 0;
 static unsigned long lastRescan = 0;
 static unsigned long lastScanCheck = 0;
 static bool noResponse = false;
@@ -3165,6 +3173,27 @@ void publishHomeAssistantDiscoveryESPConfig() {
                + "\"uniq_id\":\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "_firmware\"," +
                + "\"icon\":\"mdi:cog\"," +
                + "\"stat_t\":\"~/firmware\"}").c_str(), true);
+
+  if (includeSensorRecentFailures) {
+    addToPublish((home_assistant_mqtt_prefix + "/sensor/" + host + "/recentFailures/config").c_str(), ("{\"~\":\"" + esp32Topic + "\"," +
+                 + "\"name\":\"" + host + " Recent Failures\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + "ESP32" + "\",\"name\": \"" + host + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "_recentfailures\"," +
+                 + "\"icon\":\"mdi:alert\"," +
+                 + "\"stat_t\":\"~/recentFailures\"}").c_str(), true);
+  }
+  if (includeSensorSystemInfo) {
+    addToPublish((home_assistant_mqtt_prefix + "/sensor/" + host + "/systemUptime/config").c_str(), ("{\"~\":\"" + esp32Topic + "\"," +
+                 + "\"name\":\"" + host + " System Uptime\"," +
+                 + "\"device\": {\"identifiers\":[\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + "ESP32" + "\",\"name\": \"" + host + "\" }," +
+                 + "\"avty_t\": \"" + lastWill + "\"," +
+                 + "\"uniq_id\":\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "_systemuptime\"," +
+                 + "\"icon\":\"mdi:flash\"," +
+                 + "\"stat_t\":\"~/systemUptime/state\"," +
+                 + "\"json_attr_t\":\"~/systemUptime/json_attr\"," +
+                 + "\"unit_of_meas\": \"hours\"}").c_str(), true);
+  }
 }
 
 
@@ -4360,6 +4389,8 @@ void setup () {
   static std::map<std::string, int> botsSimulatedONHoldTimesTemp = {};
   NimBLEDevice::init("");
 
+  bluetooth_mac_address = NimBLEDevice::getAddress().toString();
+
   std::map<std::string, std::string>::iterator it = allBots.begin();
   std::string anAddr;
   std::string aName;
@@ -4735,6 +4766,9 @@ void loop () {
   }
 
   if (initialScanComplete && client.isConnected() && !manualDebugStartESP32WithMQTT) {
+    if (includeSensorSystemInfo) {
+      deviceInfoPolling();
+    }
     if (isRescanning) {
       lastRescan = millis();
     }
@@ -4773,6 +4807,23 @@ void loop () {
     }
   }
   //printAString("END loop...");
+}
+
+void deviceInfoPolling() {
+  if (lastSystemInfoPoll == 0 || ((millis() - lastSystemInfoPoll) >= (systemInfoTime * 1000))) {
+    lastSystemInfoPoll = millis();
+
+    float uptime_hours = ((((int)millis() / 1000) / 60.0) / 60.0);
+    addToPublish((esp32Topic + "/systemUptime/state").c_str(), String(uptime_hours).c_str(), true);
+
+    if (includeInfoBtMAC) {
+      StaticJsonDocument<100> doc;
+      char aBuffer[100];
+      doc["bluetooth_mac_address"] = bluetooth_mac_address;
+      serializeJson(doc, aBuffer);
+      addToPublish((esp32Topic + "/systemUptime/json_attr").c_str(), aBuffer, true);
+    }
+  }
 }
 
 void recurringRescan() {
@@ -5351,6 +5402,14 @@ bool processQueue() {
 
                 if (isNum && !lastCommandWasBusy) {
                   getSettingsAfter = true;
+                }
+                if (includeSensorRecentFailures) {
+                  if (noResponse) {
+                    int recentFailures = aCommand.currentTry;
+                    addToPublish((esp32Topic + "/recentFailures").c_str(), recentFailures, true);
+                  } else {
+                    addToPublish((esp32Topic + "/recentFailures").c_str(), "0", true);
+                  }
                 }
                 if (lastCommandWasBusy && retryBotOnBusy) {
                   requeue = true;
@@ -6122,6 +6181,12 @@ void onConnectionEstablished() {
       }
     }
     addToPublish(lastWill, "online", true);
+    if (includeSensorRecentFailures) {
+      addToPublish((esp32Topic + "/recentFailures").c_str(), "0", true);
+    }
+    if (includeSensorSystemInfo) {
+      addToPublish((esp32Topic + "/systemUptime").c_str(), "0.00", true);
+    }
 
     it = allCurtains.begin();
     while (it != allCurtains.end())
