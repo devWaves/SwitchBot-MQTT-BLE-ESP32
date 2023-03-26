@@ -5800,6 +5800,16 @@ bool controlMQTT(std::string & device, std::string payload, bool disconnectAfter
 
 
     String tempPayload = payload.c_str();
+	  
+    //payload might be JSON. Convert to valid payload
+    StaticJsonDocument<200> doc;
+    DeserializationError payloadError = deserializeJson(doc, tempPayload);
+    if (!payloadError) {
+      if (doc.containsKey("position")) {
+        tempPayload=doc["position"].as<String>();
+      }      
+    }
+	  
     int dotIndex = tempPayload.indexOf(".");
     if (dotIndex >= 0) {
       tempPayload.remove(dotIndex, tempPayload.length() - 1);
