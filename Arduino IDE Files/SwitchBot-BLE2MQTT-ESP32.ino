@@ -11,14 +11,16 @@
      ** I do not know where performance will be affected by number of devices **
      ** This is an unofficial SwitchBot integration. User takes full responsibility with the use of this code **
 
-  v7.1
+  v7.1.5
 
-    Created: on Aug 17 2022
+    Updated: on Dec 13 2023
         Author: devWaves
 
         Contributions from:
                 HardcoreWR
                 vin-w
+		iz8mbw
+  		newsguytor
 
   based off of the work from https://github.com/combatistor/ESP32_BLE_Gateway
 
