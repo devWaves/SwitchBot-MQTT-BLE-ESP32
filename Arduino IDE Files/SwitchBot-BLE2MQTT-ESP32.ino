@@ -3150,19 +3150,19 @@ void publishLastwillOnline() {
 void publishHomeAssistantDiscoveryESPConfig() {
   String wifiMAC = String(WiFi.macAddress());
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + host + "/linkquality/config").c_str(), ("{\"~\":\"" + esp32Topic + "\"," +
-               + "\"name\":\"" + host + " Linkquality\"," +
+               + "\"name\":\"Linkquality\"," +
                + "\"device\": {\"identifiers\":[\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + "ESP32" + "\",\"name\": \"" + host + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
-               + "\"uniq_id\":\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "_linkquality\"," +
+               + "\"uniq_id\":\"switchbotesp_" + wifiMAC.c_str() + "_linkquality\"," +
                + "\"stat_t\":\"~/rssi\"," +
                + "\"icon\":\"mdi:signal\"," +
                + "\"unit_of_meas\": \"rssi\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + host + "/firmware/config").c_str(), ("{\"~\":\"" + esp32Topic + "\"," +
-               + "\"name\":\"" + host + " Firmware\"," +
+               + "\"name\":\"Firmware\"," +
                + "\"device\": {\"identifiers\":[\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + "ESP32" + "\",\"name\": \"" + host + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
-               + "\"uniq_id\":\"switchbotesp_" + host + "_" + wifiMAC.c_str() + "_firmware\"," +
+               + "\"uniq_id\":\"switchbotesp_" + wifiMAC.c_str() + "_firmware\"," +
                + "\"icon\":\"mdi:cog\"," +
                + "\"stat_t\":\"~/firmware\"}").c_str(), true);
 }
@@ -3172,7 +3172,7 @@ void publishHomeAssistantDiscoveryPlugConfig(std::string & deviceName, std::stri
   std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (plugTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Linkquality\"," +
+               + "\"name\":\"" + " Humidity\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + plugModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
@@ -3189,7 +3189,7 @@ void publishHomeAssistantDiscoveryPlugConfig(std::string & deviceName, std::stri
   }
 
   addToPublish((home_assistant_mqtt_prefix + "/switch/" + deviceName + "/config").c_str(), ("{\"~\":\"" + (plugTopic + deviceName) + "\", " +
-               + "\"name\":\"" + deviceName + " Switch\"," +
+               + "\"name\":\"" + " Switch\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + plugModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
@@ -3198,7 +3198,7 @@ void publishHomeAssistantDiscoveryPlugConfig(std::string & deviceName, std::stri
                + "\"cmd_t\": \"~/set\" }").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/energy/config").c_str(), ("{\"~\":\"" + (plugTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Energy\"," +
+               + "\"name\":\"" + " Energy\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + plugModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_energy\"," +
@@ -3208,7 +3208,7 @@ void publishHomeAssistantDiscoveryPlugConfig(std::string & deviceName, std::stri
                + "\"stat_t\":\"~/energy\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/overload/config").c_str(), ("{\"~\":\"" + (plugTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Overload\"," +
+               + "\"name\":\"" + " Overload\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + plugModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_overload\"," +
@@ -3223,7 +3223,7 @@ void publishHomeAssistantDiscoveryPlugConfig(std::string & deviceName, std::stri
 void publishHomeAssistantDiscoveryBotConfig(std::string & deviceName, std::string deviceMac, bool optimistic) {
   std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/battery/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Battery\"," +
+               + "\"name\":\"" + " Battery\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
@@ -3232,7 +3232,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string & deviceName, std::strin
                + "\"stat_t\":\"~/battery\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Linkquality\"," +
+               + "\"name\":\"" + " Linkquality\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
@@ -3241,7 +3241,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string & deviceName, std::strin
                + "\"stat_t\":\"~/rssi\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/inverted/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Inverted\"," +
+               + "\"name\":\"" + " Inverted\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "inverted\"," +
@@ -3252,7 +3252,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string & deviceName, std::strin
                + "\"value_template\":\"{{ value_json.inverted }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/mode/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Mode\"," +
+               + "\"name\":\"" + " Mode\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_mode\"," +
@@ -3261,7 +3261,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string & deviceName, std::strin
                + "\"value_template\":\"{{ value_json.mode }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/firmware/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Firmware\"," +
+               + "\"name\":\"" + " Firmware\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_firmware\"," +
@@ -3270,7 +3270,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string & deviceName, std::strin
                + "\"value_template\":\"{{ value_json.firmware }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/holdsecs/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " HoldSecs\"," +
+               + "\"name\":\"" + " HoldSecs\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_holdsecs\"," +
@@ -3279,7 +3279,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string & deviceName, std::strin
                + "\"value_template\":\"{{ value_json.hold }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/timers/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Timers\"," +
+               + "\"name\":\"" + " Timers\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_timers\"," +
@@ -3311,7 +3311,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string & deviceName, std::strin
 
   if (strcmp(aType.c_str(), "light") == 0) {
     addToPublish((home_assistant_mqtt_prefix + "/light/" + deviceName + "/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\", " +
-                 + "\"name\":\"" + deviceName + " Light\"," +
+                 + "\"name\":\"" + " Light\"," +
                  + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                  + "\"avty_t\": \"" + lastWill + "\"," +
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
@@ -3321,7 +3321,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string & deviceName, std::strin
   }
   else if (strcmp(aType.c_str(), "button") == 0) {
     addToPublish((home_assistant_mqtt_prefix + "/button/" + deviceName + "/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\", " +
-                 + "\"name\":\"" + deviceName + " Button\"," +
+                 + "\"name\":\"" + " Button\"," +
                  + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                  + "\"avty_t\": \"" + lastWill + "\"," +
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
@@ -3329,7 +3329,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string & deviceName, std::strin
   }
   else {
     addToPublish((home_assistant_mqtt_prefix + "/switch/" + deviceName + "/config").c_str(), ("{\"~\":\"" + (botTopic + deviceName) + "\", " +
-                 + "\"name\":\"" + deviceName + " Switch\"," +
+                 + "\"name\":\"" + " Switch\"," +
                  + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + botModel + "\",\"name\": \"" + deviceName + "\" }," +
                  + "\"avty_t\": \"" + lastWill + "\"," +
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
@@ -3342,7 +3342,7 @@ void publishHomeAssistantDiscoveryBotConfig(std::string & deviceName, std::strin
 void publishHomeAssistantDiscoveryCurtainConfig(std::string & deviceName, std::string deviceMac) {
   std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/battery/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Battery\"," +
+               + "\"name\":\"" + " Battery\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
@@ -3351,7 +3351,7 @@ void publishHomeAssistantDiscoveryCurtainConfig(std::string & deviceName, std::s
                + "\"stat_t\":\"~/battery\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Linkquality\"," +
+               + "\"name\":\"" + " Linkquality\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
@@ -3360,7 +3360,7 @@ void publishHomeAssistantDiscoveryCurtainConfig(std::string & deviceName, std::s
                + "\"stat_t\":\"~/rssi\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/illuminance/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Illuminance\"," +
+               + "\"name\":\"" + " Illuminance\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_illuminance\"," +
@@ -3370,7 +3370,7 @@ void publishHomeAssistantDiscoveryCurtainConfig(std::string & deviceName, std::s
                + "\"value_template\":\"{{ value_json.light }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/calibrated/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Calibrated\"," +
+               + "\"name\":\"" + " Calibrated\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_calibrated\"," +
@@ -3381,7 +3381,7 @@ void publishHomeAssistantDiscoveryCurtainConfig(std::string & deviceName, std::s
                + "\"value_template\":\"{{ value_json.calib }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/cover/" + deviceName + "/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\", " +
-               + "\"name\":\"" + deviceName + " Curtain\"," +
+               + "\"name\":\"" + " Curtain\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWill + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "\", " +
@@ -3400,7 +3400,7 @@ void publishHomeAssistantDiscoveryCurtainConfig(std::string & deviceName, std::s
                + "\"set_pos_tpl\": \"{{ position }}\" }").c_str(), true);
   if (home_assistant_expose_seperate_curtain_position) {
     addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/position/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
-                 + "\"name\":\"" + deviceName + " Position\"," +
+                 + "\"name\":\"" + " Position\"," +
                  + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + curtainModel + "\",\"name\": \"" + deviceName + "\" }," +
                  + "\"avty_t\": \"" + lastWill + "\"," +
                  + "\"uniq_id\":\"switchbot_" + deviceMac + "_position\"," +
@@ -3420,7 +3420,7 @@ void publishHomeAssistantDiscoveryMeterConfig(std::string & deviceName, std::str
 
   std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/battery/config").c_str(), ("{\"~\":\"" + (meterTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Battery\"," +
+               + "\"name\":\"" + " Battery\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
@@ -3429,7 +3429,7 @@ void publishHomeAssistantDiscoveryMeterConfig(std::string & deviceName, std::str
                + "\"stat_t\":\"~/battery\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (meterTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Linkquality\"," +
+               + "\"name\":\"" + " Linkquality\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
@@ -3438,7 +3438,7 @@ void publishHomeAssistantDiscoveryMeterConfig(std::string & deviceName, std::str
                + "\"stat_t\":\"~/rssi\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/temperature/config").c_str(), ("{\"~\":\"" + (meterTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Temperature\"," +
+               + "\"name\":\"" + " Temperature\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_temperature\"," +
@@ -3448,7 +3448,7 @@ void publishHomeAssistantDiscoveryMeterConfig(std::string & deviceName, std::str
                + "\"value_template\":\"{{ value_json.C }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/humidity/config").c_str(), ("{\"~\":\"" + (meterTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Humidity\"," +
+               + "\"name\":\"" + " Humidity\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + meterModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_humidity\"," +
@@ -3469,7 +3469,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
 
   std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/battery/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Battery\"," +
+               + "\"name\":\"" + " Battery\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
@@ -3478,7 +3478,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"stat_t\":\"~/battery\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Linkquality\"," +
+               + "\"name\":\"" + " Linkquality\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
@@ -3487,7 +3487,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"stat_t\":\"~/rssi\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/contact/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Contact\"," +
+               + "\"name\":\"" + " Contact\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_contact\"," +
@@ -3495,7 +3495,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"stat_t\":\"~/contact\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/motion/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Motion\"," +
+               + "\"name\":\"" + " Motion\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_motion\"," +
@@ -3505,7 +3505,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"pl_off\":\"NO MOTION\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/bincontact/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " BinaryContact\"," +
+               + "\"name\":\"" + " BinaryContact\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_bincontact\"," +
@@ -3515,7 +3515,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"pl_off\":\"CLOSED\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/in/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " In\"," +
+               + "\"name\":\"" + " In\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_in\"," +
@@ -3525,7 +3525,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"pl_off\":\"IDLE\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/out/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Out\"," +
+               + "\"name\":\"" + " Out\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_out\"," +
@@ -3535,7 +3535,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"pl_off\":\"IDLE\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/button/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Button\"," +
+               + "\"name\":\"" + " Button\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_button\"," +
@@ -3545,7 +3545,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"pl_off\":\"IDLE\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/illuminance/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Illuminance\"," +
+               + "\"name\":\"" + " Illuminance\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "__illuminance\"," +
@@ -3555,7 +3555,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"pl_off\":\"DARK\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/lastmotion/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " LastMotion\"," +
+               + "\"name\":\"" + " LastMotion\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastmotion\"," +
@@ -3564,7 +3564,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"value_template\":\"{{ now() - timedelta(seconds = (value | int)) }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/lastcontact/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " LastContact\"," +
+               + "\"name\":\"" + " LastContact\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastcontact\"," +
@@ -3573,7 +3573,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"value_template\":\"{{ now() - timedelta(seconds = (value | int)) }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/buttoncount/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " ButtonCount\"," +
+               + "\"name\":\"" + " ButtonCount\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_buttoncount\"," +
@@ -3581,7 +3581,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"stat_t\":\"~/buttoncount\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/incount/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " InCount\"," +
+               + "\"name\":\"" + " InCount\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_entrancecount\"," +
@@ -3589,7 +3589,7 @@ void publishHomeAssistantDiscoveryContactConfig(std::string & deviceName, std::s
                + "\"stat_t\":\"~/incount\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/outcount/config").c_str(), ("{\"~\":\"" + (contactTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " OutCount\"," +
+               + "\"name\":\"" + " OutCount\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + contactModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_outcount\"," +
@@ -3607,7 +3607,7 @@ void publishHomeAssistantDiscoveryMotionConfig(std::string & deviceName, std::st
 
   std::transform(deviceMac.begin(), deviceMac.end(), deviceMac.begin(), ::toupper);
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/battery/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Battery\"," +
+               + "\"name\":\"" + " Battery\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_battery\"," +
@@ -3616,7 +3616,7 @@ void publishHomeAssistantDiscoveryMotionConfig(std::string & deviceName, std::st
                + "\"stat_t\":\"~/battery\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/linkquality/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Linkquality\"," +
+               + "\"name\":\"" + " Linkquality\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_linkquality\"," +
@@ -3625,7 +3625,7 @@ void publishHomeAssistantDiscoveryMotionConfig(std::string & deviceName, std::st
                + "\"stat_t\":\"~/rssi\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/motion/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Motion\"," +
+               + "\"name\":\"" + " Motion\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_motion\"," +
@@ -3635,7 +3635,7 @@ void publishHomeAssistantDiscoveryMotionConfig(std::string & deviceName, std::st
                + "\"pl_off\":\"NO MOTION\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/illuminance/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " Illuminance\"," +
+               + "\"name\":\"" + " Illuminance\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_illuminance\"," +
@@ -3645,7 +3645,7 @@ void publishHomeAssistantDiscoveryMotionConfig(std::string & deviceName, std::st
                + "\"pl_off\":\"DARK\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/led/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " LED\"," +
+               + "\"name\":\"" + " LED\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_led\"," +
@@ -3655,7 +3655,7 @@ void publishHomeAssistantDiscoveryMotionConfig(std::string & deviceName, std::st
                + "\"stat_t\":\"~/led\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/lastmotion/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " LastMotion\"," +
+               + "\"name\":\"" + " LastMotion\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_lastmotion\"," +
@@ -3664,7 +3664,7 @@ void publishHomeAssistantDiscoveryMotionConfig(std::string & deviceName, std::st
                + "\"value_template\":\"{{ now() - timedelta(seconds = (value | int)) }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/sensor/" + deviceName + "/sensedistance/config").c_str(), ("{\"~\":\"" + (motionTopic + deviceName) + "\"," +
-               + "\"name\":\"" + deviceName + " SenseDistance\"," +
+               + "\"name\":\"" + " SenseDistance\"," +
                + "\"device\": {\"identifiers\":[\"switchbot_" + deviceMac + "\"],\"manufacturer\":\"" + manufacturer + "\",\"model\":\"" + motionModel + "\",\"name\": \"" + deviceName + "\" }," +
                + "\"avty_t\": \"" + lastWillToUse + "\"," +
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_sensedistance\"," +
