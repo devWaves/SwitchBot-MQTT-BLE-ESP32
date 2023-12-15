@@ -562,7 +562,7 @@ static std::map<std::string, int> botWaitBetweenControlTimes = {
 
 /* ANYTHING CHANGED BELOW THIS COMMENT MAY RESULT IN ISSUES - ALL SETTINGS TO CONFIGURE ARE ABOVE THIS LINE */
 
-static const String versionNum = "v7.1";
+static const String versionNum = "v7.1.5";
 
 /*
    Server Index Page
@@ -3368,7 +3368,7 @@ void publishHomeAssistantDiscoveryCurtainConfig(std::string & deviceName, std::s
                + "\"uniq_id\":\"switchbot_" + deviceMac + "_illuminance\"," +
                + "\"stat_t\":\"~/attributes\"," +
                + "\"dev_cla\":\"illuminance\"," +
-               + "\"unit_of_meas\": \"Level\", " +
+               + "\"unit_of_meas\": \"lx\", " +
                + "\"value_template\":\"{{ value_json.light }}\"}").c_str(), true);
 
   addToPublish((home_assistant_mqtt_prefix + "/binary_sensor/" + deviceName + "/calibrated/config").c_str(), ("{\"~\":\"" + (curtainTopic + deviceName) + "\"," +
